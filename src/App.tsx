@@ -884,7 +884,8 @@ export default function App() {
               <img
                 src={settings.appLogoUrl}
                 alt="Logo"
-                className="w-8 h-8 rounded-lg object-contain bg-white flex-shrink-0"
+                className="w-8 h-8 rounded-lg object-contain bg-white dark:bg-slate-900 border border-slate-700/50 flex-shrink-0"
+                style={{ imageRendering: 'auto' }}
               />
             ) : (
               <div
@@ -1031,7 +1032,8 @@ export default function App() {
               <img
                 src={settings.appLogoUrl}
                 alt="Logo"
-                className="w-8 h-8 rounded-lg border border-slate-200 object-contain dark:border-slate-800 hidden lg:block"
+                className="w-8 h-8 rounded-lg border border-slate-200 object-contain dark:border-slate-800 hidden lg:block bg-white dark:bg-slate-900"
+                style={{ imageRendering: 'auto' }}
               />
             )}
 
@@ -1345,14 +1347,102 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-slate-600 mb-1 dark:text-slate-450">ลิงก์ภาพ URL โลโก้แอป</label>
-                    <input
-                      type="text"
-                      placeholder="เช่น https://domain.com/my-logo.png"
-                      value={settings.appLogoUrl || ''}
-                      onChange={(e) => syncSettings({ ...settings, appLogoUrl: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
-                    />
+                    <label className="block text-slate-650 mb-1.5 dark:text-slate-450 font-bold">อัปโหลดรูปภาพโลโก้ หรือป้อนประเภทลิงก์ URL (Logo Image File / URL)</label>
+                    <div className="space-y-2">
+                      {/* Drag & Drop File Upload Field & Preview */}
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              if (event.target?.result) {
+                                syncSettings({ ...settings, appLogoUrl: event.target.result as string });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="border border-dashed border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 rounded-xl p-4 bg-slate-100/50 dark:bg-slate-950/25 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer relative"
+                        onClick={() => {
+                          const fileInput = document.getElementById('logo-file-input');
+                          if (fileInput) fileInput.click();
+                        }}
+                      >
+                        <input
+                          id="logo-file-input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                if (event.target?.result) {
+                                  syncSettings({ ...settings, appLogoUrl: event.target.result as string });
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                        {settings.appLogoUrl ? (
+                          <div className="flex items-center gap-3 w-full">
+                            <div className="w-12 h-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 flex items-center justify-center flex-shrink-0 shadow-sm">
+                              <img
+                                src={settings.appLogoUrl}
+                                alt="Uploaded Logo Preview"
+                                className="max-w-full max-h-full object-contain rounded-md animate-fade-in"
+                                style={{ imageRendering: 'auto' }}
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1 text-left">
+                              <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate">มีไฟล์โลโก้ติดตั้งอยู่</p>
+                              <p className="text-[10px] text-slate-400 font-medium truncate">คลิกที่นี่หรือลากรูปใหม่ เพื่อแทนที่โลโก้เดิม</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                syncSettings({ ...settings, appLogoUrl: '' });
+                              }}
+                              className="text-[10px] font-black text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1.5 rounded-lg active:scale-95 transition-all"
+                            >
+                              ลบโลโก้ออก
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-center py-2">
+                            <div className="mx-auto w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-350 text-sm mb-1.5">
+                              🖼️
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">คลิกเพื่อเลือกไฟล์ หรือ ลากไฟล์รูปวางตรงนี้</p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">รองรับไฟล์ชนิด PNG, JPG, SVG, WebP</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Text Input for URL option */}
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <span className="text-[10px] text-slate-400 font-bold font-mono">URL:</span>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="หรือวาง URL ลิงก์รูปภาพโดยตรงที่นี่..."
+                          value={settings.appLogoUrl || ''}
+                          onChange={(e) => syncSettings({ ...settings, appLogoUrl: e.target.value })}
+                          className="w-full h-10 pl-11 pr-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250 font-medium"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 pt-2">
