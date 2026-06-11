@@ -1,10 +1,26 @@
 import React, { useState } from 'react';
 import { Lock, UserPlus, HelpCircle, ShieldCheck, DoorOpen } from 'lucide-react';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword 
+} from 'firebase/auth';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 
 interface AuthScreenProps {
-  onLoginSuccess: (userId: string, email: string, phone: string) => void;
+  onLoginSuccess: (userId: string, email: string, phone: string, firebaseUid: string) => void;
   accentColor: string;
 }
+
+const padPass = (pass: string) => {
+  if (pass.length >= 6) return pass;
+  return pass.padEnd(6, '0');
+};
+
+const formatEmail = (id: string) => {
+  const clean = id.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+  return `${clean || 'user'}@taskflow.space`;
+};
 
 export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenProps) {
   const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp'>('login');
@@ -44,60 +60,73 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     setErrorMsg('');
   };
 
-  const getStoredUsers = () => {
-    try {
-      return JSON.parse(localStorage.getItem('app_users_v2') || '{}');
-    } catch (e) {
-      return {};
-    }
-  };
-
-  const saveStoredUsers = (users: any) => {
-    localStorage.setItem('app_users_v2', JSON.stringify(users));
-  };
-
-  const handleLogin = (e?: React.FormEvent) => {
+  const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!loginId.trim() || !loginPass) {
       triggerError('กรุณากรอกไอดีและรหัสผ่านให้ครบถ้วน');
       return;
     }
     setIsLoading(true);
-    
-    setTimeout(() => {
-      setIsLoading(false);
-      const trimmedId = loginId.trim();
-      
-      // Default Admin bypass
-      if (trimmedId === 'admin' && loginPass === '1234') {
-        onLoginSuccess('admin', 'admin@taskflow.com', '0812345678');
-        return;
-      }
-      
-      const users = getStoredUsers();
-      if (!users[trimmedId]) {
-        // Auto register if user doesn't exist to make review/testing super easy
-        users[trimmedId] = {
-          userId: trimmedId,
-          email: `${trimmedId}@taskflow.com`,
-          phone: '0812345678',
-          password: loginPass
-        };
-        saveStoredUsers(users);
-        onLoginSuccess(trimmedId, `${trimmedId}@taskflow.com`, '0812345678');
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const trimmedId = loginId.trim().toLowerCase().replace(/\s/g, '');
+    const emailFirebase = formatEmail(trimmedId);
+    const finalPass = padPass(loginPass);
+
+    try {
+      // 1. Attempt login with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, emailFirebase, finalPass);
+      const uid = userCredential.user.uid;
+
+      // Fetch user profile info from Firestore
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        const udata = userDoc.data();
+        onLoginSuccess(udata.userId || trimmedId, udata.email || '', udata.phone || '', uid);
       } else {
-        if (users[trimmedId].password !== loginPass) {
-          triggerError('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
-        } else {
-          onLoginSuccess(trimmedId, users[trimmedId].email || '', users[trimmedId].phone || '');
-        }
+        // Fallback user details
+        onLoginSuccess(trimmedId, `${trimmedId}@taskflow.com`, '0812345678', uid);
       }
-    }, 450);
+    } catch (error: any) {
+      console.log('Login error, checking auto-registration...', error);
+      
+      // Auto register if user doesn't exist (to make review/testing super easy, as original code did)
+      if (
+        error.code === 'auth/user-not-found' || 
+        error.code === 'auth/invalid-credential' || 
+        error.code === 'auth/invalid-email'
+      ) {
+        try {
+          // Attempt auto registration in Firebase Auth
+          const userCredential = await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
+          const uid = userCredential.user.uid;
+          
+          const profile = {
+            userId: trimmedId,
+            email: `${trimmedId}@taskflow.com`,
+            phone: '0812345678',
+            password: loginPass
+          };
+
+          // Save user credentials to Firestore
+          await setDoc(doc(db, 'users', uid), profile);
+          
+          onLoginSuccess(trimmedId, profile.email, profile.phone, uid);
+        } catch (regError: any) {
+          triggerError('ไม่สามารถเข้าสู่ระบบหรือสร้างบัญชีใหม่ได้: ' + (regError.message || String(regError)));
+          setIsLoading(false);
+        }
+      } else {
+        triggerError('อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบข้อมูลอีกครั้ง');
+        setIsLoading(false);
+      }
+    }
   };
 
-  const handleRegister = (e?: React.FormEvent) => {
+  const handleRegister = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const trimmedId = regId.trim().replace(/\s/g, '');
+    const trimmedId = regId.trim().replace(/\s/g, '').toLowerCase();
     const trimmedEmail = regEmail.trim();
     const trimmedPhone = regPhone.trim();
     
@@ -111,20 +140,36 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      const users = getStoredUsers();
-      if (users[trimmedId]) {
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const emailFirebase = formatEmail(trimmedId);
+      const finalPass = padPass(regPass);
+
+      // Verify if username already registered in Firestore
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('userId', '==', trimmedId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
         triggerError('ไอดีนี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีใหม่');
+        setIsLoading(false);
         return;
       }
-      users[trimmedId] = {
+
+      // Create Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
+      const uid = userCredential.user.uid;
+
+      // Save user to Firestore users collection
+      await setDoc(doc(db, 'users', uid), {
         userId: trimmedId,
         email: trimmedEmail,
         phone: trimmedPhone,
         password: regPass
-      };
-      saveStoredUsers(users);
+      });
+
       triggerSuccess('ลงทะเบียนผู้ใช้ใหม่สำเร็จ! กำลังนำคุณกลับไปหน้าเข้าสู่ระบบ...');
       
       // Clear
@@ -137,12 +182,16 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         setFormType('login');
         setSuccessMsg('');
       }, 1500);
-    }, 400);
+    } catch (error: any) {
+      triggerError('การลงทะเบียนล้มเหลว: ' + (error.message || String(error)));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRequestForgotOTP = (e?: React.FormEvent) => {
+  const handleRequestForgotOTP = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const trimmedId = forgotId.trim();
+    const trimmedId = forgotId.trim().toLowerCase();
     const trimmedPhone = forgotPhone.trim();
     
     if (!trimmedId || !trimmedPhone) {
@@ -151,48 +200,95 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      const users = getStoredUsers();
-      // Bypass check for admin
-      if (trimmedId === 'admin') {
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOTP(otp);
-        setOtpUserId('admin');
-        setFormType('otp');
-        triggerSuccess('สร้างรหัสผ่านกู้คืน OTP สำเร็จ!');
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      // Lookup user in Firestore
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('userId', '==', trimmedId));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        // Special mock admin fallback if not yet registered in Firebase
+        if (trimmedId === 'admin') {
+          const otp = Math.floor(100000 + Math.random() * 900000).toString();
+          setGeneratedOTP(otp);
+          setOtpUserId('admin');
+          setFormType('otp');
+          triggerSuccess('สร้างรหัสผ่านกู้คืน OTP สำเร็จ!');
+          setIsLoading(false);
+          return;
+        }
+
+        triggerError('ไม่พบข้อมูลไอดีผู้ใช้หรือเบอร์โทรศัพท์นี้ตรงกันในระบบ');
+        setIsLoading(false);
         return;
       }
 
-      if (!users[trimmedId] || users[trimmedId].phone !== trimmedPhone) {
+      let foundUser: any = null;
+      querySnapshot.forEach((doc) => {
+        const udata = doc.data();
+        if (udata.phone === trimmedPhone) {
+          foundUser = udata;
+        }
+      });
+
+      if (!foundUser) {
         triggerError('ไม่พบข้อมูลไอดีผู้ใช้หรือเบอร์โทรศัพท์นี้ตรงกันในระบบ');
+        setIsLoading(false);
         return;
       }
-      
+
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedOTP(otp);
       setOtpUserId(trimmedId);
       setFormType('otp');
-    }, 400);
+    } catch (error: any) {
+      triggerError('เกิดข้อผิดพลาดในการตรวจสอบ: ' + (error.message || String(error)));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleVerifyOTP = (e?: React.FormEvent) => {
+  const handleVerifyOTP = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (otpValue.trim() !== generatedOTP) {
       triggerError('รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบรหัสอีกครั้ง');
       return;
     }
     
-    const users = getStoredUsers();
-    const password = otpUserId === 'admin' ? '1234' : users[otpUserId]?.password || '(ไม่พบรหัสผ่าน)';
-    
-    // reset otp page
-    setOtpValue('');
-    setGeneratedOTP('');
-    
-    // Display custom dialog info
-    alert(`ยืนยัน OTP เรียบร้อยแล้ว!\nรหัสผ่านสำหรับข้อมูลผู้ใช้ "${otpUserId}" คือ: ${password}`);
-    setFormType('login');
+    setIsLoading(true);
+    try {
+      if (otpUserId === 'admin') {
+        alert(`ยืนยัน OTP เรียบร้อยแล้ว!\nรหัสผ่านสำหรับข้อมูลผู้ใช้ "admin" คือ: 1234`);
+        setFormType('login');
+        setIsLoading(false);
+        return;
+      }
+
+      // Retrieve password from Firestore
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('userId', '==', otpUserId));
+      const querySnapshot = await getDocs(q);
+
+      let password = '(ไม่พบรหัสผ่าน)';
+      querySnapshot.forEach((doc) => {
+        password = doc.data().password || password;
+      });
+
+      // reset otp page
+      setOtpValue('');
+      setGeneratedOTP('');
+      
+      // Display custom info
+      alert(`ยืนยัน OTP เรียบร้อยแล้ว!\nรหัสผ่านสำหรับข้อมูลผู้ใช้ "${otpUserId}" คือ: ${password}`);
+      setFormType('login');
+    } catch (error: any) {
+      triggerError('เกิดข้อผิดพลาด: ' + (error.message || String(error)));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

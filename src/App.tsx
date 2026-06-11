@@ -21,10 +21,25 @@ import {
   Volume2,
   Trash2,
   ChevronDown,
-  Link
+  Link,
+  Briefcase,
+  Globe,
+  FileText,
+  BookOpen,
+  ShoppingBag,
+  TrendingUp,
+  Video,
+  Phone,
+  Info,
+  ExternalLink,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { Task, Expense, AppSettings } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
+
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 // Modules
 import AuthScreen from './components/AuthScreen';
@@ -33,6 +48,28 @@ import CalendarModule from './components/CalendarModule';
 import ExpenseModule from './components/ExpenseModule';
 
 const DEFAULT_CATEGORIES = ['💼 งานทั่วไป', '🏠 ส่วนตัว', '🛒 ช้อปปิ้ง', '🔥 เร่งด่วน'];
+
+const CUSTOM_LINK_ICONS = [
+  { name: 'Link', label: 'ลิงก์ทั่วไป', component: Link },
+  { name: 'Briefcase', label: 'ธุรกิจ / งาน', component: Briefcase },
+  { name: 'Globe', label: 'เว็บไซต์ / แหล่งข้อมูล', component: Globe },
+  { name: 'FileText', label: 'เอกสาร / รายงาน', component: FileText },
+  { name: 'BookOpen', label: 'คู่มือ / ความรู้', component: BookOpen },
+  { name: 'ShoppingBag', label: 'ร้านค้า / ซื้อขาย', component: ShoppingBag },
+  { name: 'TrendingUp', label: 'แผนภูมิ / การเงิน', component: TrendingUp },
+  { name: 'Video', label: 'วิดีโอ / ประชุม', component: Video },
+  { name: 'Phone', label: 'ติดต่อ / สื่อสาร', component: Phone },
+  { name: 'Info', label: 'ข่าวสาร / ประชาสัมพันธ์', component: Info },
+  { name: 'Layers', label: 'ระบบอื่น / แพลตฟอร์ม', component: Layers },
+  { name: 'CalendarIcon', label: 'ปฏิทินย่อย', component: CalendarIcon },
+  { name: 'Receipt', label: 'บิลค่าใช้จ่าย', component: Receipt },
+  { name: 'Folder', label: 'โฟลเดอร์', component: Folder },
+];
+
+function getCustomLinkIconComponent(name: string) {
+  const item = CUSTOM_LINK_ICONS.find(i => i.name === name);
+  return item ? item.component : Link;
+}
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -76,6 +113,7 @@ export default function App() {
   const [newCatInput, setNewCatInput] = useState('');
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [newLinkIcon, setNewLinkIcon] = useState('Link');
   
   // Email connection notifications test result
   const [emailResult, setEmailResult] = useState<{ text: string; type: 'ok' | 'err' | 'loading' | null }>({ text: '', type: null });
@@ -91,7 +129,8 @@ export default function App() {
     if (savedLogged && savedUserId) {
       const email = localStorage.getItem('user_email') || '';
       const phone = localStorage.getItem('user_phone') || '';
-      handleLoginSuccess(savedUserId, email, phone);
+      const uid = localStorage.getItem('sess_uid') || '';
+      handleLoginSuccess(savedUserId, email, phone, uid);
     }
   }, []);
 
@@ -104,74 +143,43 @@ export default function App() {
   }, []);
 
   // 2. Fetch data from mock cloud storage (localStorage)
-  const handleLoginSuccess = (userId: string, email: string, phone: string) => {
+  const handleLoginSuccess = async (userId: string, email: string, phone: string, firebaseUid?: string) => {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('sess_userId', userId);
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_phone', phone);
+    
+    let uid = firebaseUid || localStorage.getItem('sess_uid') || '';
+    if (uid) {
+      localStorage.setItem('sess_uid', uid);
+    }
     setSessionUser({ userId, email, phone });
     setIsLoggedIn(true);
 
-    // Populate data bound to this user
-    const savedTasks = localStorage.getItem(`tasks_${userId}`);
-    const savedExpenses = localStorage.getItem(`expenses_${userId}`);
-    const savedSettings = localStorage.getItem(`settings_${userId}`);
-
-    if (savedTasks) setTasks(JSON.parse(savedTasks));
-    else {
-      // Seed initial tasks for nice look
-      const seeded: Task[] = [
-        { id: 't1', title: 'ประชุมวางแผนงบประมาณโครงการก่อสร้างใหม่', desc: 'สรุปงบประมาณไตรมาสที่ 3 และพิจารณาสัญญารับเหมาช่วง', category: '💼 งานทั่วไป', dueDate: getThailandTodayStr(), dueTime: '13:00', status: 'pending', userId, createdAt: new Date().toISOString() },
-        { id: 't2', title: 'ชำระค่าไฟและค่าน้ำสำนักงานใหญ่', desc: 'ยอดชำระตรวจสอบจากแดชบอร์ดค่าใช้จ่าย บิลรอบเดือนพฤษภาคม', category: '🔥 เร่งด่วน', dueDate: getThailandTodayStr(), dueTime: '17:00', status: 'pending', userId, createdAt: new Date().toISOString() },
-        { id: 't3', title: 'ทบทวนสไลด์นำเสนอพาร์ทเนอร์ชาวต่างชาติ', desc: 'เตรียมจุดเด่นผลิตภัณฑ์ใหม่ และนโยบายส่วนลด', category: '💼 งานทั่วไป', dueDate: getDaysFromNowStr(2), status: 'pending', userId, createdAt: new Date().toISOString() }
-      ];
-      setTasks(seeded);
-      localStorage.setItem(`tasks_${userId}`, JSON.stringify(seeded));
-    }
-
-    if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
-    else {
-      // Seed initial expenses
-      const seededExp: Expense[] = [
-        { id: 'e1', name: 'ค่าเช่าอาคารสำนักงานและโกดัง', amount: 45000, cat: '🏠 ที่พัก', date: getThailandTodayStr(), dueDate: getDaysFromNowStr(5), note: 'โอนชำระภายในวันที่ 5', paid: false, userId },
-        { id: 'e2', name: 'ค่าบริการคลาวด์และโฮสติ้งเซิร์ฟเวอร์', amount: 3500.50, cat: '💡 สาธารณูปโภค', date: getThailandTodayStr(), dueDate: getThailandTodayStr(), note: 'ตัดบัตรเครดิตอัตโนมัติ', paid: true, userId },
-        { id: 'e3', name: 'จัดซื้อเครื่องเขียนและอุปกรณ์สำนักงานส่วนกลาง', amount: 1200, cat: '🛒 ของใช้/อาหาร', date: getDaysFromNowStr(-1), dueDate: getDaysFromNowStr(2), note: 'เบิกจ่ายจาก Petty cash', paid: false, userId }
-      ];
-      setExpenses(seededExp);
-      localStorage.setItem(`expenses_${userId}`, JSON.stringify(seededExp));
-    }
-
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    } else {
-      // Use default settings
-      const defaultSet = {
-        appName: 'TaskFlow Space Executive Pro',
-        appDesc: 'ระบบบอร์ดงาน ปฏิทินจดจำสรุปกิจกรรม และจัดการค่าชำระส่วนบุคคลสำหรับผู้บริหาร',
-        appLogoUrl: '',
-        bgStyle: 'theme-custom' as const,
-        customBgUrl: '',
-        darkMode: false,
-        categories: DEFAULT_CATEGORIES,
-        emailRecipient: email || '',
-        emailNotificationEnabled: true,
-        emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
-        alertDays: [0, 1, 3],
-        themePreset: 'indigo-dream',
-        colorAccent: '#2563eb',
-        colorAccentHover: '#1d4ed8',
-        colorAccentLight: '#dbeafe',
-        colorAccentText: '#ffffff',
-        colorSidebarBg: '#0f172a',
-        colorSidebarText: '#94a3b8',
-        colorSidebarActive: '#2563eb',
-        colorBgAppStart: '#f8fafc',
-        colorBgAppEnd: '#e2e8f0',
-        bgType: 'gradient' as const
-      };
-      setSettings(defaultSet);
-      localStorage.setItem(`settings_${userId}`, JSON.stringify(defaultSet));
-    }
+    const defaultSet = {
+      appName: 'TaskFlow Space Executive Pro',
+      appDesc: 'ระบบบอร์ดงาน ปฏิทินจดจำสรุปกิจกรรม และจัดการค่าชำระส่วนบุคคลสำหรับผู้บริหาร',
+      appLogoUrl: '',
+      bgStyle: 'theme-custom' as const,
+      customBgUrl: '',
+      darkMode: false,
+      categories: DEFAULT_CATEGORIES,
+      emailRecipient: email || '',
+      emailNotificationEnabled: true,
+      emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
+      alertDays: [0, 1, 3],
+      themePreset: 'indigo-dream',
+      colorAccent: '#2563eb',
+      colorAccentHover: '#1d4ed8',
+      colorAccentLight: '#dbeafe',
+      colorAccentText: '#ffffff',
+      colorSidebarBg: '#0f172a',
+      colorSidebarText: '#94a3b8',
+      colorSidebarActive: '#2563eb',
+      colorBgAppStart: '#f8fafc',
+      colorBgAppEnd: '#e2e8f0',
+      bgType: 'gradient' as const
+    };
 
     setCustomHolidays({
       '2026-01-01': 'วันขึ้นปีใหม่',
@@ -179,6 +187,114 @@ export default function App() {
       '2026-05-01': 'วันแรงงานแห่งชาติ',
       '2026-08-12': 'วันแม่แห่งชาติ'
     });
+
+    if (!uid) {
+      // Local fallback if no Firebase session logged in
+      const savedTasks = localStorage.getItem(`tasks_${userId}`);
+      const savedExpenses = localStorage.getItem(`expenses_${userId}`);
+      const savedSettings = localStorage.getItem(`settings_${userId}`);
+
+      if (savedTasks) setTasks(JSON.parse(savedTasks));
+      else setTasks([]);
+
+      if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
+      else setExpenses([]);
+
+      if (savedSettings) setSettings(JSON.parse(savedSettings));
+      else setSettings(defaultSet);
+      return;
+    }
+
+    try {
+      // 1. Fetch settings from Firestore
+      const settingsRef = doc(db, 'users', uid, 'settings', 'app');
+      const settingsSnap = await getDoc(settingsRef);
+
+      let currentSettings = defaultSet;
+      if (settingsSnap.exists()) {
+        currentSettings = { ...defaultSet, ...settingsSnap.data() };
+        setSettings(currentSettings);
+        localStorage.setItem(`settings_${userId}`, JSON.stringify(currentSettings));
+      } else {
+        // Fallback or migrate existing local settings to Firestore
+        const savedSettings = localStorage.getItem(`settings_${userId}`);
+        if (savedSettings) {
+          try { currentSettings = { ...defaultSet, ...JSON.parse(savedSettings) }; } catch (e) {}
+        }
+        setSettings(currentSettings);
+        await setDoc(settingsRef, currentSettings);
+      }
+
+      // 2. Fetch tasks from Firestore
+      const tasksCol = collection(db, 'users', uid, 'tasks');
+      const tasksSnap = await getDocs(tasksCol);
+
+      if (!tasksSnap.empty) {
+        const tasksList: Task[] = [];
+        tasksSnap.forEach((doc) => {
+          tasksList.push(doc.data() as Task);
+        });
+        setTasks(tasksList);
+        localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
+      } else {
+        // Fallback or migrate existing local tasks to Firestore
+        const savedTasks = localStorage.getItem(`tasks_${userId}`);
+        let tasksList: Task[] = [];
+        if (savedTasks) {
+          try { tasksList = JSON.parse(savedTasks); } catch (e) {}
+        }
+        if (tasksList.length === 0) {
+          tasksList = [
+            { id: 't1', title: 'ประชุมวางแผนงบประมาณโครงการก่อสร้างใหม่', desc: 'สรุปงบประมาณไตรมาสที่ 3 และพิจารณาสัญญารับเหมาช่วง', category: '💼 งานทั่วไป', dueDate: getThailandTodayStr(), dueTime: '13:00', status: 'pending', userId, createdAt: new Date().toISOString() },
+            { id: 't2', title: 'ชำระค่าไฟและค่าน้ำสำนักงานใหญ่', desc: 'ยอดชำระตรวจสอบจากแดชบอร์ดค่าใช้จ่าย บิลรอบเดือนพฤษภาคม', category: '🔥 เร่งด่วน', dueDate: getThailandTodayStr(), dueTime: '17:00', status: 'pending', userId, createdAt: new Date().toISOString() },
+            { id: 't3', title: 'ทบทวนสไลด์นำเสนอพาร์ทเนอร์ชาวต่างชาติ', desc: 'เตรียมจุดเด่นผลิตภัณฑ์ใหม่ และนโยบายส่วนลด', category: '💼 งานทั่วไป', dueDate: getDaysFromNowStr(2), status: 'pending', userId, createdAt: new Date().toISOString() }
+          ];
+        }
+        setTasks(tasksList);
+        localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
+        
+        // Write each migrated task to Firestore sync
+        for (const task of tasksList) {
+          await setDoc(doc(db, 'users', uid, 'tasks', task.id), task);
+        }
+      }
+
+      // 3. Fetch expenses from Firestore
+      const expensesCol = collection(db, 'users', uid, 'expenses');
+      const expensesSnap = await getDocs(expensesCol);
+
+      if (!expensesSnap.empty) {
+        const expensesList: Expense[] = [];
+        expensesSnap.forEach((doc) => {
+          expensesList.push(doc.data() as Expense);
+        });
+        setExpenses(expensesList);
+        localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
+      } else {
+        // Fallback or migrate existing local expenses
+        const savedExpenses = localStorage.getItem(`expenses_${userId}`);
+        let expensesList: Expense[] = [];
+        if (savedExpenses) {
+          try { expensesList = JSON.parse(savedExpenses); } catch (e) {}
+        }
+        if (expensesList.length === 0) {
+          expensesList = [
+            { id: 'e1', name: 'ค่าเช่าอาคารสำนักงานและโกดัง', amount: 45000, cat: '🏠 ที่พัก', date: getThailandTodayStr(), dueDate: getDaysFromNowStr(5), note: 'โอนชำระภายในวันที่ 5', paid: false, userId },
+            { id: 'e2', name: 'ค่าบริการคลาวด์และโฮสติ้งเซิร์ฟเวอร์', amount: 3500.50, cat: '💡 สาธารณูปโภค', date: getThailandTodayStr(), dueDate: getThailandTodayStr(), note: 'ตัดบัตรเครดิตอัตโนมัติ', paid: true, userId },
+            { id: 'e3', name: 'จัดซื้อเครื่องเขียนและอุปกรณ์สำนักงานส่วนกลาง', amount: 1200, cat: '🛒 ของใช้/อาหาร', date: getDaysFromNowStr(-1), dueDate: getDaysFromNowStr(2), note: 'เบิกจ่ายจาก Petty cash', paid: false, userId }
+          ];
+        }
+        setExpenses(expensesList);
+        localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
+
+        // Write each migrated expense to Firestore
+        for (const exp of expensesList) {
+          await setDoc(doc(db, 'users', uid, 'expenses', exp.id), exp);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync or migrate from Firestore on login:', err);
+    }
   };
 
   const handleLogout = () => {
@@ -187,6 +303,7 @@ export default function App() {
       localStorage.removeItem('sess_userId');
       localStorage.removeItem('user_email');
       localStorage.removeItem('user_phone');
+      localStorage.removeItem('sess_uid');
       setIsLoggedIn(false);
       setSessionUser({ userId: '', email: '', phone: '' });
       setTasks([]);
@@ -216,24 +333,83 @@ export default function App() {
   };
 
   // Synchronizers of data
-  const syncTasks = (newTasks: Task[]) => {
+  const syncTasks = async (newTasks: Task[]) => {
     setTasks(newTasks);
     if (sessionUser.userId) {
       localStorage.setItem(`tasks_${sessionUser.userId}`, JSON.stringify(newTasks));
     }
+
+    const uid = localStorage.getItem('sess_uid');
+    if (uid) {
+      try {
+        const previousMap = new Map<string, Task>(tasks.map(t => [t.id, t]));
+        const currentMap = new Map<string, Task>(newTasks.map(t => [t.id, t]));
+
+        // Check for deleted tasks
+        for (const [id, _] of previousMap) {
+          if (!currentMap.has(id)) {
+            await deleteDoc(doc(db, 'users', uid, 'tasks', id));
+          }
+        }
+
+        // Check for added or updated tasks
+        for (const [id, task] of currentMap) {
+          const prev = previousMap.get(id);
+          if (!prev || JSON.stringify(prev) !== JSON.stringify(task)) {
+            await setDoc(doc(db, 'users', uid, 'tasks', id), task);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to sync tasks to Firestore:', e);
+      }
+    }
   };
 
-  const syncExpenses = (newExpenses: Expense[]) => {
+  const syncExpenses = async (newExpenses: Expense[]) => {
     setExpenses(newExpenses);
     if (sessionUser.userId) {
       localStorage.setItem(`expenses_${sessionUser.userId}`, JSON.stringify(newExpenses));
     }
+
+    const uid = localStorage.getItem('sess_uid');
+    if (uid) {
+      try {
+        const previousMap = new Map<string, Expense>(expenses.map(e => [e.id, e]));
+        const currentMap = new Map<string, Expense>(newExpenses.map(e => [e.id, e]));
+
+        // Check for deleted expenses
+        for (const [id, _] of previousMap) {
+          if (!currentMap.has(id)) {
+            await deleteDoc(doc(db, 'users', uid, 'expenses', id));
+          }
+        }
+
+        // Check for added or updated expenses
+        for (const [id, exp] of currentMap) {
+          const prev = previousMap.get(id);
+          if (!prev || JSON.stringify(prev) !== JSON.stringify(exp)) {
+            await setDoc(doc(db, 'users', uid, 'expenses', id), exp);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to sync expenses to Firestore:', e);
+      }
+    }
   };
 
-  const syncSettings = (newSettings: AppSettings) => {
+  const syncSettings = async (newSettings: AppSettings) => {
     setSettings(newSettings);
     if (sessionUser.userId) {
       localStorage.setItem(`settings_${sessionUser.userId}`, JSON.stringify(newSettings));
+    }
+
+    const uid = localStorage.getItem('sess_uid');
+    if (uid) {
+      try {
+        await setDoc(doc(db, 'users', uid, 'settings', 'app'), newSettings);
+      } catch (e) {
+        console.error('Failed to sync settings to Firestore:', e);
+      }
     }
   };
 
@@ -317,13 +493,15 @@ export default function App() {
     const newLink = {
       id: '' + Date.now() + '_' + Math.floor(Math.random() * 999),
       title,
-      url
+      url,
+      iconName: newLinkIcon
     };
 
     const updatedLinks = [...(settings.customMenuLinks || []), newLink];
     syncSettings({ ...settings, customMenuLinks: updatedLinks });
     setNewLinkTitle('');
     setNewLinkUrl('');
+    setNewLinkIcon('Link');
   };
 
   const handleRemoveMenuLink = (id: string) => {
@@ -334,6 +512,24 @@ export default function App() {
         setActiveTab('tasks');
       }
     }
+  };
+
+  const moveMenuLinkUp = (index: number) => {
+    if (index === 0) return;
+    const links = [...(settings.customMenuLinks || [])];
+    const temp = links[index];
+    links[index] = links[index - 1];
+    links[index - 1] = temp;
+    syncSettings({ ...settings, customMenuLinks: links });
+  };
+
+  const moveMenuLinkDown = (index: number) => {
+    const links = [...(settings.customMenuLinks || [])];
+    if (index === links.length - 1) return;
+    const temp = links[index];
+    links[index] = links[index + 1];
+    links[index + 1] = temp;
+    syncSettings({ ...settings, customMenuLinks: links });
   };
 
   // 6. Harmonious Color Tuning Engine
@@ -641,6 +837,27 @@ export default function App() {
             {!sidebarCollapsed && <span>จัดการเงินค่าใช้จ่าย</span>}
           </button>
 
+          {/* Inline custom menu links */}
+          {settings.customMenuLinks && settings.customMenuLinks.map((link) => {
+            const IconComponent = getCustomLinkIconComponent(link.iconName || 'Link');
+            return (
+              <button
+                key={link.id}
+                onClick={() => { setActiveTab(`link_${link.id}`); setMobileMenuOpen(false); }}
+                className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+                  activeTab === `link_${link.id}`
+                    ? 'bg-slate-800 text-white border-l-[3px]'
+                    : 'hover:bg-slate-800'
+                }`}
+                style={activeTab === `link_${link.id}` ? { borderLeftColor: settings.colorAccent } : {}}
+                title={link.title}
+              >
+                <IconComponent className="w-4.5 h-4.5 flex-shrink-0" style={{ color: activeTab === `link_${link.id}` ? settings.colorAccent : undefined }} />
+                {!sidebarCollapsed && <span className="truncate">{link.title}</span>}
+              </button>
+            );
+          })}
+
           {!sidebarCollapsed && (
             <div className="px-3 pt-6 text-[9.5px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">
               การจัดการระบบ
@@ -659,33 +876,6 @@ export default function App() {
             <SettingsIcon className="w-4.5 h-4.5 flex-shrink-0" />
             {!sidebarCollapsed && <span>ตกแต่ง & ตั้งค่ารวม</span>}
           </button>
-
-          {/* Dynamic custom menu links and portals */}
-          {settings.customMenuLinks && settings.customMenuLinks.length > 0 && (
-            <>
-              {!sidebarCollapsed && (
-                <div className="px-3 pt-6 text-[9.5px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">
-                  ลิงก์เมนูเพิ่มเติม
-                </div>
-              )}
-              {settings.customMenuLinks.map((link) => (
-                <button
-                  key={link.id}
-                  onClick={() => { setActiveTab(`link_${link.id}`); setMobileMenuOpen(false); }}
-                  className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
-                    activeTab === `link_${link.id}`
-                      ? 'bg-slate-800 text-white border-l-[3px]'
-                      : 'hover:bg-slate-800'
-                  }`}
-                  style={activeTab === `link_${link.id}` ? { borderLeftColor: settings.colorAccent } : {}}
-                  title={link.title}
-                >
-                  <Link className="w-4.5 h-4.5 flex-shrink-0" style={{ color: activeTab === `link_${link.id}` ? settings.colorAccent : undefined }} />
-                  {!sidebarCollapsed && <span className="truncate">{link.title}</span>}
-                </button>
-              ))}
-            </>
-          )}
         </nav>
 
         {/* Sidebar Footer account section */}
@@ -1371,81 +1561,53 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Email Messaging integration panel */}
+                            {/* Email Messaging integration panel */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
-                    <Mail className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
-                    ระบบผู้ช่วยเตือนความจำผ่านอีเมล (Email Notification Center)
-                  </h3>
-                  
-                  <label className="relative inline-flex items-center cursor-pointer select-none">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer"
-                      checked={settings.emailNotificationEnabled ?? true}
-                      onChange={(e) => syncSettings({ ...settings, emailNotificationEnabled: e.target.checked })}
-                    />
-                    <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-slate-850 peer-checked:bg-accent" style={{ backgroundColor: (settings.emailNotificationEnabled ?? true) ? settings.colorAccent : undefined }}></div>
-                    <span className="ml-2 text-xs font-bold text-slate-500 dark:text-slate-450">เปิดใช้งาน</span>
-                  </label>
-                </div>
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
+                  <Mail className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
+                  การแจ้งเตือนและการจัดส่งรายงานทางอีเมล (System Report Mailer)
+                </h3>
+                <p className="text-xs text-slate-400 font-semibold dark:text-slate-450">
+                  คุณท่านสามารถตั้งค่าอีเมลสรุปข้อมูล เพื่อรับสรุปภารกิจคงค้างและแจ้งบิลจ่ายทางช่องทางเมลจำลอง
+                </p>
 
                 <div className="space-y-4 text-xs font-semibold text-slate-650">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl dark:bg-slate-950">
                     <div>
-                      <label className="block text-slate-600 mb-1 dark:text-slate-450">อีเมลผู้รับรายงานหลัก</label>
-                      <input
-                        type="email"
-                        placeholder="กรอกอีเมลผู้รับ เช่น khongkrit.law@gmail.com..."
-                        value={settings.emailRecipient || ''}
-                        onChange={(e) => syncSettings({ ...settings, emailRecipient: e.target.value })}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
-                      />
-                      <p className="mt-1 text-[10px] text-slate-400 font-normal">
-                        ค่าเริ่มต้น: <span className="font-mono dark:text-slate-500">{sessionUser.email || 'ยังไม่ได้กำหนด'}</span> (จะใช้อีเมลนี้หากเว้นว่างไว้)
-                      </p>
+                      <h4 className="font-bold text-slate-800 dark:text-slate-200">เปิดใช้งานส่งข้อมูลแจ้งเตือนทางอีเมล</h4>
+                      <p className="text-[10px] text-slate-400 font-normal">อนุญาตให้ส่งรายงานสรุปทางอีเมลจำลอง</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => syncSettings({ ...settings, emailNotificationEnabled: !settings.emailNotificationEnabled })}
+                      className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none ${
+                        settings.emailNotificationEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${settings.emailNotificationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
 
-                    <div>
-                      <label className="block text-slate-600 mb-1 dark:text-slate-450">รูปแบบกำหนดเตือนล่วงหน้า (วัน)</label>
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {[0, 1, 2, 3, 5, 7].map(d => {
-                          const isSelected = settings.alertDays.includes(d);
-                          return (
-                            <button
-                              key={d}
-                              type="button"
-                              onClick={() => {
-                                const refreshed = settings.alertDays.includes(d)
-                                  ? settings.alertDays.filter(x => x !== d)
-                                  : [...settings.alertDays, d].sort();
-                                syncSettings({ ...settings, alertDays: refreshed });
-                              }}
-                              className={`h-8 px-3 rounded-lg text-xs font-bold border transition-all ${
-                                isSelected 
-                                  ? 'text-white border-transparent shadow-xs' 
-                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400'
-                              }`}
-                              style={isSelected ? { backgroundColor: settings.colorAccent } : undefined}
-                            >
-                              {d === 0 ? 'วันนี้' : `ล่วงหน้า ${d} วัน`}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                  <div>
+                    <label className="block text-slate-600 mb-1 dark:text-slate-450">อีเมลปลายทางผู้รับ (Executive Recipient)</label>
+                    <input
+                      type="email"
+                      placeholder="เช่น executive@company.com..."
+                      value={settings.emailRecipient || ''}
+                      onChange={(e) => syncSettings({ ...settings, emailRecipient: e.target.value })}
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
+                    />
                   </div>
 
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <label className="block text-slate-600 dark:text-slate-450">เทมเพลตเนื้อความแจ้งเตือน (Email Message Template)</label>
-                      <button 
-                        type="button" 
-                        onClick={() => syncSettings({
-                          ...settings,
-                          emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}'
-                        })}
+                      <label className="block text-slate-600 dark:text-slate-450">รูปแบบโครงสร้างเทมเพลตเนื้อหารายงานสรุป</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const defaultFormalTemplate = 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}';
+                          syncSettings({ ...settings, emailMessageTemplate: defaultFormalTemplate });
+                        }}
                         className="text-[10px] font-bold text-accent hover:underline"
                         style={{ color: settings.colorAccent }}
                       >
@@ -1548,6 +1710,32 @@ export default function App() {
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="block text-slate-600 dark:text-slate-450">เลือกไอคอนสัญลักษณ์ของเมนู (Icon Preset)</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                      {CUSTOM_LINK_ICONS.map((ico) => {
+                        const IconComp = ico.component;
+                        const isSelected = newLinkIcon === ico.name;
+                        return (
+                          <button
+                            key={ico.name}
+                            type="button"
+                            onClick={() => setNewLinkIcon(ico.name)}
+                            className={`h-11 px-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-[10px] font-bold ${
+                              isSelected 
+                                ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900 shadow-sm' 
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-150 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400'
+                            }`}
+                            style={isSelected ? { borderColor: settings.colorAccent, backgroundColor: settings.bgType === 'solid' ? settings.colorAccent : undefined } : {}}
+                          >
+                            <IconComp className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate max-w-full text-[9px]">{ico.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="flex justify-end">
                     <button
                       type="button"
@@ -1565,40 +1753,75 @@ export default function App() {
                     
                     {(settings.customMenuLinks || []).length === 0 ? (
                       <div className="p-6 border border-dashed border-slate-200 bg-slate-50/50 rounded-xl text-center text-slate-400 dark:bg-slate-950/20 dark:border-slate-800">
-                        ไม่มีลิงก์เมนูเพิ่มเติมชั่วคราว คุณท่านสามารถป้อนหัวข้อและลิงก์เพื่อติดตั้งด้านบน
+                        ไม่มีลิงก์เมนูเพิ่มเติมชั่วคราว คุณท่านสามารถเลือกสัญลักษณ์ ป้อนหัวข้อและลิงก์เพื่อติดตั้งด้านบน
                       </div>
                     ) : (
-                      <div className="border border-slate-100 rounded-xl divide-y divide-slate-100 dark:border-slate-800 dark:divide-slate-800 max-h-56 overflow-y-auto">
-                        {(settings.customMenuLinks || []).map((link) => (
-                          <div key={link.id} className="p-3 bg-slate-50/40 hover:bg-slate-50 flex items-center justify-between gap-4 dark:bg-slate-950/20 dark:hover:bg-slate-950/40">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0 dark:bg-slate-900 dark:border-slate-800">
-                                <Link className="w-3.5 h-3.5" style={{ color: settings.colorAccent }} />
+                      <div className="border border-slate-100 rounded-xl divide-y divide-slate-100 dark:border-slate-800 dark:divide-slate-800 max-h-72 overflow-y-auto">
+                        {(settings.customMenuLinks || []).map((link, idx) => {
+                          const LinkIconComp = getCustomLinkIconComponent(link.iconName || 'Link');
+                          return (
+                            <div key={link.id} className="p-3 bg-slate-50/40 hover:bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:bg-slate-950/20 dark:hover:bg-slate-950/40 font-mono">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0 dark:bg-slate-900 dark:border-slate-800 shadow-xs">
+                                  <LinkIconComp className="w-4 h-4" style={{ color: settings.colorAccent }} />
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{link.title}</h4>
+                                  <p className="text-[10px] text-slate-400 font-mono truncate max-w-sm">{link.url}</p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{link.title}</h4>
-                                <p className="text-[10px] text-slate-400 font-mono truncate max-w-sm">{link.url}</p>
+                              
+                              <div className="flex items-center justify-end gap-2">
+                                {/* Sorting Arrows */}
+                                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 dark:bg-slate-900 dark:border-slate-800 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => moveMenuLinkUp(idx)}
+                                    disabled={idx === 0}
+                                    className={`p-1.5 rounded-md transition-all ${
+                                      idx === 0 
+                                        ? 'opacity-30 cursor-not-allowed text-slate-300 dark:text-slate-700' 
+                                        : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-950 dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                    title="จัดลำดับขึ้น (เลื่อนขึ้น)"
+                                  >
+                                    <ArrowUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="text-[10px] font-mono text-slate-400 px-1 dark:text-slate-500">{idx + 1}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveMenuLinkDown(idx)}
+                                    disabled={idx === (settings.customMenuLinks || []).length - 1}
+                                    className={`p-1.5 rounded-md transition-all ${
+                                      idx === (settings.customMenuLinks || []).length - 1
+                                        ? 'opacity-30 cursor-not-allowed text-slate-300 dark:text-slate-700' 
+                                        : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-950 dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                    title="จัดลำดับลง (เลื่อนลง)"
+                                  >
+                                    <ArrowDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => { setActiveTab(`link_${link.id}`); }}
+                                  className="h-7 px-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-500 transition-all dark:hover:bg-slate-900 dark:border-slate-800 dark:text-slate-400 flex items-center gap-1 flex-shrink-0 bg-white dark:bg-slate-900"
+                                >
+                                  ดูบอร์ดลิงก์
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveMenuLink(link.id)}
+                                  className="p-1.5 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg transition-all dark:hover:bg-rose-950/40"
+                                  title="ลบลิงก์"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => { setActiveTab(`link_${link.id}`); }}
-                                className="h-7 px-2.5 rounded-md hover:bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-500 transition-all dark:hover:bg-slate-900 dark:border-slate-800 dark:text-slate-400 flex items-center gap-1"
-                              >
-                                ทดสอบเปิดหน้าเว็บ
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveMenuLink(link.id)}
-                                className="p-1.5 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg transition-all dark:hover:bg-rose-950/40"
-                                title="ลบลิงก์"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

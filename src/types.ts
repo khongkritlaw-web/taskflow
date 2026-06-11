@@ -26,6 +26,7 @@ export interface CustomMenuLink {
   id: string;
   title: string;
   url: string;
+  iconName?: string;
 }
 
 export interface AppSettings {

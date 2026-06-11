@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety net: deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Validate custom ID path parameters
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 1. User collection rules
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && incoming().userId == userId;
+      allow update: if isOwner(userId) && incoming().userId == userId;
+      allow delete: if false; // profiles are permanent
+
+      function incoming() {
+        return request.resource.data;
+      }
+      
+      // 2. Tasks sub-collection rules
+      match /tasks/{taskId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming());
+        allow update: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming()) && (
+          // Check immutability of core fields
+          incoming().id == resource.data.id &&
+          incoming().userId == resource.data.userId &&
+          // Action-Based update allowed fields
+          incoming().diff(resource.data).affectedKeys().hasAny(['title', 'desc', 'category', 'dueDate', 'dueTime', 'status'])
+        );
+        allow delete: if isOwner(userId);
+
+        function isValidTask(data) {
+          return data.keys().hasAll(['id', 'title', 'category', 'dueDate', 'status', 'userId']) &&
+            data.keys().size() <= 9 &&
+            data.id is string && data.id.size() <= 128 &&
+            data.title is string && data.title.size() <= 200 &&
+            data.category is string && data.category.size() <= 100 &&
+            data.dueDate is string && data.dueDate.size() == 10 &&
+            data.status in ['pending', 'completed'] &&
+            data.userId == userId;
+        }
+      }
+
+      // 3. Expenses sub-collection rules
+      match /expenses/{expenseId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(expenseId) && isValidExpense(incoming());
+        allow update: if isOwner(userId) && isValidId(expenseId) && isValidExpense(incoming()) && (
+          incoming().id == resource.data.id &&
+          incoming().userId == resource.data.userId &&
+          incoming().diff(resource.data).affectedKeys().hasAny(['name', 'amount', 'date', 'dueDate', 'cat', 'paid'])
+        );
+        allow delete: if isOwner(userId);
+
+        function isValidExpense(data) {
+          return data.keys().hasAll(['id', 'name', 'amount', 'date', 'dueDate', 'cat', 'paid', 'userId']) &&
+            data.keys().size() <= 9 &&
+            data.id is string && data.id.size() <= 128 &&
+            data.name is string && data.name.size() <= 200 &&
+            (data.amount is number || data.amount is string) &&
+            data.date is string && data.date.size() == 10 &&
+            data.dueDate is string && data.dueDate.size() == 10 &&
+            data.cat is string && data.cat.size() <= 100 &&
+            data.paid is bool &&
+            data.userId == userId;
+        }
+      }
+
+      // 4. Settings sub-collection rules (e.g. app settings)
+      match /settings/app {
+        allow get: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidSettings(incoming());
+        allow delete: if false;
+
+        function isValidSettings(data) {
+          return data.appName is string && data.appName.size() <= 100 &&
+            data.categories is list && data.categories.size() <= 50;
+        }
+      }
+    }
+  }
+}

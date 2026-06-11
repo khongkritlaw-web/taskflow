@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account credentials and basic contact details",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Unique username or ID of the user"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the user"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number used for OTP recovery"
+        },
+        "password": {
+          "type": "string",
+          "description": "Hashed or plain password of the user"
+        }
+      },
+      "required": ["userId", "email", "phone", "password"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Actionable task representing a workflow item",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "dueDate": {
+          "type": "string"
+        },
+        "dueTime": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "completed"]
+        },
+        "userId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "title", "category", "dueDate", "status", "userId"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "A payment or billing record for accounting",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "date": {
+          "type": "string"
+        },
+        "dueDate": {
+          "type": "string"
+        },
+        "cat": {
+          "type": "string"
+        },
+        "paid": {
+          "type": "boolean"
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "amount", "date", "dueDate", "cat", "paid", "userId"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "User specific configurations, theme preferences, and custom menu links",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "appDesc": { "type": "string" },
+        "appLogoUrl": { "type": "string" },
+        "bgStyle": { "type": "string" },
+        "customBgUrl": { "type": "string" },
+        "darkMode": { "type": "boolean" },
+        "categories": { "type": "array" },
+        "emailRecipient": { "type": "string" },
+        "emailNotificationEnabled": { "type": "boolean" },
+        "emailMessageTemplate": { "type": "string" },
+        "alertDays": { "type": "array" },
+        "themePreset": { "type": "string" },
+        "colorAccent": { "type": "string" },
+        "colorAccentDark": { "type": "string" },
+        "colorAccentLight": { "type": "string" },
+        "colorBgAppStart": { "type": "string" },
+        "colorBgAppEnd": { "type": "string" },
+        "bgType": { "type": "string" },
+        "customMenuLinks": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile records containing account login details"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "User personal task workflow list"
+    },
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "User personal expenses and billing ledger"
+    },
+    "/users/{userId}/settings/app": {
+      "schema": "AppSettings",
+      "description": "Theme tuning and customized navigation preferences"
+    }
+  }
+}
