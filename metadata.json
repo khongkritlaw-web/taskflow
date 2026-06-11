@@ -1,0 +1,6 @@
+{
+  "name": "TaskFlow Space Executive Pro",
+  "description": "ระบบจัดการภารกิจ ปฏิทินรายวัน และสรุปรายการค่าใช้จ่ายครบกำหนด พร้อมฟีเจอร์ปรับเปลี่ยนสีกริดระบบทั้งหน้าต่างอย่างสมดุลและสรุปรายงานแจ้งเตือนผ่านอีเมลได้อย่างมีประสิทธิภาพ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
