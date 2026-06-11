@@ -24,8 +24,8 @@ service cloud.firestore {
     // 1. User collection rules
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && incoming().userId == userId;
-      allow update: if isOwner(userId) && incoming().userId == userId;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
       allow delete: if false; // profiles are permanent
 
       function incoming() {

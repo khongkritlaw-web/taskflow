@@ -39,7 +39,13 @@ import { Task, Expense, AppSettings } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
 
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { updateEmail, updatePassword } from 'firebase/auth';
+import { db, auth } from './firebase';
+
+const padPass = (pass: string) => {
+  if (pass.length >= 6) return pass;
+  return pass.padEnd(6, '0');
+};
 
 // Modules
 import AuthScreen from './components/AuthScreen';
@@ -73,7 +79,7 @@ function getCustomLinkIconComponent(name: string) {
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [sessionUser, setSessionUser] = useState({ userId: '', email: '', phone: '' });
+  const [sessionUser, setSessionUser] = useState({ userId: '', email: '', phone: '', password: '' });
   
   // App data states
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -129,6 +135,22 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState('');
   const [showNotificationFlyout, setShowNotificationFlyout] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  
+  // Account / Security states
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{ text: string; type: 'ok' | 'err' } | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+
+  // Sychronize input values with loaded session user
+  useEffect(() => {
+    if (sessionUser.userId) {
+      setEditUsername(sessionUser.userId);
+    }
+    if (sessionUser.password) {
+      setEditPassword(sessionUser.password);
+    }
+  }, [sessionUser.userId, sessionUser.password]);
 
   // 1. Initial configuration load upon login
   useEffect(() => {
@@ -139,7 +161,8 @@ export default function App() {
       const email = localStorage.getItem('user_email') || '';
       const phone = localStorage.getItem('user_phone') || '';
       const uid = localStorage.getItem('sess_uid') || '';
-      handleLoginSuccess(savedUserId, email, phone, uid);
+      const password = localStorage.getItem('user_password') || '000000';
+      handleLoginSuccess(savedUserId, email, phone, uid, password);
     }
   }, []);
 
@@ -181,17 +204,20 @@ export default function App() {
   }, [isLoggedIn, dataLoaded, settings.autoSendEnabled, settings.emailNotificationEnabled, settings.lastAutoSentDate]);
 
   // 2. Fetch data from mock cloud storage (localStorage)
-  const handleLoginSuccess = async (userId: string, email: string, phone: string, firebaseUid?: string) => {
+  const handleLoginSuccess = async (userId: string, email: string, phone: string, firebaseUid?: string, password?: string) => {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('sess_userId', userId);
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_phone', phone);
+    if (password) {
+      localStorage.setItem('user_password', password);
+    }
     
     let uid = firebaseUid || localStorage.getItem('sess_uid') || '';
     if (uid) {
       localStorage.setItem('sess_uid', uid);
     }
-    setSessionUser({ userId, email, phone });
+    setSessionUser({ userId, email, phone, password: password || localStorage.getItem('user_password') || '000000' });
     setIsLoggedIn(true);
 
     const defaultSet = {
@@ -459,6 +485,70 @@ export default function App() {
       } catch (e) {
         console.error('Failed to sync settings to Firestore:', e);
       }
+    }
+  };
+
+  const handleUpdateAccount = async (newUserId: string, newPassword: string) => {
+    if (!newUserId.trim()) {
+      setProfileMessage({ text: 'กรุณากรอกไอดีผู้ใช้งาน', type: 'err' });
+      return;
+    }
+    if (newPassword.length < 4) {
+      setProfileMessage({ text: 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร', type: 'err' });
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileMessage(null);
+
+    const uid = localStorage.getItem('sess_uid');
+    const cleanId = newUserId.trim().toLowerCase().replace(/\s/g, '');
+
+    try {
+      // 1. If auth is active, update email / password in Firebase Auth
+      if (auth.currentUser) {
+        // If changed userId, update email
+        if (cleanId !== sessionUser.userId) {
+          const newEmail = `${cleanId}@taskflow.space`;
+          await updateEmail(auth.currentUser, newEmail);
+        }
+        // Update password
+        const finalPass = padPass(newPassword);
+        await updatePassword(auth.currentUser, finalPass);
+      }
+
+      // 2. Update Firestore doc
+      if (uid) {
+        await setDoc(doc(db, 'users', uid), {
+          userId: cleanId,
+          password: newPassword,
+        }, { merge: true });
+      }
+
+      // 3. Keep localStorage updated
+      localStorage.setItem('sess_userId', cleanId);
+      localStorage.setItem('user_password', newPassword);
+
+      // Save custom settings mapping
+      const savedTasks = localStorage.getItem(`tasks_${sessionUser.userId}`);
+      const savedExpenses = localStorage.getItem(`expenses_${sessionUser.userId}`);
+      const savedSettings = localStorage.getItem(`settings_${sessionUser.userId}`);
+
+      if (savedTasks) localStorage.setItem(`tasks_${cleanId}`, savedTasks);
+      if (savedExpenses) localStorage.setItem(`expenses_${cleanId}`, savedExpenses);
+      if (savedSettings) localStorage.setItem(`settings_${cleanId}`, savedSettings);
+
+      setSessionUser(prev => ({ ...prev, userId: cleanId, password: newPassword }));
+      setProfileMessage({ text: 'อัปเดตบัญชีผู้ใช้และรหัสผ่านเรียบร้อยแล้ว!', type: 'ok' });
+    } catch (e: any) {
+      console.error('Failed to update account:', e);
+      let errMsg = e.message || String(e);
+      if (e.code === 'auth/requires-recent-login' || errMsg.includes('recent login')) {
+        errMsg = 'กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่อีกครั้ง เพื่อทำการยืนยันสิทธิ์เปลี่ยนรหัสผ่านล่าสุด';
+      }
+      setProfileMessage({ text: 'ไม่สามารถบันทึกข้อมูลเรียลไทม์ได้: ' + errMsg, type: 'err' });
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -1318,6 +1408,82 @@ export default function App() {
           {activeTab === 'settings' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
               
+              {/* ส่วนความปลอดภัย & แก้ไขรหัสผ่านก่อนเข้าใช้งาน */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 dark:bg-slate-900 dark:border-slate-800 xl:col-span-2">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-sm">
+                    🔐
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">ข้อมูลบัญชีและความปลอดภัยก่อนเข้าใช้งาน (System Security & Access)</span>
+                    <span className="text-[10px] text-slate-400 font-medium">จัดการชื่อผู้ใช้งานเริ่มต้นและรหัสผ่านลับก่อนเปิดเข้าเว็บใช้งานแอปพลิเคชัน</span>
+                  </div>
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-450 mb-1.5">
+                      👤 ชื่อผู้ใช้งานเข้าใช้ระบบหลัก (Username / ID)
+                    </label>
+                    <input
+                      type="text"
+                      value={editUsername}
+                      onChange={(e) => setEditUsername(e.target.value)}
+                      placeholder="เช่น admin"
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">ใช้พิมพ์ในช่องยูเซอร์เนมเข้าสู่เว็บไซต์ในครั้งถัดไป</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-450 mb-1.5">
+                      🔑 รหัสผ่านลับก่อนเข้าเว็บคัดกรอง (Password)
+                    </label>
+                    <input
+                      type="text"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      placeholder="เช่น 000000"
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">รหัสผ่านลับพื้นฐานเริ่มต้นถูกกำหนดไว้ที่ <span className="font-bold underline text-amber-500">000000</span></p>
+                  </div>
+                </div>
+
+                {profileMessage && (
+                  <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                    profileMessage.type === 'ok' 
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900' 
+                      : 'bg-rose-50 text-rose-800 border border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900'
+                  }`}>
+                    <span className="text-sm">{profileMessage.type === 'ok' ? '✅' : '⚠️'}</span>
+                    <span className="font-semibold">{profileMessage.text}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    disabled={profileSaving}
+                    onClick={() => handleUpdateAccount(editUsername, editPassword)}
+                    className="flex items-center gap-2 px-5 h-11 rounded-lg text-xs font-black text-white hover:opacity-95 active:scale-95 transition-all cursor-pointer shadow-md shadow-accent/15"
+                    style={{ backgroundColor: settings.colorAccent }}
+                  >
+                    {profileSaving ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        กำลังประมวลผลข้อมูลบัญชี...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        บันทึกเปลี่ยนรหัสผ่านและยูเซอร์ใหม่
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
               {/* Branding and style customizers */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 dark:bg-slate-900 dark:border-slate-800">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">

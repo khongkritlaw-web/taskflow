@@ -8,7 +8,7 @@ import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase
 import { auth, db } from '../firebase';
 
 interface AuthScreenProps {
-  onLoginSuccess: (userId: string, email: string, phone: string, firebaseUid: string) => void;
+  onLoginSuccess: (userId: string, email: string, phone: string, firebaseUid: string, password?: string) => void;
   accentColor: string;
 }
 
@@ -26,8 +26,8 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
   const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp'>('login');
   
   // Login input
-  const [loginId, setLoginId] = useState('');
-  const [loginPass, setLoginPass] = useState('');
+  const [loginId, setLoginId] = useState('admin');
+  const [loginPass, setLoginPass] = useState('000000');
   
   // Register input
   const [regId, setRegId] = useState('');
@@ -83,10 +83,10 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const udata = userDoc.data();
-        onLoginSuccess(udata.userId || trimmedId, udata.email || '', udata.phone || '', uid);
+        onLoginSuccess(udata.userId || trimmedId, udata.email || '', udata.phone || '', uid, udata.password || loginPass);
       } else {
         // Fallback user details
-        onLoginSuccess(trimmedId, `${trimmedId}@taskflow.com`, '0812345678', uid);
+        onLoginSuccess(trimmedId, `${trimmedId}@taskflow.com`, '0812345678', uid, loginPass);
       }
     } catch (error: any) {
       console.log('Login error, checking auto-registration...', error);
@@ -112,7 +112,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           // Save user credentials to Firestore
           await setDoc(doc(db, 'users', uid), profile);
           
-          onLoginSuccess(trimmedId, profile.email, profile.phone, uid);
+          onLoginSuccess(trimmedId, profile.email, profile.phone, uid, loginPass);
         } catch (regError: any) {
           triggerError('ไม่สามารถเข้าสู่ระบบหรือสร้างบัญชีใหม่ได้: ' + (regError.message || String(regError)));
           setIsLoading(false);
