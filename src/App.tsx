@@ -1226,51 +1226,36 @@ export default function App() {
         </header>
 
         {/* PRIMARY WINDOW CONTENT VIEW */}
-        <main className="p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-16">
+        <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-16"}>
           {activeTab.startsWith('link_') && (() => {
             const linkId = activeTab.replace('link_', '');
             const targetLink = settings.customMenuLinks?.find(l => l.id === linkId);
             if (!targetLink) {
               return (
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center dark:bg-slate-900 dark:border-slate-800">
+                <div className="p-8 text-center">
                   <p className="text-xs text-slate-500 font-bold">ไม่พบหน้าเว็บลิงก์เชื่อมโยงที่กำหนด</p>
                 </div>
               );
             }
             return (
               <div 
-                className="bg-white rounded-2xl border border-slate-200 p-1 flex flex-col h-[calc(100vh-10rem)] min-h-[650px] overflow-hidden shadow-sm dark:bg-slate-900 dark:border-slate-800"
+                className="flex flex-col w-full h-full overflow-hidden"
                 id="custom-link-viewport"
               >
-                <div className="px-4 py-2.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 flex-shrink-0">
                   <div className="flex items-center gap-2 min-w-0">
                     <Link className="w-4 h-4 flex-shrink-0" style={{ color: settings.colorAccent }} />
                     <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{targetLink.title}</span>
-                    <span className="text-[10px] text-slate-400 font-mono hidden sm:inline truncate max-w-xs md:max-w-md">({targetLink.url})</span>
                   </div>
-                  <a 
-                    href={targetLink.url} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="text-[10px] font-black text-white px-3 py-1.5 rounded-lg flex items-center gap-1 hover:brightness-105 transition-all shadow-md flex-shrink-0"
-                    style={{ backgroundColor: settings.colorAccent }}
-                  >
-                    เปิดหน้าต่างใหม่ ↗
-                  </a>
-                </div>
-                
-                {/* Alert/hint informing user standard iframe limitations */}
-                <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 flex items-center justify-between gap-2 dark:bg-slate-950/40 dark:border-slate-800">
-                  <span>💡 เคล็ดลับ: หากเนื้อหาหน้าเว็บไม่แสดงผลเนื่องจากระบบความปลอดภัยของปลายทาง คุณท่านสามารถคลิก "เปิดหน้าต่างใหม่ ↗" เพื่อเข้าชมได้โดยตรง</span>
                   <button 
                     onClick={() => {
                       const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
                       if (iframe) iframe.src = targetLink.url;
                     }}
-                    className="hover:underline text-[9px] font-black"
+                    className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
                     style={{ color: settings.colorAccent }}
                   >
-                    🔄 โหลดหน้าใหม่
+                    🔄 โหลดใหม่
                   </button>
                 </div>
 
@@ -1278,7 +1263,7 @@ export default function App() {
                   <iframe 
                     id="link-iframe"
                     src={targetLink.url} 
-                    className="w-full h-full border-0 bg-white" 
+                    className="w-full h-full border-0 bg-white dark:bg-slate-900" 
                     title={targetLink.title}
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                     referrerPolicy="no-referrer"
@@ -1345,7 +1330,7 @@ export default function App() {
                       type="text"
                       value={settings.appName}
                       onChange={(e) => syncSettings({ ...settings, appName: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
                     />
                   </div>
 
@@ -1355,7 +1340,7 @@ export default function App() {
                       type="text"
                       value={settings.appDesc}
                       onChange={(e) => syncSettings({ ...settings, appDesc: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
                     />
                   </div>
 
@@ -1366,7 +1351,7 @@ export default function App() {
                       placeholder="เช่น https://domain.com/my-logo.png"
                       value={settings.appLogoUrl || ''}
                       onChange={(e) => syncSettings({ ...settings, appLogoUrl: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
                     />
                   </div>
 
@@ -1650,7 +1635,7 @@ export default function App() {
                       value={newCatInput}
                       onChange={(e) => setNewCatInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleAddNewCategory(); }}
-                      className="flex-1 h-11 px-3 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                      className="flex-1 h-11 px-3 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
                       style={{ '--accent': settings.colorAccent } as React.CSSProperties}
                     />
                     <button
@@ -1716,7 +1701,7 @@ export default function App() {
                       placeholder="เช่น executive@company.com..."
                       value={settings.emailRecipient || ''}
                       onChange={(e) => syncSettings({ ...settings, emailRecipient: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
                     />
                   </div>
 
@@ -1734,7 +1719,7 @@ export default function App() {
                           placeholder="เช่น smtp.gmail.com"
                           value={settings.smtpHost || ''}
                           onChange={(e) => syncSettings({ ...settings, smtpHost: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
                         />
                       </div>
                       
@@ -1746,7 +1731,7 @@ export default function App() {
                             placeholder="587"
                             value={settings.smtpPort || ''}
                             onChange={(e) => syncSettings({ ...settings, smtpPort: parseInt(e.target.value) || 587 })}
-                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
                           />
                         </div>
                         <div>
@@ -1754,7 +1739,7 @@ export default function App() {
                           <select
                             value={settings.smtpSecure ? 'true' : 'false'}
                             onChange={(e) => syncSettings({ ...settings, smtpSecure: e.target.value === 'true' })}
-                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 font-bold"
+                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 font-bold"
                           >
                             <option value="false">STARTTLS (587)</option>
                             <option value="true">SSL/TLS (465)</option>
@@ -1769,7 +1754,7 @@ export default function App() {
                           placeholder="เช่น executive@gmail.com"
                           value={settings.smtpUser || ''}
                           onChange={(e) => syncSettings({ ...settings, smtpUser: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
                         />
                       </div>
 
@@ -1780,7 +1765,7 @@ export default function App() {
                           placeholder="รหัสผ่านเชื่อม SMTP..."
                           value={settings.smtpPass || ''}
                           onChange={(e) => syncSettings({ ...settings, smtpPass: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
                         />
                       </div>
 
@@ -1791,7 +1776,7 @@ export default function App() {
                           placeholder="เช่น TaskFlow System"
                           value={settings.smtpSenderName || ''}
                           onChange={(e) => syncSettings({ ...settings, smtpSenderName: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
                         />
                       </div>
 
@@ -1833,7 +1818,7 @@ export default function App() {
                       value={settings.emailMessageTemplate || ''}
                       onChange={(e) => syncSettings({ ...settings, emailMessageTemplate: e.target.value })}
                       placeholder="ใช้รูปแบบ {date} ({tasks} สำหรับภารกิจ, {expenses} สำหรับบิลจ่าย, {appName} สำหรับชื่อระบบ)..."
-                      className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-xs font-mono text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                      className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs font-mono text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
                     />
                     <div className="flex gap-2 text-[10px] text-slate-400 font-normal mt-1">
                       <span>🏷️ คีย์เวิร์ดที่ใช้งานได้:</span>
@@ -1916,7 +1901,7 @@ export default function App() {
                         placeholder="ป้อนชื่อปุ่มเมนู..."
                         value={newLinkTitle}
                         onChange={(e) => setNewLinkTitle(e.target.value)}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
                       />
                     </div>
                     <div>
@@ -1927,7 +1912,7 @@ export default function App() {
                         value={newLinkUrl}
                         onChange={(e) => setNewLinkUrl(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleAddMenuLink(); }}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
                       />
                     </div>
                   </div>
