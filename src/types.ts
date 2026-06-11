@@ -40,6 +40,14 @@ export interface AppSettings {
   emailRecipient?: string;
   emailNotificationEnabled?: boolean;
   emailMessageTemplate?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  smtpSecure?: boolean;
+  smtpSenderName?: string;
+  autoSendEnabled?: boolean;
+  lastAutoSentDate?: string;
   alertDays: number[];
   themePreset: string;
   // Custom theme colors

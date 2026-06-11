@@ -89,6 +89,14 @@ export default function App() {
     emailRecipient: '',
     emailNotificationEnabled: true,
     emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
+    smtpHost: '',
+    smtpPort: 587,
+    smtpUser: '',
+    smtpPass: '',
+    smtpSecure: false,
+    smtpSenderName: '',
+    autoSendEnabled: false,
+    lastAutoSentDate: '',
     alertDays: [0, 1, 3],
     themePreset: 'indigo-dream',
     colorAccent: '#2563eb',
@@ -120,6 +128,7 @@ export default function App() {
   const [customHolidays, setCustomHolidays] = useState<Record<string, string>>({});
   const [currentTime, setCurrentTime] = useState('');
   const [showNotificationFlyout, setShowNotificationFlyout] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // 1. Initial configuration load upon login
   useEffect(() => {
@@ -141,6 +150,35 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // 1.1 Automatic Daily Email Auto-Send Evaluation
+  useEffect(() => {
+    if (!isLoggedIn || !dataLoaded) return;
+
+    if (settings.autoSendEnabled && settings.emailNotificationEnabled) {
+      const todayStr = getThailandTodayStr();
+      
+      if (settings.lastAutoSentDate !== todayStr) {
+        if (settings.smtpHost && settings.smtpUser && settings.smtpPass) {
+          console.log("Evaluating Auto-Send for today:", todayStr);
+          
+          const runAutoSend = async () => {
+            const success = await sendEmailViaSMTP(true);
+            if (success) {
+              console.log("Auto-Send Email succeeded for", todayStr);
+              const updated = { ...settings, lastAutoSentDate: todayStr };
+              await syncSettings(updated);
+            } else {
+              console.warn("Auto-Send email failed or was skipped.");
+            }
+          };
+
+          const timeoutId = setTimeout(runAutoSend, 4000);
+          return () => clearTimeout(timeoutId);
+        }
+      }
+    }
+  }, [isLoggedIn, dataLoaded, settings.autoSendEnabled, settings.emailNotificationEnabled, settings.lastAutoSentDate]);
 
   // 2. Fetch data from mock cloud storage (localStorage)
   const handleLoginSuccess = async (userId: string, email: string, phone: string, firebaseUid?: string) => {
@@ -167,6 +205,14 @@ export default function App() {
       emailRecipient: email || '',
       emailNotificationEnabled: true,
       emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
+      smtpHost: '',
+      smtpPort: 587,
+      smtpUser: '',
+      smtpPass: '',
+      smtpSecure: false,
+      smtpSenderName: '',
+      autoSendEnabled: false,
+      lastAutoSentDate: '',
       alertDays: [0, 1, 3],
       themePreset: 'indigo-dream',
       colorAccent: '#2563eb',
@@ -292,8 +338,10 @@ export default function App() {
           await setDoc(doc(db, 'users', uid, 'expenses', exp.id), exp);
         }
       }
+      setDataLoaded(true);
     } catch (err) {
       console.error('Failed to sync or migrate from Firestore on login:', err);
+      setDataLoaded(true); // fall through so user doesn't get blocked
     }
   };
 
@@ -305,6 +353,7 @@ export default function App() {
       localStorage.removeItem('user_phone');
       localStorage.removeItem('sess_uid');
       setIsLoggedIn(false);
+      setDataLoaded(false);
       setSessionUser({ userId: '', email: '', phone: '' });
       setTasks([]);
       setExpenses([]);
@@ -645,6 +694,78 @@ export default function App() {
       }, 1000);
     } catch (err) {
       setEmailResult({ text: '❌ เกิดความล้มเหลวในการจัดทำเนื้อหารูปภาพ/ตัวคัดกรองอีเมล', type: 'err' });
+    }
+  };
+
+  const sendEmailViaSMTP = async (isAuto = false) => {
+    const recipient = settings.emailRecipient || sessionUser.email;
+    if (!recipient) {
+      if (!isAuto) {
+        setEmailResult({ text: '⚠️ กรุณาระบุที่อยู่อีเมลผู้รับสรุปรายงานก่อนทำรายการ', type: 'err' });
+      }
+      return false;
+    }
+
+    if (!settings.smtpHost || !settings.smtpUser || !settings.smtpPass) {
+      if (!isAuto) {
+        setEmailResult({ text: '⚠️ กรุณาตั้งค่าเซิร์ฟเวอร์ SMTP (Host, User, Password) ด้านล่างให้ครบถ้วนเพื่อส่งอีเมลจริง', type: 'err' });
+      }
+      return false;
+    }
+
+    if (!isAuto) {
+      setEmailResult({ text: '⌛ กำลังดำเนินการส่งอีเมลจริงผ่านระบบเซิร์ฟเวอร์ SMTP...', type: 'loading' });
+    }
+
+    try {
+      const emailBody = generateEmailContent();
+      const subject = `📢 รายงานสรุปสถานะภารกิจและการเงินผู้บริหาร - ${getThailandTodayStr()}`;
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: recipient,
+          subject: subject,
+          body: emailBody,
+          smtpHost: settings.smtpHost,
+          smtpPort: Number(settings.smtpPort) || 587,
+          smtpUser: settings.smtpUser,
+          smtpPass: settings.smtpPass,
+          smtpSecure: settings.smtpSecure || false,
+          smtpSenderName: settings.smtpSenderName || settings.appName,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        if (!isAuto) {
+          setEmailResult({ 
+            text: `✅ [ส่ง SMTP สำเร็จ] ส่งอีเมลรายงานสรุปไปยัง ${recipient} ผ่านเซิร์ฟเวอร์เรียบร้อยแล้ว!`, 
+            type: 'ok' 
+          });
+        }
+        return true;
+      } else {
+        if (!isAuto) {
+          setEmailResult({ 
+            text: `❌ ล้มเหลวส่ง SMTP: ${data.error || 'กรุณาตรวจสอบการตั้งค่า SMTP ให้ถูกต้อง'}`, 
+            type: 'err' 
+          });
+        }
+        return false;
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (!isAuto) {
+        setEmailResult({ 
+          text: `❌ ล้มเหลวในการเชื่อมต่อ API ส่งอีเมล: ${err.message || 'เครือข่ายขัดข้อง'}`, 
+          type: 'err' 
+        });
+      }
+      return false;
     }
   };
 
@@ -1568,14 +1689,14 @@ export default function App() {
                   การแจ้งเตือนและการจัดส่งรายงานทางอีเมล (System Report Mailer)
                 </h3>
                 <p className="text-xs text-slate-400 font-semibold dark:text-slate-450">
-                  คุณท่านสามารถตั้งค่าอีเมลสรุปข้อมูล เพื่อรับสรุปภารกิจคงค้างและแจ้งบิลจ่ายทางช่องทางเมลจำลอง
+                  ตั้งค่าให้ระบบสามารถนำเสนอและแจ้งเตือนรายงานภารกิจผ่านทางอีเมลจำลอง หรือส่งตรงผ่านเซิร์ฟเวอร์ SMTP ของท่านจริงเป็นประจำวันโดยอัตโนมัติ
                 </p>
 
                 <div className="space-y-4 text-xs font-semibold text-slate-650">
                   <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl dark:bg-slate-950">
                     <div>
-                      <h4 className="font-bold text-slate-800 dark:text-slate-200">เปิดใช้งานส่งข้อมูลแจ้งเตือนทางอีเมล</h4>
-                      <p className="text-[10px] text-slate-400 font-normal">อนุญาตให้ส่งรายงานสรุปทางอีเมลจำลอง</p>
+                      <h4 className="font-bold text-slate-800 dark:text-slate-200">เปิดใช้งานระบบส่งรายงานทางอีเมล</h4>
+                      <p className="text-[10px] text-slate-400 font-normal">อนุญาตให้ประเมินผลและแจ้งเตือนผ่านช่องทางอีเมลเมลจำลอง/จริง</p>
                     </div>
                     <button
                       type="button"
@@ -1589,7 +1710,7 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-slate-600 mb-1 dark:text-slate-450">อีเมลปลายทางผู้รับ (Executive Recipient)</label>
+                    <label className="block text-slate-600 mb-1 dark:text-slate-450">อีเมลปลายทางผู้รับรายงานด่วน (Executive Recipient)</label>
                     <input
                       type="email"
                       placeholder="เช่น executive@company.com..."
@@ -1597,6 +1718,99 @@ export default function App() {
                       onChange={(e) => syncSettings({ ...settings, emailRecipient: e.target.value })}
                       className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
                     />
+                  </div>
+
+                  {/* SMTP Server Configuration block */}
+                  <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-950/20 dark:border-slate-800 space-y-3.5">
+                    <div className="font-bold text-xs text-slate-800 dark:text-slate-250 border-b border-slate-100 pb-1.5 dark:border-slate-800 flex items-center justify-between">
+                      <span>⚙️ ข้อมูลเซิร์ฟเวอร์ส่งเมลจริง (SMTP Server Credentials)</span>
+                      <span className="text-[10px] font-normal text-slate-400">(สนับสนุน Gmail, SendGrid, Outlook, ฯลฯ)</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-[11px]">
+                      <div>
+                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP Host / Server Address</label>
+                        <input
+                          type="text"
+                          placeholder="เช่น smtp.gmail.com"
+                          value={settings.smtpHost || ''}
+                          onChange={(e) => syncSettings({ ...settings, smtpHost: e.target.value })}
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP Port</label>
+                          <input
+                            type="number"
+                            placeholder="587"
+                            value={settings.smtpPort || ''}
+                            onChange={(e) => syncSettings({ ...settings, smtpPort: parseInt(e.target.value) || 587 })}
+                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">ระบบยิงเชื่อมต่อ</label>
+                          <select
+                            value={settings.smtpSecure ? 'true' : 'false'}
+                            onChange={(e) => syncSettings({ ...settings, smtpSecure: e.target.value === 'true' })}
+                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 font-bold"
+                          >
+                            <option value="false">STARTTLS (587)</option>
+                            <option value="true">SSL/TLS (465)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP User / Username</label>
+                        <input
+                          type="text"
+                          placeholder="เช่น executive@gmail.com"
+                          value={settings.smtpUser || ''}
+                          onChange={(e) => syncSettings({ ...settings, smtpUser: e.target.value })}
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP Password / App Password</label>
+                        <input
+                          type="password"
+                          placeholder="รหัสผ่านเชื่อม SMTP..."
+                          value={settings.smtpPass || ''}
+                          onChange={(e) => syncSettings({ ...settings, smtpPass: e.target.value })}
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">ชื่อ Display ผู้จัดส่ง (Sender Name)</label>
+                        <input
+                          type="text"
+                          placeholder="เช่น TaskFlow System"
+                          value={settings.smtpSenderName || ''}
+                          onChange={(e) => syncSettings({ ...settings, smtpSenderName: e.target.value })}
+                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-655 dark:text-slate-450 mb-1 font-bold">ส่งอีเมลโดยอัตโนมัติรายวัน (Auto-Send)</label>
+                        <div className="flex items-center justify-between h-10 px-3 bg-white border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-800">
+                          <span className="text-[10px] text-slate-400 font-normal">แอบส่งอัตโนมัติเมื่อล็อคอินเข้าครั้งแรกของวัน</span>
+                          <button
+                            type="button"
+                            onClick={() => syncSettings({ ...settings, autoSendEnabled: !settings.autoSendEnabled })}
+                            className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
+                              settings.autoSendEnabled ? 'bg-emerald-500' : 'bg-slate-350 dark:bg-slate-750'
+                            }`}
+                          >
+                            <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.autoSendEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -1615,7 +1829,7 @@ export default function App() {
                       </button>
                     </div>
                     <textarea
-                      rows={6}
+                      rows={5}
                       value={settings.emailMessageTemplate || ''}
                       onChange={(e) => syncSettings({ ...settings, emailMessageTemplate: e.target.value })}
                       placeholder="ใช้รูปแบบ {date} ({tasks} สำหรับภารกิจ, {expenses} สำหรับบิลจ่าย, {appName} สำหรับชื่อระบบ)..."
@@ -1636,27 +1850,35 @@ export default function App() {
                       <span>👁️ ตัวอย่างเนื้อหาอีเมลจริง (Live Responsive Preview)</span>
                       <span className="text-accent underline" style={{ color: settings.colorAccent }}>To: {settings.emailRecipient || sessionUser.email || '(ระบุเพื่อเข้าถึง)'}</span>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-inner max-h-56 overflow-y-auto font-mono text-[11px] text-slate-700 whitespace-pre-wrap dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">
+                    <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-inner max-h-48 overflow-y-auto font-mono text-[11px] text-slate-700 whitespace-pre-wrap dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">
                       {generateEmailContent()}
                     </div>
                   </div>
 
-                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={testEmailNotification}
-                      className="flex-1 h-11 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all dark:border-slate-800 dark:text-slate-300 flex items-center justify-center gap-1.5"
+                      className="h-11 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all dark:border-slate-850 dark:text-slate-300 flex items-center justify-center gap-1.5"
                     >
-                      🧪 ทดสอบส่งจำลอง (Mock SMTP)
+                      🧪 ทดสอบส่งจำลอง
                     </button>
                     
                     <button
                       type="button"
                       onClick={sendEmailViaClient}
-                      className="flex-1 h-11 text-white font-black text-xs rounded-xl shadow-md hover:brightness-95 active:scale-98 transition-all flex items-center justify-center gap-1.5"
+                      className="h-11 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all dark:border-slate-850 dark:text-slate-300 flex items-center justify-center gap-1.5"
+                    >
+                      ✉️ ส่งทาง Mail Client
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => sendEmailViaSMTP(false)}
+                      className="h-11 text-white font-heavy text-xs rounded-xl shadow-md hover:brightness-95 active:scale-98 transition-all flex items-center justify-center gap-1.5"
                       style={{ backgroundColor: settings.colorAccent }}
                     >
-                      ✉️ เปิดส่งอีเมลจริงด้วย Mail Client
+                      🚀 ยิงส่งด่วนผ่าน SMTP
                     </button>
                   </div>
 
