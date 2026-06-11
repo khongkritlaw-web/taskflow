@@ -1239,7 +1239,7 @@ export default function App() {
             }
             return (
               <div 
-                className="bg-white rounded-2xl border border-slate-200 p-1 flex flex-col h-[calc(100vh-14rem)] min-h-[500px] overflow-hidden shadow-sm dark:bg-slate-900 dark:border-slate-800"
+                className="bg-white rounded-2xl border border-slate-200 p-1 flex flex-col h-[calc(100vh-10rem)] min-h-[650px] overflow-hidden shadow-sm dark:bg-slate-900 dark:border-slate-800"
                 id="custom-link-viewport"
               >
                 <div className="px-4 py-2.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
