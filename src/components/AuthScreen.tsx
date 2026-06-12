@@ -1,5 +1,20 @@
 import React, { useState } from 'react';
-import { Lock, UserPlus, HelpCircle, ShieldCheck, DoorOpen } from 'lucide-react';
+import { 
+  Lock, 
+  UserPlus, 
+  HelpCircle, 
+  ShieldCheck, 
+  DoorOpen, 
+  Eye, 
+  EyeOff, 
+  User, 
+  Mail, 
+  Phone, 
+  Key, 
+  ArrowLeft, 
+  CheckCircle,
+  AlertTriangle
+} from 'lucide-react';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword 
@@ -24,7 +39,7 @@ const formatEmail = (id: string) => {
 };
 
 export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenProps) {
-  const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp'>('login');
+  const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp' | 'reset'>('login');
   
   // Login input
   const [loginId, setLoginId] = useState('admin');
@@ -36,14 +51,23 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
   const [regPhone, setRegPhone] = useState('');
   const [regPass, setRegPass] = useState('');
   
-  // Forgot password input
+  // Forgot password/ID input
   const [forgotId, setForgotId] = useState('');
   const [forgotPhone, setForgotPhone] = useState('');
+  const [recoverMode, setRecoverMode] = useState<'id_and_password' | 'password'>('password');
   
   // OTP input
   const [otpValue, setOtpValue] = useState('');
   const [generatedOTP, setGeneratedOTP] = useState('');
   const [otpUserId, setOtpUserId] = useState('');
+
+  // Reset ID / Pass inputs
+  const [resetId, setResetId] = useState('');
+  const [resetPass, setResetPass] = useState('');
+  const [resetPassConfirm, setResetPassConfirm] = useState('');
+
+  // Toggles and utilities
+  const [showPassword, setShowPassword] = useState(false);
 
   // Statuses
   const [errorMsg, setErrorMsg] = useState('');
@@ -54,7 +78,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
   const triggerError = (msg: string) => {
     setErrorMsg(msg);
     setSuccessMsg('');
-    setTimeout(() => setErrorMsg(''), 4000);
+    setTimeout(() => setErrorMsg(''), 5000);
   };
 
   const triggerSuccess = (msg: string) => {
@@ -78,7 +102,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!loginId.trim() || !loginPass) {
-      triggerError('กรุณากรอกไอดีและรหัสผ่านให้ครบถ้วน');
+      triggerError('กรุณากรอกไอดีผู้ใช้งานและรหัสผ่านให้ครบถ้วน');
       return;
     }
     setIsLoading(true);
@@ -91,7 +115,55 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     const finalPass = padPass(loginPass);
 
     try {
-      // 1. Attempt login with Firebase Auth
+      // 1. First lookup the User ID directly in Firestore
+      // This is extremely robust because if they reset ID/password, Firestore is updated.
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('userId', '==', trimmedId));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        let matchedUserDoc: any = null;
+        let matchedUid = '';
+        querySnapshot.forEach((doc) => {
+          matchedUserDoc = doc.data();
+          matchedUid = doc.id;
+        });
+
+        if (matchedUserDoc && matchedUserDoc.password === loginPass) {
+          // If Firestore password matches, authenticate with Firebase Auth in the background and proceed
+          try {
+            await signInWithEmailAndPassword(auth, emailFirebase, finalPass);
+          } catch (authErr: any) {
+            console.log('Firebase background auth sync:', authErr);
+            if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential') {
+              try {
+                await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
+              } catch (createErr) {
+                console.log('Background auth account creation skipped:', createErr);
+              }
+            }
+          }
+
+          triggerSuccess('เข้าสู่ระบบสำเร็จ กำลังนำคุณเข้าสู่แอปพลิเคชัน...');
+          setTimeout(() => {
+            onLoginSuccess(
+              trimmedId, 
+              matchedUserDoc.email || `${trimmedId}@taskflow.space`, 
+              matchedUserDoc.phone || '0812345678', 
+              matchedUid, 
+              loginPass
+            );
+            setIsLoading(false);
+          }, 800);
+          return;
+        } else {
+          triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาป้อนรหัสที่ถูกต้อง หรือคลิกปุ่มกู้คืนบัญชีด้านล่างเพื่อรีเซ็ตรหัสผ่าน');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // 2. If not found in Firestore, let's treat as a registration or attempt Firebase Auth directly
       const userCredential = await signInWithEmailAndPassword(auth, emailFirebase, finalPass);
       const uid = userCredential.user.uid;
 
@@ -101,8 +173,15 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         const udata = userDoc.data();
         onLoginSuccess(udata.userId || trimmedId, udata.email || '', udata.phone || '', uid, udata.password || loginPass);
       } else {
-        // Fallback user details
-        onLoginSuccess(trimmedId, `${trimmedId}@taskflow.com`, '0812345678', uid, loginPass);
+        // Create custom fallback user details stored in Firestore so next lookup works
+        const profile = {
+          userId: trimmedId,
+          email: `${trimmedId}@taskflow.space`,
+          phone: '0812345678',
+          password: loginPass
+        };
+        await setDoc(doc(db, 'users', uid), profile);
+        onLoginSuccess(trimmedId, profile.email, profile.phone, uid, loginPass);
       }
     } catch (error: any) {
       console.log('Login error, checking auto-registration...', error);
@@ -114,27 +193,24 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         return;
       }
 
-      // Auto register if user doesn't exist (to make review/testing super easy, as original code did)
+      // Auto register if user doesn't exist
       if (
         error.code === 'auth/user-not-found' || 
         error.code === 'auth/invalid-credential' || 
         error.code === 'auth/invalid-email'
       ) {
         try {
-          // Attempt auto registration in Firebase Auth
           const userCredential = await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
           const uid = userCredential.user.uid;
           
           const profile = {
             userId: trimmedId,
-            email: `${trimmedId}@taskflow.com`,
+            email: `${trimmedId}@taskflow.space`,
             phone: '0812345678',
             password: loginPass
           };
 
-          // Save user credentials to Firestore
           await setDoc(doc(db, 'users', uid), profile);
-          
           onLoginSuccess(trimmedId, profile.email, profile.phone, uid, loginPass);
         } catch (regError: any) {
           if (regError.code === 'auth/operation-not-allowed') {
@@ -182,7 +258,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
-        triggerError('ไอดีนี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีใหม่');
+        triggerError('ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
         setIsLoading(false);
         return;
       }
@@ -228,8 +304,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     const trimmedId = forgotId.trim().toLowerCase();
     const trimmedPhone = forgotPhone.trim();
     
-    if (!trimmedId || !trimmedPhone) {
-      triggerError('กรุณากรอกข้อมูลให้ครบถ้วนเพื่อทำการค้นหา');
+    // Check fields based on recovery mode
+    if (recoverMode === 'password' && (!trimmedId || !trimmedPhone)) {
+      triggerError('กรุณากรอกไอดีผู้ใช้และเบอร์โทรศัพท์ที่บันทึกไว้');
+      return;
+    }
+    if (recoverMode === 'id_and_password' && !trimmedPhone) {
+      triggerError('กรุณากรอกเบอร์โทรศัพท์ที่บันทึกไว้สำหรับสแกนไอดี');
       return;
     }
 
@@ -238,117 +319,222 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     setSuccessMsg('');
 
     try {
-      // Lookup user in Firestore
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('userId', '==', trimmedId));
-      const querySnapshot = await getDocs(q);
+      
+      if (recoverMode === 'password') {
+        // Find specifically by Username ID
+        const q = query(usersRef, where('userId', '==', trimmedId));
+        const querySnapshot = await getDocs(q);
 
-      if (querySnapshot.empty) {
-        // Special mock admin fallback if not yet registered in Firebase
-        if (trimmedId === 'admin') {
-          const otp = Math.floor(100000 + Math.random() * 900000).toString();
-          setGeneratedOTP(otp);
-          setOtpUserId('admin');
-          setFormType('otp');
-          triggerSuccess('สร้างรหัสผ่านกู้คืน OTP สำเร็จ!');
+        if (querySnapshot.empty) {
+          if (trimmedId === 'admin') {
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            setGeneratedOTP(otp);
+            setOtpUserId('admin');
+            setFormType('otp');
+            triggerSuccess('สร้างบริการกู้คืนรหัส OTP บัญชีทดสอบโปรแกรมสำเร็จ!');
+            setIsLoading(false);
+            return;
+          }
+          triggerError('ไม่พบข้อมูลไอดีผู้ใช้หรือเบอร์โทรศัพท์นี้ตรงกันในระบบ');
           setIsLoading(false);
           return;
         }
 
-        triggerError('ไม่พบข้อมูลไอดีผู้ใช้หรือเบอร์โทรศัพท์นี้ตรงกันในระบบ');
-        setIsLoading(false);
-        return;
-      }
+        let foundUser: any = null;
+        querySnapshot.forEach((doc) => {
+          const udata = doc.data();
+          if (udata.phone === trimmedPhone) {
+            foundUser = udata;
+          }
+        });
 
-      let foundUser: any = null;
-      querySnapshot.forEach((doc) => {
-        const udata = doc.data();
-        if (udata.phone === trimmedPhone) {
-          foundUser = udata;
+        if (!foundUser) {
+          triggerError('เบอร์โทรศัพท์ไม่ตรงกับข้อมูลในไอดีนี้ กรุณาลองใหม่อีกครั้ง');
+          setIsLoading(false);
+          return;
         }
-      });
 
-      if (!foundUser) {
-        triggerError('ไม่พบข้อมูลไอดีผู้ใช้หรือเบอร์โทรศัพท์นี้ตรงกันในระบบ');
-        setIsLoading(false);
-        return;
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOTP(otp);
+        setOtpUserId(trimmedId);
+        setFormType('otp');
+      } else {
+        // Recover user ID option (Search purely by phone)
+        const q = query(usersRef, where('phone', '==', trimmedPhone));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          triggerError('ไม่พบเบอร์โทรศัพท์นี้ลงทะเบียนในระบบ กรุณาตรวจสอบเบอร์โทรของคุณ');
+          setIsLoading(false);
+          return;
+        }
+
+        let matchedId = '';
+        querySnapshot.forEach((doc) => {
+          const udata = doc.data();
+          matchedId = udata.userId;
+        });
+
+        if (!matchedId) {
+          triggerError('ไม่พบข้อมูลบัญชีผู้ใช้สำหรับเบอร์โทรนี้');
+          setIsLoading(false);
+          return;
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOTP(otp);
+        setOtpUserId(matchedId); // Store target username for password reset too!
+        setForgotId(matchedId); // Autofill on recover
+        triggerSuccess(`พบประวัติผู้ใช้งานในระเบียน! ไอดีของคุณคือ "${matchedId}"`);
+        setTimeout(() => {
+          setFormType('otp');
+          setIsLoading(false);
+        }, 1800);
       }
-
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOTP(otp);
-      setOtpUserId(trimmedId);
-      setFormType('otp');
     } catch (error: any) {
       triggerError('เกิดข้อผิดพลาดในการตรวจสอบ: ' + (error.message || String(error)));
-    } finally {
       setIsLoading(false);
     }
   };
 
   const handleVerifyOTP = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!otpValue.trim()) {
+      triggerError('กรุณากรอกรหัส OTP นำส่งความปลอดภัย');
+      return;
+    }
     if (otpValue.trim() !== generatedOTP) {
-      triggerError('รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบรหัสอีกครั้ง');
+      triggerError('รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบรหัสใหม่อีกครั้ง');
       return;
     }
     
     setIsLoading(true);
+    setSuccessMsg('🔓 ยืนยันรหัสความปลอดภัย OTP สำเร็จแล้ว! กำลังนำคุณเข้าสู่เมนูเปลี่ยนข้อมูลบัญชี');
+    
+    setTimeout(() => {
+      setResetId(otpUserId);
+      setResetPass('');
+      setResetPassConfirm('');
+      setFormType('reset');
+      setIsLoading(false);
+      setSuccessMsg('');
+    }, 1500);
+  };
+
+  const handleResetCredentials = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanId = resetId.trim().toLowerCase().replace(/\s/g, '');
+    if (!cleanId) {
+      triggerError('กรุณากำหนดไอดีผู้ใช้งาน (User ID) ใหม่');
+      return;
+    }
+    if (resetPass.length < 4) {
+      triggerError('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร');
+      return;
+    }
+    if (resetPass !== resetPassConfirm) {
+      triggerError('การบันทึกฟาร์มรหัสผ่านทั้งสองช่องกรอกไม่ตรงกัน');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
     try {
       if (otpUserId === 'admin') {
-        alert(`ยืนยัน OTP เรียบร้อยแล้ว!\nรหัสผ่านสำหรับข้อมูลผู้ใช้ "admin" คือ: 1234`);
-        setFormType('login');
-        setIsLoading(false);
+        triggerSuccess('แก้ไขจำลองเปลี่ยนข้อมูลและรหัสของบัญชีสาธารณะ admin สำเร็จ!');
+        setTimeout(() => {
+          setLoginId(cleanId);
+          setLoginPass(resetPass);
+          setFormType('login');
+          setIsLoading(false);
+        }, 1500);
         return;
       }
 
-      // Retrieve password from Firestore
+      // Update in Firestore
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where('userId', '==', otpUserId));
       const querySnapshot = await getDocs(q);
 
-      let password = '(ไม่พบรหัสผ่าน)';
+      if (querySnapshot.empty) {
+        // If not found, create new record or fall back
+        triggerError('ไม่พบฐานข้อมูลผู้ใช้ต้นแบบบนระบบคลาวด์');
+        setIsLoading(false);
+        return;
+      }
+
+      let docId = '';
+      let matchedData: any = null;
       querySnapshot.forEach((doc) => {
-        password = doc.data().password || password;
+        docId = doc.id;
+        matchedData = doc.data();
       });
 
-      // reset otp page
-      setOtpValue('');
-      setGeneratedOTP('');
+      if (docId) {
+        // Save back updated userId and password to Firestore
+        await setDoc(doc(db, 'users', docId), {
+          ...matchedData,
+          userId: cleanId,
+          password: resetPass
+        }, { merge: true });
+
+        // Synchronize browser local storage mappings
+        const savedTasks = localStorage.getItem(`tasks_${otpUserId}`);
+        const savedExpenses = localStorage.getItem(`expenses_${otpUserId}`);
+        const savedSettings = localStorage.getItem(`settings_${otpUserId}`);
+
+        if (savedTasks) localStorage.setItem(`tasks_${cleanId}`, savedTasks);
+        if (savedExpenses) localStorage.setItem(`expenses_${cleanId}`, savedExpenses);
+        if (savedSettings) localStorage.setItem(`settings_${cleanId}`, savedSettings);
+      }
+
+      triggerSuccess('🎉 แก้ไขเปลี่ยนรหัสผ่านและไอดีเสร็จสิ้นโดยสมบูรณ์! กำลังนำคุณกลับไปหน้าเข้าสู่ระบบ...');
       
-      // Display custom info
-      alert(`ยืนยัน OTP เรียบร้อยแล้ว!\nรหัสผ่านสำหรับข้อมูลผู้ใช้ "${otpUserId}" คือ: ${password}`);
-      setFormType('login');
-    } catch (error: any) {
-      triggerError('เกิดข้อผิดพลาด: ' + (error.message || String(error)));
-    } finally {
+      setTimeout(() => {
+        setLoginId(cleanId);
+        setLoginPass(resetPass);
+        setShowPassword(false);
+        setFormType('login');
+        setIsLoading(false);
+        setSuccessMsg('');
+      }, 2000);
+
+    } catch (err: any) {
+      triggerError('ไม่สามารถเซ็ตเปลี่ยนค่าความปลอดภัย: ' + (err.message || String(err)));
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden transition-all dark:bg-slate-900 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transition-all dark:bg-slate-900 dark:border-slate-850">
         
-        {/* Header Ribbon */}
-        <div className="p-8 text-center bg-slate-50 border-b border-slate-100 dark:bg-slate-950 dark:border-slate-800">
-          <div className="w-14 h-14 bg-accent/10 text-accent rounded-2xl flex items-center justify-center mx-auto mb-4 border border-accent/20" style={{ '--accent': accentColor } as React.CSSProperties}>
-            {formType === 'login' && <Lock className="w-6 h-6" />}
-            {formType === 'register' && <UserPlus className="w-6 h-6" />}
-            {formType === 'forgot' && <HelpCircle className="w-6 h-6" />}
-            {formType === 'otp' && <ShieldCheck className="w-6 h-6" />}
+        {/* Header Branding Ribbon */}
+        <div className="p-8 text-center bg-slate-50 border-b border-slate-100 dark:bg-slate-950 dark:border-slate-850">
+          <div className="w-16 h-16 bg-accent/10 text-accent rounded-2xl flex items-center justify-center mx-auto mb-4 border border-accent/20" style={{ '--accent': accentColor } as React.CSSProperties}>
+            {formType === 'login' && <Lock className="w-7 h-7" />}
+            {formType === 'register' && <UserPlus className="w-7 h-7" />}
+            {formType === 'forgot' && <HelpCircle className="w-7 h-7" />}
+            {formType === 'otp' && <ShieldCheck className="w-7 h-7 animate-bounce" />}
+            {formType === 'reset' && <Key className="w-7 h-7" />}
           </div>
           
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+          <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
             {formType === 'login' && 'เข้าสู่ระบบ TaskFlow Space'}
             {formType === 'register' && 'ลงทะเบียนบัญชีใหม่'}
-            {formType === 'forgot' && 'กู้คืนรหัสผ่าน'}
+            {formType === 'forgot' && 'กู้คืนบัญชีและเข้าใช้ระบบ'}
             {formType === 'otp' && 'ยืนยันรหัสความปลอดภัย OTP'}
+            {formType === 'reset' && 'ตั้งค่ารหัสผ่านและไอดีใหม่'}
           </h2>
-          <p className="text-xs text-slate-500 mt-1 dark:text-slate-400">
+          <p className="text-xs text-slate-500 mt-1.5 dark:text-slate-400">
             {formType === 'login' && 'ป้อนบัญชีของคุณ หากยังไม่มีระบบจะลงทะเบียนให้อัตโนมัติ'}
             {formType === 'register' && 'ร่วมเป็นส่วนหนึ่งกับระบบจัดการงานอัจฉริยะ'}
-            {formType === 'forgot' && 'กรอกหมายเลขและชื่อยูสเซอรสำหรับการกู้ข้อมูล'}
-            {formType === 'otp' && 'รหัส OTP ได้ถูกจัดเตรียมไว้สำหรับการตรวจสอบด่วน'}
+            {formType === 'forgot' && 'กรอกรายละเอียดเพื่อตรวจสอบสิทธิ์หรือค้นหาประวัติ'}
+            {formType === 'otp' && 'ป้อนหมายเลข OTP ที่แสดงอยู่ด้านล่างเพื่อยืนยันตน'}
+            {formType === 'reset' && 'คุณสามารถแก้ไขชื่อไอดี (ID / Username) และตั้งรหัสผ่านใหม่ได้ทันที'}
           </p>
         </div>
 
@@ -356,33 +542,35 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         <div className="p-8">
           
           {errorMsg && (
-            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-lg text-center dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
-              {errorMsg}
+            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-150 text-rose-700 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-500" />
+              <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium rounded-lg text-center dark:bg-emerald-950/35 dark:border-emerald-900 dark:text-emerald-400">
-              {successMsg}
+            <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-150 text-emerald-800 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-400">
+              <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-500 animate-pulse" />
+              <span>{successMsg}</span>
             </div>
           )}
 
           {diagnosticError === 'operation-not-allowed' && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 text-slate-800 text-xs rounded-xl space-y-2 dark:bg-amber-950/20 dark:border-amber-900 dark:text-slate-200">
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 text-slate-800 text-xs rounded-2xl space-y-2 dark:bg-amber-950/20 dark:border-amber-900 dark:text-slate-200">
               <p className="font-bold flex items-center justify-center gap-1.5 text-amber-800 dark:text-amber-400">
                 🛠️ วิธีเปิดใช้งาน Email/Password ใน Firebase Console
               </p>
               <ol className="list-decimal list-inside space-y-1 text-slate-700 dark:text-slate-300 leading-relaxed text-[11px] pl-1">
-                <li>เปิดเมนู <strong className="text-slate-900 dark:text-white">Authentication</strong> &gt; หน้า <strong className="text-slate-900 dark:text-white">Sign-in method</strong> ใน <a href={`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers`} target="_blank" rel="noreferrer" className="underline font-bold hover:opacity-85" style={{ color: accentColor }}>Firebase Console</a></li>
-                <li>กดปุ่ม <strong className="text-slate-900 dark:text-white">Add new provider</strong> ยืนยันการใช้ <strong className="text-slate-900 dark:text-white">Email/Password</strong></li>
-                <li>เลื่อนสลับสถานะเป็น <strong className="text-slate-900 dark:text-white">Enable</strong> และคลิก <strong className="text-slate-900 dark:text-white">Save</strong></li>
+                <li>เปิดเมนู <strong>Authentication</strong> &gt; หน้า <strong>Sign-in method</strong> ใน <a href={`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers`} target="_blank" rel="noreferrer" className="underline font-bold hover:opacity-85" style={{ color: accentColor }}>Firebase Console</a></li>
+                <li>กดปุ่ม <strong>Add new provider</strong> ยืนยันการใช้ <strong>Email/Password</strong></li>
+                <li>เลื่อนสลับสถานะเป็น <strong>Enable</strong> และคลิก <strong>Save</strong></li>
                 <li>กลับมาที่นี่เพื่อเข้าใช้งานระบบคลาวด์ได้โดยสมบูรณ์</li>
               </ol>
               <div className="pt-1 flex justify-center">
                 <button
                   type="button"
                   onClick={handleOfflineLogin}
-                  className="w-full py-2 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-700 transition-all dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-100 flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full py-2.5 bg-slate-800 text-white font-bold text-xs rounded-xl hover:bg-slate-755 transition-all dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white flex items-center justify-center gap-1.5 shadow-sm"
                 >
                   ⚡ สลับใช้ "โหมดจำลองออฟไลน์" ทันที (ไม่ต้องตั้งค่า)
                 </button>
@@ -390,47 +578,65 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             </div>
           )}
 
-          {/* LOGIN FORM */}
+          {/* 1. LOGIN FORM */}
           {formType === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">ไอดีผู้ใช้งาน (User ID)</label>
-                <input
-                  type="text"
-                  value={loginId}
-                  onChange={(e) => setLoginId(e.target.value)}
-                  placeholder="ป้อนชื่อไอดีผู้ใช้ของคุณ... (เช่น admin)"
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                  style={{ '--accent': accentColor } as React.CSSProperties}
-                  disabled={isLoading}
-                />
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  ไอดีผู้ใช้งาน (User ID)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={loginId}
+                    onChange={(e) => setLoginId(e.target.value)}
+                    placeholder="ป้อนชื่อไอดีผู้ใช้ของคุณ... (เช่น admin)"
+                    className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
+                    style={{ '--accent': accentColor } as React.CSSProperties}
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">รหัสผ่าน</label>
-                <input
-                  type="password"
-                  value={loginPass}
-                  onChange={(e) => setLoginPass(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                  style={{ '--accent': accentColor } as React.CSSProperties}
-                  disabled={isLoading}
-                />
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  รหัสผ่านลับ
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPass}
+                    onChange={(e) => setLoginPass(e.target.value)}
+                    placeholder="ป้อนรหัสผ่านสำรอง..."
+                    className="w-full h-12 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-mono font-bold"
+                    style={{ '--accent': accentColor } as React.CSSProperties}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               
-              <div className="flex gap-2">
+              <div className="flex gap-2.5 pt-1.5">
                 <button
                   type="submit"
-                  className="flex-1 h-11 font-bold text-sm text-white rounded-lg transition-all shadow-md focus:outline-none hover:opacity-90"
+                  className="flex-1 h-12 font-black text-xs text-white rounded-xl transition-all shadow-md shadow-accent/10 focus:outline-none hover:brightness-105 active:scale-98"
                   style={{ backgroundColor: accentColor }}
                   disabled={isLoading}
                 >
-                  {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ (Cloud)'}
+                  {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบเครือข่าย'}
                 </button>
                 <button
                   type="button"
                   onClick={handleOfflineLogin}
-                  className="px-4 h-11 font-semibold text-xs border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all rounded-lg shadow-sm dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                  className="px-4.5 h-12 font-bold text-xs border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all rounded-xl shadow-sm dark:bg-slate-900 dark:border-slate-850 dark:text-slate-200 dark:hover:bg-slate-800"
                   disabled={isLoading}
                   title="เข้าใช้งานโดยตรง ไม่ต้องผ่าน Firebase คลาวด์"
                 >
@@ -438,81 +644,102 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 </button>
               </div>
 
-              <div className="pt-2 text-center flex flex-col space-y-2">
+              <div className="pt-4 text-center flex flex-col space-y-2.5 border-t border-slate-100 dark:border-slate-850/50 mt-4">
                 <button
                   type="button"
                   onClick={() => { setFormType('register'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
-                  className="text-xs font-semibold hover:underline"
+                  className="text-xs font-bold hover:underline"
                   style={{ color: accentColor }}
                 >
-                  ยังไม่มีบัญชีใช้งานใหม่? ลงทะเบียนที่นี่
+                  🆕 ยังไม่มีบัญชีใช้งานใหม่? สมัครสมาชิกที่นี่
                 </button>
                 <button
                   type="button"
                   onClick={() => { setFormType('forgot'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
-                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  className="text-xs font-bold text-slate-450 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center gap-1"
                 >
-                  ลืมรหัสผ่านใช่หรือไม่?
+                  🔑 ลืมรหัสผ่าน หรืออยากแก้คืนไอดีผู้ใช้? คลิกตรงนี้
                 </button>
               </div>
             </form>
           )}
 
-          {/* REGISTER FORM */}
+          {/* 2. REGISTER FORM */}
           {formType === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">ระบุไอดีผู้ใช้ * (ห้ามมีช่องว่าง)</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  ระบุไอดีผู้ใช้ใหม่ * (ห้ามมีช่องว่าง)
+                </label>
                 <input
                   type="text"
                   value={regId}
                   onChange={(e) => setRegId(e.target.value)}
-                  placeholder="เช่น user1"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                  placeholder="เช่น user123 (ภาษาอังกฤษตัวพิมพ์เล็กหรือตัวเลข)"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                   disabled={isLoading}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">อีเมลทางการพิมพ์ *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  อีเมลทางการพิมพ์ *
+                </label>
                 <input
                   type="email"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   placeholder="example@yourdomain.com"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                   disabled={isLoading}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">เบอร์โทรศัพท์สำหรับกู้ข้อมูล *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  เบอร์โทรศัพท์สำหรับกู้ข้อมูลผู้ใช้ *
+                </label>
                 <input
                   type="text"
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
                   placeholder="เช่น 0812345678"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                   disabled={isLoading}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">กำหนดรหัสผ่านเข้าใช้ *</label>
-                <input
-                  type="password"
-                  value={regPass}
-                  onChange={(e) => setRegPass(e.target.value)}
-                  placeholder="รหัสผ่านขั้นต่ำ 4 หลักขึ้นไป"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                  style={{ '--accent': accentColor } as React.CSSProperties}
-                  disabled={isLoading}
-                />
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  กำหนดรหัสผ่านเข้าใช้ *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={regPass}
+                    onChange={(e) => setRegPass(e.target.value)}
+                    placeholder="รหัสผ่านขั้นต่ำ 4 หลักขึ้นไป"
+                    className="w-full h-11 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-bold font-mono"
+                    style={{ '--accent': accentColor } as React.CSSProperties}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full h-11 font-bold text-sm text-white rounded-lg shadow-md hover:opacity-90 transition-all"
+                className="w-full h-12 font-black text-xs text-white rounded-xl shadow-md hover:opacity-95 transition-all"
                 style={{ backgroundColor: accentColor }}
                 disabled={isLoading}
               >
@@ -523,7 +750,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 <button
                   type="button"
                   onClick={() => { setFormType('login'); setErrorMsg(''); setSuccessMsg(''); }}
-                  className="text-xs font-semibold hover:underline"
+                  className="text-xs font-bold hover:underline"
                   style={{ color: accentColor }}
                 >
                   มีบัญชีอยู่แล้ว? ย้อนกลับไปเพื่อเข้าสู่ระบบ
@@ -532,88 +759,216 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             </form>
           )}
 
-          {/* FORGOT PASSWORD FORM */}
+          {/* 3. FORGOT PASSWORD / ID RECOVERY FORM */}
           {formType === 'forgot' && (
             <form onSubmit={handleRequestForgotOTP} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">พิมพ์ยูสเซอรของคุณ</label>
-                <input
-                  type="text"
-                  value={forgotId}
-                  onChange={(e) => setForgotId(e.target.value)}
-                  placeholder="ป้อนชื่อผู้ใช้ของคุณ..."
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                  style={{ '--accent': accentColor } as React.CSSProperties}
-                />
+              {/* Reset Category Modes Dropdown tab */}
+              <div className="grid grid-cols-2 gap-2 bg-slate-150 p-1 rounded-xl text-xs font-black dark:bg-slate-950">
+                <button
+                  type="button"
+                  onClick={() => { setRecoverMode('password'); setErrorMsg(''); }}
+                  className={`py-2 rounded-lg transition-all ${recoverMode === 'password' ? 'bg-white text-slate-800 shadow dark:bg-slate-800 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'}`}
+                >
+                  ลืมรหัสผ่าน
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRecoverMode('id_and_password'); setErrorMsg(''); }}
+                  className={`py-2 rounded-lg transition-all ${recoverMode === 'id_and_password' ? 'bg-white text-slate-800 shadow dark:bg-slate-800 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'}`}
+                >
+                  ลืมไอดี/ลืมทั้งหมด
+                </button>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">หมายเลขเบอร์โทรศัพท์ที่เคยบันทึกไว้</label>
-                <input
-                  type="text"
-                  value={forgotPhone}
-                  onChange={(e) => setForgotPhone(e.target.value)}
-                  placeholder="เช่น 0812345678"
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                  style={{ '--accent': accentColor } as React.CSSProperties}
-                />
-              </div>
+
+              {recoverMode === 'password' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400">ระบุชื่อยูสเซอร์เนม (ID) ที่เคยสมัครไว้</label>
+                    <input
+                      type="text"
+                      value={forgotId}
+                      onChange={(e) => setForgotId(e.target.value)}
+                      placeholder="ป้อนชื่อผู้ใช้ของคุณ...เช่น user1"
+                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100"
+                      style={{ '--accent': accentColor } as React.CSSProperties}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400">ระบุเบอร์โทรศัพท์มือถือที่สัมพันธ์กัน</label>
+                    <input
+                      type="text"
+                      value={forgotPhone}
+                      onChange={(e) => setForgotPhone(e.target.value)}
+                      placeholder="เบอร์โทรที่บันทึกสำรองไว้ (เช่น 0812345678)"
+                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-mono font-medium"
+                      style={{ '--accent': accentColor } as React.CSSProperties}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                    ป้อนหมายเลขเบอร์โทรศัพท์สำหรับสแกนหาไอดีของคุณ
+                  </label>
+                  <input
+                    type="text"
+                    value={forgotPhone}
+                    onChange={(e) => setForgotPhone(e.target.value)}
+                    placeholder="ป้อนเบอร์โทรติดต่อ เช่น 0812345678"
+                    className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-mono font-medium"
+                    style={{ '--accent': accentColor } as React.CSSProperties}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-2">ระบบจะนำเบอร์ศัพท์ชุดนี้ไปค้นหาบัญชี เมื่อพบจะรายงานไอดีและขอเปลี่ยนพาสให้ทันที</p>
+                </div>
+              )}
 
               <button
                 type="submit"
-                className="w-full h-11 font-bold text-sm text-white rounded-lg shadow-md hover:opacity-90 transition-all bg-slate-800 dark:bg-slate-950"
+                disabled={isLoading}
+                className="w-full h-12 font-black text-xs text-white rounded-xl shadow-lg hover:brightness-105 transition-all bg-slate-800 dark:bg-slate-950 flex items-center justify-center gap-2"
               >
-                ร้องขอบอร์ดคาสท์รหัส OTP
+                {isLoading ? 'กำลังค้นหาประวัติข้อมูล...' : (recoverMode === 'password' ? 'ตรวจสอบสิทธิ์เพื่อส่ง OTP' : 'ค้นหาไอดีผู้ใช้ด้วยเบอร์โทร')}
               </button>
 
               <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => { setFormType('login'); setErrorMsg(''); setSuccessMsg(''); }}
-                  className="text-xs font-semibold hover:underline"
-                  style={{ color: accentColor }}
+                  className="text-xs font-bold hover:underline flex items-center justify-center gap-1.5 mx-auto text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
                 >
-                  ย้อนกลับสู่หน้าลงชื่อเข้าใช้
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  ย้อนกลับสู่หน้าเข้าสู่ระบบหลัก
                 </button>
               </div>
             </form>
           )}
 
-          {/* OTP CONFIRMATION */}
+          {/* 4. OTP CONFIRMATION FORM */}
           {formType === 'otp' && (
             <form onSubmit={handleVerifyOTP} className="space-y-4">
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-1 dark:bg-amber-950/20 dark:border-amber-900">
-                <p className="text-xs font-semibold text-amber-800 dark:text-amber-400">บอร์ดคาสท์รหัสทดสอบ OTP ด่วน (ใช้ได้ 5 นาที)</p>
-                <p className="text-2xl font-bold font-mono tracking-widest text-slate-800 dark:text-slate-100">{generatedOTP}</p>
+              <div className="p-5 bg-amber-50 border border-amber-150 rounded-2xl text-center space-y-1.5 dark:bg-amber-950/20 dark:border-amber-900">
+                <p className="text-[10.5px] font-black text-amber-800 dark:text-amber-400 flex items-center justify-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-500" />
+                  บอร์ดคาสท์รหัส OTP ด่วนล่าสุด (จำลองความปลอดภัย)
+                </p>
+                <p className="text-3xl font-black font-mono tracking-[0.3em] text-slate-850 dark:text-white pl-3">{generatedOTP}</p>
+                <p className="text-[9.5px] text-slate-400 mt-0.5">กรอกหมายเลข 6 หลักด้านบนเพื่อดำเนินการปลดล็อกสิทธิ์บันทึกใหม่</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400 text-center">กรอกรหัสยืนยัน 6 ตัวตรงด้านบน</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 text-center">พิมพ์รหัสความปลอดภัย OTP</label>
                 <input
                   type="text"
                   maxLength={6}
                   value={otpValue}
                   onChange={(e) => setOtpValue(e.target.value)}
-                  placeholder="000000"
-                  className="w-full h-12 text-center font-mono text-2xl tracking-widest bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                  placeholder="xxxxxx"
+                  className="w-full h-12 text-center font-mono text-xl font-bold tracking-widest bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100"
                   style={{ '--accent': accentColor } as React.CSSProperties}
+                  disabled={isLoading}
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full h-11 font-bold text-sm text-white rounded-lg shadow-md hover:opacity-90 transition-all"
+                disabled={isLoading}
+                className="w-full h-12 font-black text-xs text-white rounded-xl shadow-md hover:opacity-95 transition-all"
                 style={{ backgroundColor: accentColor }}
               >
-                ยืนยันเพื่อดึงรหัสผ่าน
+                {isLoading ? 'กำลังประมวลผลเซกเตอร์ความลับ...' : 'ยืนยันรหัสความปลอดภัย OTP'}
               </button>
 
               <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => { setFormType('forgot'); setErrorMsg(''); setSuccessMsg(''); }}
-                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  className="text-xs text-slate-450 font-bold hover:text-slate-600 dark:hover:text-slate-300"
                 >
-                  เปลี่ยนข้อมูลร้องขอรหัสใหม่
+                  ย้อนกลับไปร้องขอรหัสใหม่
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* 5. NEW CREDENTIALS RESET FORM */}
+          {formType === 'reset' && (
+            <form onSubmit={handleResetCredentials} className="space-y-4">
+              <div className="bg-blue-50/50 p-4 border border-blue-100 text-blue-800 text-[11px] font-medium rounded-xl leading-relaxed dark:bg-blue-950/20 dark:border-blue-900/60 dark:text-blue-300">
+                ✔️ ตรวจสอบความถูกต้องเรียบร้อยแล้ว คุณสามารถตั้งค่าเปลี่ยน <strong>ไอดีผู้ใช้ชื่อใหม่</strong> หรือ <strong>แก้ไขรหัสผ่านใหม่</strong> สำหรับใช้งานในอนาคตได้ทันที
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  ไอดีผู้ใช้ที่ต้องการบันทึกใหม่ *
+                </label>
+                <input
+                  type="text"
+                  value={resetId}
+                  onChange={(e) => setResetId(e.target.value)}
+                  placeholder="เช่น user_new1"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-bold font-mono"
+                  style={{ '--accent': accentColor } as React.CSSProperties}
+                  disabled={isLoading}
+                />
+                <p className="text-[10px] text-slate-400 mt-1">คุณสามารถเลือกใช้ไอดีผู้ใช้เดิม หรือเปลี่ยนชื่อไอดีผู้ใช้ใหม่ได้เลย</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  กำหนดรหัสผ่านเข้าใช้ชุดใหม่ *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={resetPass}
+                    onChange={(e) => setResetPass(e.target.value)}
+                    placeholder="รหัสผ่านเข้าเว็บขั้นต่ำ 4 หลักขึ้นไป"
+                    className="w-full h-11 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-bold font-mono"
+                    style={{ '--accent': accentColor } as React.CSSProperties}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400">พิมพ์รหัสผ่านใหม่อีกครั้งเพื่อยืนยันคัดลอก *</label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={resetPassConfirm}
+                  onChange={(e) => setResetPassConfirm(e.target.value)}
+                  placeholder="เขียนรหัสผ่านใหม่อีกครั้งเพื่อความถูกต้อง"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-bold font-mono"
+                  style={{ '--accent': accentColor } as React.CSSProperties}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-12 font-black text-xs text-white rounded-xl shadow-md hover:brightness-105 transition-all flex items-center justify-center gap-2"
+                style={{ backgroundColor: accentColor }}
+              >
+                {isLoading ? 'กำลังบันทึกรหัสผ่านใหม่ลงคลาวด์...' : 'ยืนยันตั้งรหัสผ่านและไอดีใหม่'}
+              </button>
+
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => { setFormType('login'); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="text-xs text-slate-450 font-bold hover:text-slate-650"
+                >
+                  ย้อนกลับสู่ระบบเข้าใช้งานเดิม
                 </button>
               </div>
             </form>
