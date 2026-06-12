@@ -532,7 +532,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           )}
 
           {diagnosticError === 'operation-not-allowed' && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 text-slate-800 text-xs rounded-2xl space-y-2 dark:bg-amber-950/20 dark:border-amber-900 dark:text-slate-200">
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 text-slate-800 text-xs rounded-2xl space-y-3 dark:bg-amber-950/20 dark:border-amber-900 dark:text-slate-200">
               <p className="font-bold flex items-center justify-center gap-1.5 text-amber-800 dark:text-amber-400">
                 🛠️ วิธีเปิดใช้งาน Email/Password ใน Firebase Console
               </p>
@@ -542,12 +542,40 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 <li>เลื่อนสลับสถานะเป็น <strong>Enable</strong> และคลิก <strong>Save</strong></li>
                 <li>กลับมาที่นี่เพื่อเข้าใช้งานระบบคลาวด์ได้โดยสมบูรณ์</li>
               </ol>
+              <div className="pt-2 border-t border-amber-100/40 dark:border-amber-900/30 flex flex-col gap-1.5">
+                <p className="text-[10.5px] text-slate-650 dark:text-slate-400">
+                  💡 <strong>หรือทดลองข้ามเข้าใช้งานระบบทันที (Bypass):</strong> หากคุณต้องการทดลองฟังก์ชันต่างๆ ของแอปทันทีโดยไม่ต้องรอเปิดสิทธิ์ในคอนโซล:
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOfflineLogin}
+                  className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  ⚡ คลิกเข้าสู่ระบบด้วย "โหมด Sandbox ออฟไลน์ความคุ้มครอง" ทันที
+                </button>
+              </div>
             </div>
           )}
 
           {/* 1. LOGIN FORM */}
           {formType === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-4">
+              {/* Predefined Demo / Auto-registration Tip */}
+              <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex flex-col gap-1.5 dark:bg-slate-900 dark:border-slate-850/50">
+                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  💡 บัญชีเข้าทดสอบระบบแอปพลิเคชัน
+                </span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700 dark:text-slate-300">
+                  <div>ไอดีผู้ใช้งาน: <code className="px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-800 text-slate-950 dark:text-white font-mono font-bold">admin</code></div>
+                  <div>รหัสผ่าน: <code className="px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-800 text-slate-950 dark:text-white font-mono font-bold">000000</code></div>
+                </div>
+                <p className="text-[10px] text-slate-450 dark:text-slate-500 leading-normal">
+                  * คุณสามารถใช้ไอดี <strong className="text-slate-950 dark:text-slate-200">admin</strong> ข้อมูลสมมติจะเชื่อมโยงไปที่เก็บคลาวด์ หรือ 
+                  <strong className="text-slate-950 dark:text-slate-200"> สร้าง/กรอกชื่อผู้ใช้และรหัสใหม่ได้เลย</strong> ระบบจะทำงานสมัครบัญชีเครือข่ายให้ทันทีถ้าไม่พบบัญชีเดิม!
+                </p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
@@ -620,6 +648,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 </button>
               </div>
             </form>
+          </div>
           )}
 
           {/* 2. REGISTER FORM */}
