@@ -43,8 +43,8 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
   const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp' | 'reset'>('login');
   
   // Login input
-  const [loginId, setLoginId] = useState('admin');
-  const [loginPass, setLoginPass] = useState('000000');
+  const [loginId, setLoginId] = useState('');
+  const [loginPass, setLoginPass] = useState('');
   
   // Register input
   const [regId, setRegId] = useState('');
@@ -628,23 +628,22 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             {formType === 'otp' && <ShieldCheck className="w-7 h-7 animate-bounce" />}
             {formType === 'reset' && <Key className="w-7 h-7" />}
           </div>
-          
-          <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
-            {formType === 'login' && 'เข้าสู่ระบบ TaskFlow Space'}
-            {formType === 'register' && 'ลงทะเบียนบัญชีใหม่'}
-            {formType === 'forgot' && 'กู้คืนบัญชีและเข้าใช้ระบบ'}
-            {formType === 'otp' && 'ยืนยันรหัสความปลอดภัย OTP'}
-            {formType === 'reset' && 'ตั้งค่ารหัสผ่านและไอดีใหม่'}
+          <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+            {formType === 'login' && 'เข้าสู่ระบบบริหารภารกิจ'}
+            {formType === 'register' && 'สมัครบัญชีเครือข่ายใหม่'}
+            {formType === 'forgot' && 'ลืมรหัสผ่านหรือเปลี่ยนไอดี?'}
+            {formType === 'otp' && 'ตรวจสอบความปลอดภัย OTP'}
+            {formType === 'reset' && 'ตั้งค่ารหัสความปลอดภัยเข้าใช้ใหม่'}
           </h2>
-          <p className="text-xs text-slate-500 mt-1.5 dark:text-slate-400">
-            {formType === 'login' && 'ป้อนบัญชีของคุณ หากยังไม่มีระบบจะลงทะเบียนให้อัตโนมัติ'}
-            {formType === 'register' && 'ร่วมเป็นส่วนหนึ่งกับระบบจัดการงานอัจฉริยะ'}
-            {formType === 'forgot' && 'กรอกรายละเอียดเพื่อตรวจสอบสิทธิ์หรือค้นหาประวัติ'}
-            {formType === 'otp' && 'ป้อนหมายเลข OTP ที่แสดงอยู่ด้านล่างเพื่อยืนยันตน'}
-            {formType === 'reset' && 'คุณสามารถแก้ไขชื่อไอดี (ID / Username) และตั้งรหัสผ่านใหม่ได้ทันที'}
+          <p className="text-xs text-slate-400 mt-1 font-medium leading-relaxed dark:text-slate-400">
+            {formType === 'login' && 'สแกนตรวจสอบสถิติและซิงค์ข้อมูลลงเซิร์ฟเวอร์แบบ Real-time'}
+            {formType === 'register' && 'บันทึกประวัติเพื่อใช้งานหลายอุปกรณ์แบบไร้รอยต่อ'}
+            {formType === 'forgot' && 'ค้นหาและซิงค์รหัสของคุณด้วยเลขโทรศัพท์และอีเมลเดิม'}
+            {formType === 'otp' && 'กรอกรหัสยืนยัน 6 หลักที่เราจัดส่งทางอีเมลความโปร่งใส'}
+            {formType === 'reset' && 'ไอดีผู้ใช้ของคุณถูกกู้คืนแล้ว คุณสามารถตั้งรหัสผ่านใหม่ได้ทันที'}
           </p>
         </div>
-
+        
         {/* Content Body */}
         <div className="p-8">
           

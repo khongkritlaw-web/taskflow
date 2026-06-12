@@ -474,29 +474,15 @@ export default function ExpenseModule({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">วันที่ขึ้นบิล *</label>
-                  <input
-                    type="date"
-                    required
-                    value={expDate}
-                    onChange={(e) => setExpDate(e.target.value)}
-                    className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                    style={{ '--accent': accentColor } as React.CSSProperties}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">กำหนดชำระด่วน</label>
-                  <input
-                    type="date"
-                    value={expDueDate}
-                    onChange={(e) => setExpDueDate(e.target.value)}
-                    className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                    style={{ '--accent': accentColor } as React.CSSProperties}
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">กำหนดชำระด่วน / วันครบกำหนด</label>
+                <input
+                  type="date"
+                  value={expDueDate}
+                  onChange={(e) => setExpDueDate(e.target.value)}
+                  className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                  style={{ '--accent': accentColor } as React.CSSProperties}
+                />
               </div>
 
               <div>
