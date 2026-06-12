@@ -12,6 +12,7 @@ interface PrintReportModalProps {
 
 export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }: PrintReportModalProps) {
   const accentColor = settings.colorAccent || '#6366f1';
+  const userId = localStorage.getItem('sess_userId') || 'ผู้ใช้ระบบ';
 
   // State management for printer selection
   const [modules, setModules] = useState({
@@ -147,13 +148,13 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
     const paidExpenseAmount = filteredExpenses.filter(e => e.paid).reduce((sum, e) => sum + e.amount, 0);
     const unpaidExpenseAmount = totalExpenseAmount - paidExpenseAmount;
 
-    // Build complete report HTML documents with professional typesetting
+    // Build complete report HTML documents with clean, neat, and simple typesetting
     const reportHtml = `
       <!DOCTYPE html>
       <html lang="th">
       <head>
         <meta charset="utf-8" />
-        <title>รายงานสรุปการดำเนินงานแบบบูรณาการ - ${settings.appName || 'TaskFlow Space'}</title>
+        <title>รายงานสรุปข้อมูล - ${settings.appName || 'TaskFlow Space'}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
           
@@ -184,16 +185,17 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
 
           .header-box {
             text-align: center;
-            border-bottom: 3px double #0f172a;
-            padding-bottom: 15px;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 12px;
             margin-bottom: 25px;
           }
 
           .header-box h1 {
-            font-size: 24px;
-            font-weight: 800;
+            font-size: 21px;
+            font-weight: 700;
             margin: 0 0 5px 0;
             color: #0f172a;
+            letter-spacing: -0.5px;
           }
 
           .header-box p {
@@ -206,10 +208,10 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             background-color: #f8fafc;
             border: 1px solid #e2e8f0;
-            padding: 15px;
+            padding: 12px 15px;
             border-radius: 8px;
             font-size: 12px;
           }
@@ -222,7 +224,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
           }
 
           .meta-item:last-child {
-            border-none: none;
+            border-bottom: none;
           }
 
           .meta-label {
@@ -231,15 +233,15 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
           }
 
           .section-title {
-            font-size: 15px;
-            font-weight: 700;
+            font-size: 14px;
+            font-weight: 750;
             background-color: #f1f5f9;
             color: #0f172a;
-            padding: 8px 12px;
-            border-left: 5px solid ${accentColor};
+            padding: 6px 12px;
+            border-left: 4px solid ${accentColor};
             border-radius: 4px;
-            margin-top: 30px;
-            margin-bottom: 12px;
+            margin-top: 25px;
+            margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -250,27 +252,26 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 12px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
           }
 
           .stat-card {
             border: 1px solid #e2e8f0;
             background-color: #ffffff;
             border-radius: 6px;
-            padding: 12px;
+            padding: 10px;
             text-align: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
           }
 
           .stat-label {
             font-size: 11px;
             color: #64748b;
-            font-weight: 600;
+            font-weight: 500;
             margin-bottom: 3px;
           }
 
           .stat-val {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 700;
             color: #0f172a;
           }
@@ -280,7 +281,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             width: 100%;
             border-collapse: collapse;
             font-size: 11.5px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
           }
 
           th {
@@ -289,12 +290,12 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             color: #0f172a;
             font-weight: 700;
             text-align: left;
-            padding: 9px;
+            padding: 8px;
           }
 
           td {
             border: 1px solid #cbd5e1;
-            padding: 8px;
+            padding: 7px 8px;
             vertical-align: top;
           }
 
@@ -314,7 +315,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
           .badge {
             font-size: 10px;
             font-weight: bold;
-            padding: 2.5px 7px;
+            padding: 2px 6px;
             border-radius: 4px;
             display: inline-block;
             text-align: center;
@@ -346,7 +347,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
 
           /* Signatures blocks */
           .signatures-block {
-            margin-top: 50px;
+            margin-top: 40px;
             display: flex;
             justify-content: space-between;
             page-break-inside: avoid;
@@ -359,18 +360,18 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
 
           .dotted-line {
             border-bottom: 1px dotted #94a3b8;
-            height: 40px;
-            width: 80%;
-            margin: 0 auto 10px auto;
+            height: 35px;
+            width: 75%;
+            margin: 0 auto 8px auto;
           }
 
           .footer-note {
             font-size: 9px;
             color: #94a3b8;
             text-align: center;
-            margin-top: 50px;
+            margin-top: 40px;
             border-top: 1px solid #e2e8f0;
-            padding-top: 15px;
+            padding-top: 12px;
             page-break-inside: avoid;
           }
         </style>
@@ -378,50 +379,50 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
       <body>
 
         <div class="header-box">
-          <h1>รายงานสรุปสารสนเทศและการดำเนินงานแบบบูรณาการ</h1>
-          <p>${settings.appName || 'TaskFlow Space (โปรแกรมผู้จัดการส่วนตัว)'} — ${settings.appDesc || 'ระบบบริหารจัดการประสิทธิภาพงานส่วนบุคคล'}</p>
+          <h1>รายงานสรุปงานและบันทึกค่าใช้จ่าย</h1>
+          <p>${settings.appName || 'TaskFlow Space'} — ${settings.appDesc || 'ระบบบันทึกและจัดการข้อมูลส่วนบุคคล'}</p>
         </div>
 
         <div class="meta-info-grid">
           <div>
             <div class="meta-item">
-              <span class="meta-label">ขอบเขตระยะเวลาข้อมูล:</span>
+              <span class="meta-label">ช่วงเวลาข้อมูล:</span>
               <span>${scopeLabel}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">ชั้นความลับเอกสาร:</span>
-              <span>เอกสารส่วนบุคคล (Internal Data)</span>
+              <span class="meta-label">ประเภทเอกสาร:</span>
+              <span>รายงานข้อมูลส่วนบุคคล (ส่วนตัว)</span>
             </div>
           </div>
           <div>
             <div class="meta-item">
-              <span class="meta-label">พิมพ์เมื่อวันที่:</span>
+              <span class="meta-label">วันที่พิมพ์:</span>
               <span>${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">ผู้จัดทำการรายงาน:</span>
-              <span>บัญชีผู้ใช้งานระบบสิทธิ์ตรง</span>
+              <span class="meta-label">ผู้จัดทำ:</span>
+              <span>ผู้ใช้งานระบบ (${userId})</span>
             </div>
           </div>
         </div>
 
         ${modules.summary ? `
-          <div class="section-title">📊 สถิติพารามิเตอร์สาระสำคัญ (Key Performance Metrics)</div>
+          <div class="section-title">📊 ยอดสรุปสำคัญ</div>
           <div class="stats-container">
             <div class="stat-card" style="border-top: 3px solid #6366f1;">
-              <div class="stat-label">จำนวนงานทั้งหมดตามเงื่อนไข</div>
+              <div class="stat-label">จำนวนงานทั้งหมด</div>
               <div class="stat-val" style="color: #4f46e5;">${totalTasksCount} รายการ</div>
             </div>
             <div class="stat-card" style="border-top: 3px solid #10b981;">
-              <div class="stat-label">งานดำเนินเสร็จสิ้น (สำเร็จ)</div>
+              <div class="stat-label">ทำงานเสร็จแล้ว</div>
               <div class="stat-val" style="color: #059669;">${completedTasksCount} รายการ</div>
             </div>
             <div class="stat-card" style="border-top: 3px solid #f59e0b;">
-              <div class="stat-label">รวมค่าใช้จ่ายเฉลี่ยสะสม</div>
+              <div class="stat-label">ค่าใช้จ่ายทั้งหมด</div>
               <div class="stat-val" style="color: #d97706;">฿${totalExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             </div>
             <div class="stat-card" style="border-top: 3px solid #ef4444;">
-              <div class="stat-label font-bold text-red-500">รวมค่าใช้จ่ายที่ค้างชำระ</div>
+              <div class="stat-label">ยอดที่ค้างชำระ</div>
               <div class="stat-val" style="color: #dc2626;">฿${unpaidExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             </div>
           </div>
@@ -429,26 +430,26 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
 
         ${modules.tasks ? `
           <div class="section-title">
-            <span>📋 สรุปความคืบหน้าด้านงานและภารกิจ (Task Board Summary List)</span>
-            <span style="font-size: 11px; font-weight: normal;">รวมทั้งสิ้น ${totalTasksCount} รายการ</span>
+            <span>📋 รายการงานและภารกิจ</span>
+            <span style="font-size: 11px; font-weight: normal;">รวมทั้งหมด ${totalTasksCount} รายการ</span>
           </div>
 
           <table>
             <thead>
               <tr>
                 <th style="width: 6%; text-align: center;">ลำดับ</th>
-                <th style="width: 28%;">หัวข้อมติ/ภารกิจหลัก</th>
-                ${includeNotes ? '<th style="width: 32%;">รายละเอียดข้อมูลและเป้าหมายย่อย</th>' : ''}
-                <th style="width: 14%;">ประเภทหมวดหมู่</th>
+                <th style="width: 30%;">ชื่องาน / ภารกิจ</th>
+                ${includeNotes ? '<th style="width: 32%;">รายละเอียดงาน</th>' : ''}
+                <th style="width: 14%;">หมวดหมู่</th>
                 <th style="width: 11%;">กำหนดส่ง</th>
-                <th style="width: 9%; text-align: center;">สถานะการดำเนินงาน</th>
+                <th style="width: 9%; text-align: center;">สถานะ</th>
               </tr>
             </thead>
             <tbody>
               ${filteredTasks.length === 0 ? `
                 <tr>
-                  <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 25px; color: #94a3b8;">
-                    <i>- ไม่พบข้อมูลรายการกิจกรรมงานที่สอดคล้องตามเงื่อนไขระบุข้างต้น -</i>
+                   <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 20px; color: #94a3b8;">
+                    <i>- ไม่มีรายการงานในช่วงเวลานี้ -</i>
                   </td>
                 </tr>
               ` : filteredTasks.map((t, idx) => `
@@ -463,7 +464,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
                   </td>
                   <td class="text-center">
                     <span class="badge ${t.status === 'completed' ? 'badge-completed' : 'badge-pending'}">
-                      ${t.status === 'completed' ? 'เสร็จสิ้น' : 'รอคิวปฏิบัติ'}
+                      ${t.status === 'completed' ? 'เสร็จแล้ว' : 'รอดำเนินการ'}
                     </span>
                   </td>
                 </tr>
@@ -473,28 +474,27 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
         ` : ''}
 
         ${modules.expenses ? `
-          <div style="page-break-before: auto;"></div>
           <div class="section-title">
-            <span>💰 สรุปบัญชีรายรับ-รายจ่ายและค่าครองชีพ (Financial Ledger Summary)</span>
-            <span style="font-size: 11px; font-weight: normal;">รวมทั้งสิ้น ${filteredExpenses.length} รายการ</span>
+            <span>💰 บัญชีรายจ่ายและรายรับ</span>
+            <span style="font-size: 11px; font-weight: normal;">รวมทั้งหมด ${filteredExpenses.length} รายการ</span>
           </div>
 
           <table>
             <thead>
               <tr>
                 <th style="width: 6%; text-align: center;">ลำดับ</th>
-                <th style="width: 25%;">ชื่อธุรกรรม / เรื่องการชำระเงิน</th>
-                ${includeNotes ? '<th style="width: 32%;">รายละเอียดจำเพาะเจาะจง / ประวัติการบันทึกย่อ</th>' : ''}
-                <th style="width: 13%;">สังกัดกลุ่มค่าใช้จ่าย</th>
-                <th style="width: 12%; text-align: right;">จำนวนเงินรวม</th>
-                <th style="width: 12%; text-align: center;">สถานะชำระเงิน</th>
+                <th style="width: 27%;">ชื่อรายการ / ธุรกรรม</th>
+                ${includeNotes ? '<th style="width: 32%;">รายละเอียด / บันทึกย่อ</th>' : ''}
+                <th style="width: 13%;">หมวดหมู่</th>
+                <th style="width: 12%; text-align: right;">จำนวนเงิน</th>
+                <th style="width: 10%; text-align: center;">สถานะ</th>
               </tr>
             </thead>
             <tbody>
               ${filteredExpenses.length === 0 ? `
                 <tr>
-                  <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 25px; color: #94a3b8;">
-                    <i>- ไม่พบรายการบันทึกรายจ่ายธุรกรรมที่ประเมินผ่านตัวกรองเวลาชุดนี้ -</i>
+                  <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 20px; color: #94a3b8;">
+                    <i>- ไม่มีรายการค่าใช้จ่ายในช่วงเวลานี้ -</i>
                   </td>
                 </tr>
               ` : filteredExpenses.map((e, idx) => `
@@ -513,10 +513,10 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
               `).join('')}
               ${filteredExpenses.length > 0 ? `
                 <tr style="background-color: #f8fafc; font-weight: bold;">
-                  <td colspan="${includeNotes ? 4 : 3}" class="text-right" style="padding: 10px;">ยอดเงินรวมทั้งสิ้นสะสม:</td>
-                  <td class="text-right" style="color: #0f172a; padding: 10px; font-size: 13px;">฿${totalExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td style="background-color:#f1f5f9; padding: 10px;" class="text-center">
-                    <div style="font-size: 8.5px; color:#475569;">จ่ายแล้ว: ฿${paidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}<br/>ค้าง: ฿${unpaidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</div>
+                  <td colspan="${includeNotes ? 4 : 3}" class="text-right" style="padding: 8px;">ยอดรวมทั้งหมด:</td>
+                  <td class="text-right" style="color: #0f172a; padding: 8px; font-size: 13px;">฿${totalExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td style="background-color:#f1f5f9; padding: 8px;" class="text-center">
+                    <div style="font-size: 9px; color:#475569;">จ่ายแล้ว ฿${paidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}<br/>ค้างจ่าย ฿${unpaidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</div>
                   </td>
                 </tr>
               ` : ''}
@@ -527,18 +527,18 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
         <div class="signatures-block">
           <div class="sig-column">
             <div class="dotted-line"></div>
-            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงลายมือชื่อผู้จัดทำเอกสาร (Reporter)</p>
-            <p style="font-size: 9.5px; color: #64748b; margin-top: 3.5px;">ตำแหน่ง เจ้าหน้าที่ผู้บริหารสถานบริการงานส่วนบุคคล</p>
+            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงชื่อผู้รายงาน</p>
+            <p style="font-size: 9.5px; color: #64748b; margin-top: 3.5px;">ผู้ใช้งานระบบ</p>
           </div>
           <div class="sig-column">
             <div class="dotted-line"></div>
-            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงลายมือชื่อผู้ตรวจประเมินประสานงาน (Auditor)</p>
-            <p style="font-size: 9.5px; color: #64748b; margin-top: 3.5px;">( ผู้ตรวจสอบการปฏิบัติหน้าที่ความปลอดภัยระบบ )</p>
+            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงชื่อผู้ตรวจสอบ / พยาน</p>
+            <p style="font-size: 9.5px; color: #64748b; margin-top: 3.5px;">( .................................................... )</p>
           </div>
         </div>
 
         <p class="footer-note">
-          สร้างขึ้นโดยกลไกอัตโนมัติจากแอปพลิเคชันระบบภารกิจ TaskFlow Space คลาวด์เรียลไทม์ ซิงโครไนซ์สมบูรณ์ข้อมูลความมั่นคงสูงสุด
+          รายงานนี้ถูกสร้างขึ้นโดยอัตโนมัติด้วยระบบ TaskFlow Space เพื่อความเรียบร้อยและง่ายต่อการใช้งาน
         </p>
 
       </body>
@@ -584,9 +584,9 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                ระบบจัดการและส่งออกเอกสารรายงาน (PDF / Printer)
+                พิมพ์รายงานสรุป / บันทึก PDF
               </h3>
-              <p className="text-[10px] text-slate-400 font-medium">คัดกรองข้อมูลสรุปสถิติจัดระเบียบอย่างเป็นทางการ</p>
+              <p className="text-[10px] text-slate-400 font-medium">สรุปข้อมูลรายการงานและค่าใช้จ่ายอย่างเป็นระเบียบและดูง่าย</p>
             </div>
           </div>
           <button
@@ -604,7 +604,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
           {/* Part 1: Targets to include */}
           <div className="space-y-2.5">
             <span className="block font-bold text-slate-700 dark:text-slate-350">
-              📌 1. เลือกข้อมูลสำคัญที่ต้องการพิมพ์สรุป (Selected Data Topics)
+              📌 1. เลือกข้อมูลส่วนที่ต้องการพิมพ์
             </span>
             <div className="grid grid-cols-3 gap-2.5">
               <button
@@ -617,7 +617,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
                 }`}
               >
                 <FileText className="w-4 h-4" />
-                <span className="font-bold text-[11px]">รายการภารกิจ</span>
+                <span className="font-bold text-[11px]">รายการงาน</span>
                 {modules.tasks && <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-indigo-500 text-white rounded-full flex items-center justify-center text-[8px] font-black">✓</span>}
               </button>
 
@@ -631,7 +631,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
                 }`}
               >
                 <Coins className="w-4 h-4" />
-                <span className="font-bold text-[11px]">รายจ่ายและบิล</span>
+                <span className="font-bold text-[11px]">ค่าใช้จ่าย</span>
                 {modules.expenses && <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[8px] font-black">✓</span>}
               </button>
 
@@ -645,7 +645,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
                 }`}
               >
                 <Layout className="w-4 h-4" />
-                <span className="font-bold text-[11px]">สถิติสรุปหน้าแรก</span>
+                <span className="font-bold text-[11px]">สรุปยอดสำคัญ</span>
                 {modules.summary && <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-amber-500 text-white rounded-full flex items-center justify-center text-[8px] font-black">✓</span>}
               </button>
             </div>
@@ -654,13 +654,13 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
           {/* Part 2: Time frames */}
           <div className="space-y-3 pt-1 border-t border-slate-100 dark:border-slate-800">
             <span className="block font-bold text-slate-700 dark:text-slate-350">
-              ⏳ 2. กรองขอบข่ายเวลากำหนดสรุป (Scope & Date Filtering)
+              ⏳ 2. เลือกช่วงเวลาของข้อมูล
             </span>
             <div className="grid grid-cols-5 gap-1.5">
               {[
                 { val: 'all', label: 'ทั้งหมด' },
-                { val: 'day', label: 'ตามวัน' },
-                { val: 'month', label: 'เป็นรายเดือน' },
+                { val: 'day', label: 'รายวัน' },
+                { val: 'month', label: 'รายเดือน' },
                 { val: 'year', label: 'รายปี' },
                 { val: 'range', label: 'เลือกช่วง' }
               ].map((scope) => (
@@ -683,7 +683,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             {/* Inputs based on selection */}
             {dateScope === 'day' && (
               <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl space-y-1.5 dark:bg-slate-950 dark:border-slate-850 animate-in fade-in duration-100">
-                <span className="text-[10px] font-bold text-slate-400">ระบุวันที่เจาะจงที่ประสงค์พิมพ์ข้อมูล:</span>
+                <span className="text-[10px] font-bold text-slate-400">เลือกวันที่ต้องการพิมพ์:</span>
                 <input
                   type="date"
                   value={selectedDate}
@@ -696,7 +696,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             {dateScope === 'month' && (
               <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl grid grid-cols-2 gap-2.5 dark:bg-slate-950 dark:border-slate-850 animate-in fade-in duration-100">
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400">เลือกเดือนปฏิบัติงาน:</span>
+                  <span className="text-[10px] font-bold text-slate-400">เลือกเดือน:</span>
                   <select
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
@@ -708,7 +708,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400">ระบุปี ค.ศ. (พ.ศ.):</span>
+                  <span className="text-[10px] font-bold text-slate-400">ระบุปี ค.ศ. (เช่น 2026):</span>
                   <input
                     type="number"
                     value={selectedYear}
@@ -722,7 +722,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
 
             {dateScope === 'year' && (
               <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl space-y-1.5 dark:bg-slate-950 dark:border-slate-850 animate-in fade-in duration-100">
-                <span className="text-[10px] font-bold text-slate-400">กรอกประเมินปี ค.ศ. ของระเบียนข้อมูลที่คัดเก็บ:</span>
+                <span className="text-[10px] font-bold text-slate-400">กรอกปี ค.ศ. (เช่น 2026):</span>
                 <input
                   type="number"
                   value={selectedYear}
@@ -735,7 +735,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
 
             {dateScope === 'range' && (
               <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl space-y-2 dark:bg-slate-950 dark:border-slate-850 animate-in fade-in duration-100">
-                <span className="text-[10px] font-bold text-slate-400">กำหนดเงื่อนไขช่วงเวลาเริ่มต้นแบบกำหนดเอง:</span>
+                <span className="text-[10px] font-bold text-slate-400">เลือกวันที่เริ่มต้น - สิ้นสุด:</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="date"
@@ -755,14 +755,15 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             )}
           </div>
 
+          {" "}
           {/* Part 3: Other parameters */}
           <div className="space-y-3 pt-1 border-t border-slate-100 dark:border-slate-800">
             <span className="block font-bold text-slate-700 dark:text-slate-350">
-              ⚙️ 3. ตั้งค่าการเรียงลำดับ & รูปแบบเอกสาร (Report Format & Sorting)
+              ⚙️ 3. การจัดเรียงและรูปแบบเอกสาร
             </span>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-400">เกณฑ์การเรียงลำดับรายการ:</span>
+                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-400">จัดเรียงรายการตาม:</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
@@ -783,7 +784,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
                     className="w-4.5 h-4.5 text-indigo-600 border-slate-300 rounded focus:ring-0 cursor-pointer"
                   />
                   <div>
-                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">พิมพ์ส่วนรายละเอียด</span>
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">รวมรายละเอียด / บันทึกย่อ</span>
                   </div>
                 </label>
               </div>
@@ -794,7 +795,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
           <div className="p-3 bg-amber-50/70 border border-amber-150 rounded-xl text-amber-800 text-[10.5px] leading-relaxed dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-400 flex items-start gap-2.5">
             <Info className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <p>
-              <strong>ข้อแนะนำทางการพิมพ์:</strong> กระบวนการนี้ทำสรุปสลิปและใบรายงานแบบไร้ข้อผิดพลาด หากคุณใช้งานบนบราวเซอร์ของระบบ สามารถดาวน์โหลดเป็นเอกสาร <strong>PDF</strong> โดยคลิกเปลี่ยนเครื่องพิมพ์ในโปรแกรมตัวเลือกของระบบปฏิบัติการเป็น <strong>"Save as PDF" (บันทึกเป็น PDF)</strong>
+              <strong>คำแนะนำในการบันทึก:</strong> คุณสามารถบันทึกเอกสารสรุปเป็นไฟล์ <strong>PDF</strong> ลงในโทรศัพท์หรือคอมพิวเตอร์ของคุณได้ง่ายๆ โดยเลือกเครื่องพิมพ์แบบเป็นระบบปฏิบัติการเป็น <strong>"Save as PDF" (บันทึกเป็น PDF)</strong>
             </p>
           </div>
 
@@ -805,9 +806,9 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
           <button
             type="button"
             onClick={onClose}
-            className="h-11 px-4 border border-slate-200 text-slate-500 hover:text-slate-800 bg-white font-bold text-xs rounded-xl dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+            className="h-11 px-5 border border-slate-200 text-slate-500 hover:text-slate-850 bg-white font-bold text-xs rounded-xl dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
           >
-            ยกเลิกฟอร์ม
+            ยกเลิก
           </button>
           <button
             type="button"
@@ -817,7 +818,7 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             style={{ backgroundColor: accentColor }}
           >
             <Printer className="w-4 h-4" />
-            ตกลง พิมพ์ / บันทึกไฟล์ PDF
+            ตกลง พิมพ์ / บันทึก PDF
           </button>
         </div>
 
