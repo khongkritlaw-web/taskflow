@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText } from 'lucide-react';
 import { Task } from '../types';
 
 interface CalendarModuleProps {
@@ -27,8 +27,20 @@ export default function CalendarModule({
   const [selectedDayStr, setSelectedDayStr] = useState<string>('');
   const [selectedDayHoliday, setSelectedDayHoliday] = useState<string>('');
 
+  // Print Configuration States
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printMonth, setPrintMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [printYear, setPrintYear] = useState(String(new Date().getFullYear()));
+  const [printIncludeList, setPrintIncludeList] = useState(true);
+
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
+
+  // Sync print configurations with currently viewed calendar month/year
+  useEffect(() => {
+    setPrintMonth(String(currentMonth + 1).padStart(2, '0'));
+    setPrintYear(String(currentYear));
+  }, [currentMonth, currentYear]);
 
   const monthNames = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -95,6 +107,328 @@ export default function CalendarModule({
     setSelectedDayStr(dStr);
     setSelectedDayHoliday(hName);
     setSelectedDayTasks(dayTasks);
+  };
+
+  const handlePrintCalendar = () => {
+    const targetMonthNum = parseInt(printMonth);
+    const targetYearNum = parseInt(printYear);
+    
+    const firstDayIdx = new Date(targetYearNum, targetMonthNum - 1, 1).getDay();
+    const totalDaysInMonth = new Date(targetYearNum, targetMonthNum, 0).getDate();
+    
+    const printCells: Array<{ day: number | null; dateStr: string; tasks: Task[]; holiday: string }> = [];
+    
+    // Empty prefix cells
+    for (let i = 0; i < firstDayIdx; i++) {
+      printCells.push({ day: null, dateStr: '', tasks: [], holiday: '' });
+    }
+    
+    // Real days
+    for (let d = 1; d <= totalDaysInMonth; d++) {
+      const dStr = `${targetYearNum}-${String(targetMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const shortKey = `${String(targetMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const hName = holidays[dStr] || fixedHolidaysPattern[shortKey] || '';
+      const dayTasks = tasks.filter(t => t.dueDate === dStr);
+      printCells.push({ day: d, dateStr: dStr, tasks: dayTasks, holiday: hName });
+    }
+    
+    // Empty suffix cells to snap perfectly to 7-columns layout
+    while (printCells.length % 7 !== 0) {
+      printCells.push({ day: null, dateStr: '', tasks: [], holiday: '' });
+    }
+    
+    // Group cells into weeks
+    const weeksList: Array<typeof printCells> = [];
+    for (let i = 0; i < printCells.length; i += 7) {
+      weeksList.push(printCells.slice(i, i + 7));
+    }
+    
+    const monthNameTh = monthNames[targetMonthNum - 1];
+    const yearTh = targetYearNum + 543;
+
+    // Filter list of schedules in this month
+    const scheduledTasks = tasks.filter(t => t.dueDate && t.dueDate.substring(0, 7) === `${printYear}-${printMonth}`)
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+
+    const htmlLayout = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>แผนผังตารางกำหนดการปฏิบัติงาน ประจำเดือน ${monthNameTh} พ.ศ. ${yearTh}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap');
+          body {
+            font-family: 'Sarabun', sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 30px;
+            font-size: 11px;
+            background-color: #ffffff;
+            line-height: 1.4;
+          }
+          .title-section {
+            text-align: center;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+          }
+          .title-section h1 {
+            font-size: 18px;
+            margin: 0 0 4px 0;
+            font-weight: 800;
+          }
+          .title-section p {
+            font-size: 11px;
+            color: #64748b;
+            margin: 0;
+          }
+          .info-meta {
+            margin-bottom: 15px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+          }
+          /* Calendar Grid table styled for A4 */
+          .cal-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin-bottom: 30px;
+          }
+          .cal-table th {
+            border: 1px solid #1e293b;
+            padding: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #f1f5f9;
+            text-align: center;
+          }
+          .cal-table td {
+            border: 1px solid #94a3b8;
+            height: 75px;
+            vertical-align: top;
+            padding: 5px;
+            font-size: 9.5px;
+            background-color: #ffffff;
+          }
+          .day-number {
+            font-weight: 800;
+            font-size: 11px;
+            margin-bottom: 4px;
+            display: inline-block;
+          }
+          .holiday-tag {
+            color: #b45309;
+            font-size: 8px;
+            background-color: #fef3c7;
+            padding: 1px 3px;
+            border-radius: 2px;
+            margin-bottom: 3px;
+            display: block;
+            font-weight: bold;
+            border: 1px solid #fde68a;
+          }
+          .task-strip {
+            background-color: #f8fafc;
+            border-left: 2.5px solid #64748b;
+            padding: 1px 3px;
+            margin-bottom: 2px;
+            border-radius: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 8px;
+            color: #334155;
+          }
+          .task-strip.completed {
+            border-left-color: #10b981;
+            background-color: #f0fdf4;
+            color: #047857;
+            text-decoration: line-through;
+          }
+          /* Tabular schedule */
+          .sub-title {
+            font-size: 13px;
+            font-weight: bold;
+            border-bottom: 1.5px solid #475569;
+            padding-bottom: 4px;
+            margin-top: 25px;
+            margin-bottom: 12px;
+            color: #0f172a;
+          }
+          .sched-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          .sched-table th {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 8px;
+            font-weight: bold;
+            text-align: left;
+            font-size: 10.5px;
+          }
+          .sched-table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px;
+            font-size: 10.5px;
+          }
+          .sched-table tr:nth-child(even) {
+            background-color: #fafbfc;
+          }
+          .signature-box-row {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+          }
+          .sign-box {
+            width: 220px;
+          }
+          .sign-line {
+            border-bottom: 1px dotted #475569;
+            margin-bottom: 6px;
+            height: 38px;
+          }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="title-section">
+          <h1>แผนผังตารางกำหนดการปฏิบัติงานและการนัดหมายรอบเดือน</h1>
+          <p>เอกสารสรุปกำหนดการประจำเดือนแบบราชการอย่างเป็นทางการ (Official Monthly Calendar Schedule Sheet)</p>
+        </div>
+
+        <div class="info-meta">
+          <div><strong>ประจำเดือน:</strong> ${monthNameTh} พ.ศ. ${yearTh}</div>
+          <div><strong>จัดพิมพ์เมื่อวันที่:</strong> ${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</div>
+        </div>
+
+        <table class="cal-table">
+          <thead>
+            <tr>
+              <th style="color:#ef4444; width:14.2%;">อาทิตย์ (SUN)</th>
+              <th style="width:14.2%;">จันทร์ (MON)</th>
+              <th style="width:14.2%;">อังคาร (TUE)</th>
+              <th style="width:14.2%;">พุธ (WED)</th>
+              <th style="width:14.2%;">พฤหัสฯ (THU)</th>
+              <th style="width:14.2%;">ศุกร์ (FRI)</th>
+              <th style="color:#3b82f6; width:14.2%;">เสาร์ (SAT)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${weeksList.map(week => `
+              <tr>
+                ${week.map(cell => {
+                  if (cell.day === null) {
+                    return `<td style="background-color: #f8fafc;"></td>`;
+                  }
+                  
+                  return `
+                    <td>
+                      <span class="day-number">${cell.day}</span>
+                      ${cell.holiday ? `<span class="holiday-tag" title="${cell.holiday}">🎉 ${cell.holiday}</span>` : ''}
+                      
+                      ${cell.tasks.slice(0, 3).map(t => `
+                        <div class="task-strip ${t.status === 'completed' ? 'completed' : ''}" title="${t.title}">
+                          ${t.dueTime ? t.dueTime : ''} ${t.title}
+                        </div>
+                      `).join('')}
+                      
+                      ${cell.tasks.length > 3 ? `
+                        <div style="font-size: 7.5px; color:#64748b; font-weight:bold; padding-left: 3px;">
+                          และงานอื่นอีก +${cell.tasks.length - 3} รายการ...
+                        </div>
+                      ` : ''}
+                    </td>
+                  `;
+                }).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        ${printIncludeList ? `
+          <div class="sub-title">📌 บัญชีรายชื่อกิจกรรม/งานภารกิจกำหนดส่งในรอบเดือนนี้ (Monthly Task Listing)</div>
+          <table class="sched-table">
+            <thead>
+              <tr>
+                <th style="width: 8%; text-align: center;">ลำดับ</th>
+                <th style="width: 15%;">วันที่กำหนดส่ง</th>
+                <th style="width: 45%;">ชื่องานนัดหมาย / ภารกิจหลัก</th>
+                <th style="width: 17%;">หมวดหมู่</th>
+                <th style="width: 15%;">สถานะการทำ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${scheduledTasks.length === 0 ? `
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: 25px; color:#64748b;">
+                    <i>- เดือนนี้ไม่มีรายการบันทึกงานภารกิจหรือเวลานัดหมายสะสม -</i>
+                  </td>
+                </tr>
+              ` : scheduledTasks.map((t, index) => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold;">${index + 1}</td>
+                  <td>${t.dueDate ? t.dueDate.split('-').reverse().join('/') : '-'} ${t.dueTime ? `⏰ ${t.dueTime}` : ''}</td>
+                  <td><strong>${t.title}</strong>${t.desc ? `<br/><span style="font-size:9px;color:#64748b;">(${t.desc})</span>` : ''}</td>
+                  <td>${t.category}</td>
+                  <td style="font-weight: 600; color: ${t.status === 'completed' ? '#047857' : '#b45309'}">
+                    ${t.status === 'completed' ? '✅ เสร็จสิ้นแล้ว' : '⏳ รอดำเนินการบอร์ด'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        <div class="signature-box-row">
+          <div class="sign-box">
+            <div class="sign-line"></div>
+            <p style="font-weight: 600; font-size: 11px; margin: 0;">ลงชื่อผู้ออกตารางจัดเตรียม</p>
+            <p style="font-size: 9.5px; color:#64748b; margin-top: 3px;">(............................................................)</p>
+          </div>
+          <div class="sign-box">
+            <div class="sign-line"></div>
+            <p style="font-weight: 600; font-size: 11px; margin: 0;">ลงชื่อผู้ตรวจสอบอนุมัติตาราง</p>
+            <p style="font-size: 9.5px; color:#64748b; margin-top: 3px;">(............................................................)</p>
+          </div>
+        </div>
+
+        <p style="font-size: 9px; color: #94a3b8; text-align: center; margin-top: 50px; border-top: 1px dotted #cbd5e1; padding-top: 10px;">
+          รายงานสรุปวิถีปฏิทินปฏิบัติการอย่างเป็นทางการ เชื่อมโยงผ่าน Firebase Firestore
+        </p>
+      </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    
+    iframe.contentWindow?.document.open();
+    iframe.contentWindow?.document.write(htmlLayout);
+    iframe.contentWindow?.document.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }, 400);
+
+    setIsPrintModalOpen(false);
   };
 
   const handleQuickComplete = (id: string) => {

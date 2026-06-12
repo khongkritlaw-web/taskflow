@@ -19,6 +19,15 @@ import {
 } from 'lucide-react';
 import { Task } from '../types';
 
+const getThailandTodayStr = () => {
+  return new Intl.DateTimeFormat('fr-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+};
+
 interface TaskModuleProps {
   tasks: Task[];
   onAddTask: (task: Omit<Task, 'id' | 'createdAt'>) => void;
@@ -55,14 +64,15 @@ export default function TaskModule({
   // General Filter Popup modal state
   const [activeFilterPopup, setActiveFilterPopup] = useState<'all' | 'pending' | 'completed' | 'overdue' | null>(null);
 
-  const getThailandTodayStr = () => {
-    return new Intl.DateTimeFormat('fr-CA', {
-      timeZone: 'Asia/Bangkok',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(new Date());
-  };
+  // Print Modal Configuration States
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printPeriod, setPrintPeriod] = useState<'all' | 'day' | 'month' | 'year'>('all');
+  const [printDay, setPrintDay] = useState(getThailandTodayStr ? getThailandTodayStr() : '');
+  const [printMonth, setPrintMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [printYear, setPrintYear] = useState(String(new Date().getFullYear()));
+  const [printStatus, setPrintStatus] = useState<'all' | 'pending' | 'completed' | 'overdue'>('all');
+  const [printCategory, setPrintCategory] = useState('all');
+  const [printIncludeDesc, setPrintIncludeDesc] = useState(true);
 
   const todayStr = getThailandTodayStr();
 
@@ -177,9 +187,307 @@ export default function TaskModule({
   const pendingTasks = filteredTasks.filter(t => t.dueDate !== todayStr && t.status !== 'completed');
   const completedTasks = filteredTasks.filter(t => t.status === 'completed');
 
-  // Export static summaries
+  // Export static summaries with custom filter selection
   const triggerPdfExport = () => {
-    window.print();
+    setIsPrintModalOpen(true);
+  };
+
+  const handlePrintTasks = () => {
+    // Filter tasks based on custom user filter criteria
+    const matched = tasks.filter(t => {
+      // 1. Period constraints
+      if (printPeriod === 'day') {
+        if (t.dueDate !== printDay) return false;
+      } else if (printPeriod === 'month') {
+        if (!t.dueDate || t.dueDate.substring(0, 7) !== `${printYear}-${printMonth}`) return false;
+      } else if (printPeriod === 'year') {
+        if (!t.dueDate || t.dueDate.substring(0, 4) !== printYear) return false;
+      }
+
+      // 2. Status constraints
+      if (printStatus === 'pending' && t.status === 'completed') return false;
+      if (printStatus === 'completed' && t.status !== 'completed') return false;
+      if (printStatus === 'overdue') {
+        const isOverdue = t.dueDate && t.dueDate < todayStr && t.status !== 'completed';
+        if (!isOverdue) return false;
+      }
+
+      // 3. Category constraints
+      if (printCategory !== 'all' && t.category !== printCategory) return false;
+
+      return true;
+    });
+
+    const statusLabel = {
+      all: 'ทุกสถานะงาน',
+      pending: 'รอดำเนินการบอร์ด',
+      completed: 'เสร็จสิ้นการดำเนินงาน',
+      overdue: 'เกินกำหนดเวลาส่งล่าช้า'
+    }[printStatus];
+
+    const periodLabel = {
+      all: 'งานทั้งหมดที่มีสะสมอยู่ในโปรแกรมระบบ',
+      day: `เฉพาะวันที่ประเมิน ${printDay.split('-').reverse().join('/')}`,
+      month: `ประจำรอบช่วงเดือน ${['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'][parseInt(printMonth) - 1]} พ.ศ. ${parseInt(printYear) + 543}`,
+      year: `ประจำปี พ.ศ. ${parseInt(printYear) + 543}`
+    }[printPeriod];
+
+    const categoryLabel = printCategory === 'all' ? 'ทุกประเภทภารกิจงาน' : printCategory;
+
+    // Build Thai traditional layout template
+    const printDocContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>รายงานรายการภารกิจและการดำเนินงานอย่างเป็นทางการ</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap');
+          body {
+            font-family: 'Sarabun', sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+            background-color: #ffffff;
+            font-size: 13px;
+          }
+          .header-title-box {
+            border-bottom: 3px double #0f172a;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+            text-align: center;
+          }
+          .header-title-box h1 {
+            font-size: 22px;
+            margin: 0 0 8px 0;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+          }
+          .header-title-box p {
+            font-size: 12px;
+            color: #64748b;
+            margin: 0;
+          }
+          .meta-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 25px;
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+          }
+          .meta-info-grid div {
+            margin-bottom: 5px;
+          }
+          .metric-boxes {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+          }
+          .m-box {
+            flex: 1;
+            border: 1px solid #e2e8f0;
+            border-top: 4px solid #475569;
+            padding: 12px;
+            text-align: center;
+            background-color: #ffffff;
+            border-radius: 6px;
+          }
+          .m-box-completed { border-top-color: #10b981; }
+          .m-box-pending { border-top-color: #f59e0b; }
+          .m-box-overdue { border-top-color: #ef4444; }
+          .m-box-title {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 4px;
+          }
+          .m-box-value {
+            font-size: 18px;
+            font-weight: bold;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+          }
+          th {
+            background-color: #f1f5f9;
+            border: 1px solid #94a3b8;
+            color: #1f2937;
+            font-weight: 700;
+            font-size: 11.5px;
+            padding: 10px;
+            text-align: left;
+          }
+          td {
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            font-size: 11.5px;
+            vertical-align: top;
+          }
+          tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .badge-btn {
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+          }
+          .badge-btn-pending { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+          .badge-btn-completed { background-color: #d1fae5; color: #047857; border: 1px solid #a7f3d0; }
+          .badge-btn-overdue { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+          .signing-block {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+          }
+          .sign-col {
+            width: 45%;
+            text-align: center;
+          }
+          .sign-dotted-line {
+            border-bottom: 1px dotted #64748b;
+            height: 45px;
+            width: 80%;
+            margin: 0 auto 10px auto;
+          }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header-title-box">
+          <h1>รายงานสรุปสารสนเทศภารกิจและการดำเนินงานอย่างเป็นทางการ</h1>
+          <p>เอกสารสรุปผลการปฏิบัติการเพื่อใช้งานในหน่วยงาน (Official Task Summary Sheet)</p>
+        </div>
+
+        <div class="meta-info-grid">
+          <div><strong>ขอบข่ายระยะเวลาข้อมูล:</strong> ${periodLabel}</div>
+          <div><strong>หมวดหมู่ที่คัดกรอง:</strong> ${categoryLabel}</div>
+          <div><strong>สถานะงานเกณฑ์:</strong> ${statusLabel}</div>
+          <div><strong>พิมพ์เมื่อวันที่:</strong> ${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</div>
+        </div>
+
+        <div class="metric-boxes">
+          <div class="m-box">
+            <span class="m-box-title">จำนวนงานทั้งหมด</span>
+            <div class="m-box-value" style="color:#475569;">${matched.length} รายการ</div>
+          </div>
+          <div class="m-box m-box-completed">
+            <span class="m-box-title">ประมวลผลเสร็จสิ้น</span>
+            <div class="m-box-value" style="color:#059669;">${matched.filter(t => t.status === 'completed').length} รายการ</div>
+          </div>
+          <div class="m-box m-box-pending">
+            <span class="m-box-title">อยู่วิถีรอดำเนินการ</span>
+            <div class="m-box-value" style="color:#d97706;">${matched.filter(t => t.status !== 'completed').length} รายการ</div>
+          </div>
+          <div class="m-box m-box-overdue">
+            <span class="m-box-title">เกินกำหนดเวลาส่งล่าช้า</span>
+            <div class="m-box-value" style="color:#dc2626;">${matched.filter(t => t.dueDate && t.dueDate < todayStr && t.status !== 'completed').length} รายการ</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 7%; text-align: center;">ลำดับ</th>
+              <th style="width: 25%;">ชื่องาน / ภารกิจหลัก</th>
+              ${printIncludeDesc ? '<th style="width: 33%;">รายละเอียด/บันทึกการดำเนินงาน</th>' : ''}
+              <th style="width: 13%;">หมวดหมู่หลัก</th>
+              <th style="width: 11%;">กำหนดการส่ง</th>
+              <th style="width: 11%; text-align: center;">สถานะการทำงาน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${matched.length === 0 ? `
+              <tr>
+                <td colspan="${printIncludeDesc ? 6 : 5}" style="text-align: center; padding: 40px; color: #94a3b8;">
+                  <i>- ไม่พบข้อมูลใดที่ตรงตามเงื่อนไขที่เลือกจัดพิมพ์ -</i>
+                </td>
+              </tr>
+            ` : matched.map((t, idx) => {
+              const isDone = t.status === 'completed';
+              const isOverdue = t.dueDate && t.dueDate < todayStr && !isDone;
+              let sText = 'รอดำเนินการ';
+              let badgeColorClass = 'badge-btn-pending';
+              if (isDone) {
+                sText = 'เสร็จสิ้น';
+                badgeColorClass = 'badge-btn-completed';
+              } else if (isOverdue) {
+                sText = 'เลยกำหนดส่ง';
+                badgeColorClass = 'badge-btn-overdue';
+              }
+
+              return `
+                <tr>
+                  <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+                  <td><strong>${t.title}</strong></td>
+                  ${printIncludeDesc ? `<td>${t.desc ? t.desc.replace(/\n/g, '<br/>') : '<span style="color:#cbd5e1">-</span>'}</td>` : ''}
+                  <td>${t.category}</td>
+                  <td>
+                    ${t.dueDate ? t.dueDate.split('-').reverse().join('/') : '-'}
+                    ${t.dueTime ? `<div style="font-size: 9.5px; color:#64748b; margin-top:2px;">⏰ ${t.dueTime} น.</div>` : ''}
+                  </td>
+                  <td style="text-align: center;">
+                    <span class="badge-btn ${badgeColorClass}">${sText}</span>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+
+        <div class="signing-block">
+          <div class="sign-col">
+            <div class="sign-dotted-line"></div>
+            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงชื่อผู้พิมพ์รายงาน</p>
+            <p style="font-size: 9.5px; color: #64748b; margin-top: 3px;">(............................................................)</p>
+          </div>
+          <div class="sign-col">
+            <div class="sign-dotted-line"></div>
+            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงชื่อผู้มีอำนาจตรวจสอบ / สักขีพยาน</p>
+            <p style="font-size: 9.5px; color: #64748b; margin-top: 3px;">(............................................................)</p>
+          </div>
+        </div>
+
+        <p style="font-size: 9.5px; color: #94a3b8; text-align: center; margin-top: 60px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+          เอกสารทางการฉบับนี้ส่งตรงจากฐานข้อมูล Firebase Cloud คัดลอกและตรวจสอบความถูกต้องด้วยความลับระบบ
+        </p>
+      </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    
+    iframe.contentWindow?.document.open();
+    iframe.contentWindow?.document.write(printDocContent);
+    iframe.contentWindow?.document.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }, 400);
+
+    setIsPrintModalOpen(false);
   };
 
   return (
@@ -479,6 +787,177 @@ export default function TaskModule({
                 className="h-10 px-5 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
               >
                 ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Print Settings Selection Dialog */}
+      {isPrintModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 dark:bg-slate-900 dark:border-slate-800">
+            <div className="p-5 border-b border-slate-150 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-accent" style={{ color: accentColor }} />
+                ระบบจัดพิมพ์รายงานสรุปภารกิจ (Print Settings Form)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {/* Part 1: Select range */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-700 dark:text-slate-350">⏳ เลือกช่วงเวลาของข้อมูลภารกิจ (Date Range Selection)</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { val: 'all', label: 'ทั้งหมด' },
+                    { val: 'day', label: 'ระบุวัน' },
+                    { val: 'month', label: 'ระบุเดือน' },
+                    { val: 'year', label: 'ระบุปี' }
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() => setPrintPeriod(p.val as any)}
+                      className={`h-9 rounded-lg border font-bold text-xs transition-all ${
+                        printPeriod === p.val 
+                          ? 'border-accent text-white dark:border-slate-700' 
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400'
+                      }`}
+                      style={printPeriod === p.val ? { backgroundColor: accentColor } : {}}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {printPeriod === 'day' && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5 mt-2 dark:bg-slate-950 dark:border-slate-800 animate-in fade-in duration-150">
+                    <span className="text-[11px] font-semibold text-slate-400">เลือกวันที่ต้องการพิมพ์:</span>
+                    <input
+                      type="date"
+                      value={printDay}
+                      onChange={(e) => setPrintDay(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-800"
+                    />
+                  </div>
+                )}
+
+                {printPeriod === 'month' && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg grid grid-cols-2 gap-2 mt-2 dark:bg-slate-950 dark:border-slate-800 animate-in fade-in duration-150">
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-400">เลือกเดือน:</span>
+                      <select
+                        value={printMonth}
+                        onChange={(e) => setPrintMonth(e.target.value)}
+                        className="w-full h-10 px-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-800"
+                      >
+                        {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, idx) => (
+                          <option key={m} value={String(idx + 1).padStart(2, '0')}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-400">เลือกปี:</span>
+                      <select
+                        value={printYear}
+                        onChange={(e) => setPrintYear(e.target.value)}
+                        className="w-full h-10 px-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-800"
+                      >
+                        {Array.from({ length: 11 }, (_, k) => String(new Date().getFullYear() - 5 + k)).map(y => (
+                          <option key={y} value={y}>พ.ศ. {parseInt(y) + 543}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {printPeriod === 'year' && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5 mt-2 dark:bg-slate-950 dark:border-slate-800 animate-in fade-in duration-150">
+                    <span className="text-[11px] font-semibold text-slate-400">เลือกปีในการออกรายงาน:</span>
+                    <select
+                      value={printYear}
+                      onChange={(e) => setPrintYear(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-800"
+                    >
+                      {Array.from({ length: 11 }, (_, k) => String(new Date().getFullYear() - 5 + k)).map(y => (
+                        <option key={y} value={y}>พ.ศ. {parseInt(y) + 543}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Part 2: Select custom fields / Filters */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1.5 dark:text-slate-350">📝 คัดกรองสถานะงาน</label>
+                  <select
+                    value={printStatus}
+                    onChange={(e) => setPrintStatus(e.target.value as any)}
+                    className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-950 dark:border-slate-800"
+                  >
+                    <option value="all">ทั้งหมด (ทุกสถานะงาน)</option>
+                    <option value="pending">รอดำเนินการ (Pending)</option>
+                    <option value="completed">เสร็จสิ้นแล้ว (Completed)</option>
+                    <option value="overdue">เกินกำหนดส่ง (Overdue)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1.5 dark:text-slate-350">🏷️ หมวดหมู่กิจกรรมงาน</label>
+                  <select
+                    value={printCategory}
+                    onChange={(e) => setPrintCategory(e.target.value)}
+                    className="w-full h-10 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-950 dark:border-slate-800"
+                  >
+                    <option value="all">ทั้งหมด (ทุกหมวดหมู่)</option>
+                    {categories.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Part 3: Option checkbox */}
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <input
+                  type="checkbox"
+                  id="includeDescCheck"
+                  checked={printIncludeDesc}
+                  onChange={(e) => setPrintIncludeDesc(e.target.checked)}
+                  className="w-4 h-4 text-accent border-slate-200 rounded focus:ring-accent accent-accent"
+                  style={{ '--accent': accentColor } as React.CSSProperties}
+                />
+                <label htmlFor="includeDescCheck" className="text-xs text-slate-600 dark:text-slate-400 font-semibold cursor-pointer">
+                  แสดงรายละเอียดรายงานงานอย่างครบถ้วน (Task Notes/Descriptions)
+                </label>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="h-10 px-4 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+              >
+                ปิดหน้าต่าง
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintTasks}
+                className="h-10 px-5 text-white rounded-lg font-bold text-xs shadow-md flex items-center gap-1.5 hover:opacity-95"
+                style={{ backgroundColor: accentColor }}
+              >
+                <FileText className="w-4 h-4" />
+                เริ่มจัดพิมพ์เอกสารสรุป
               </button>
             </div>
           </div>
