@@ -1339,16 +1339,53 @@ export default function App() {
                     <Link className="w-4 h-4 flex-shrink-0" style={{ color: settings.colorAccent }} />
                     <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{targetLink.title}</span>
                   </div>
-                  <button 
-                    onClick={() => {
-                      const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
-                      if (iframe) iframe.src = targetLink.url;
-                    }}
-                    className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
-                    style={{ color: settings.colorAccent }}
-                  >
-                    🔄 โหลดใหม่
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => {
+                        try {
+                          const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
+                          if (iframe && iframe.contentWindow) {
+                            iframe.contentWindow.history.back();
+                          }
+                        } catch (err) {
+                          console.warn('Cannot navigate iframe history due to cross-origin security:', err);
+                        }
+                      }}
+                      className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
+                      style={{ color: settings.colorAccent }}
+                      title="ย้อนกลับ"
+                    >
+                      ⬅️ ย้อนกลับ
+                    </button>
+                    <button 
+                      onClick={() => {
+                        try {
+                          const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
+                          if (iframe && iframe.contentWindow) {
+                            iframe.contentWindow.history.forward();
+                          }
+                        } catch (err) {
+                          console.warn('Cannot navigate iframe history due to cross-origin security:', err);
+                        }
+                      }}
+                      className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
+                      style={{ color: settings.colorAccent }}
+                      title="ถัดไป"
+                    >
+                      ➡️ ถัดไป
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
+                        if (iframe) iframe.src = targetLink.url;
+                      }}
+                      className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
+                      style={{ color: settings.colorAccent }}
+                      title="เริ่มใหม่"
+                    >
+                      🔄 เริ่มใหม่
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950">
