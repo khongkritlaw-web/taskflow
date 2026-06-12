@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { 
   createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword 
+  signInWithEmailAndPassword,
+  updatePassword
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -54,6 +55,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
   // Forgot password/ID input
   const [forgotId, setForgotId] = useState('');
   const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
   const [recoverMode, setRecoverMode] = useState<'id_and_password' | 'password'>('password');
   
   // OTP input
@@ -126,6 +128,19 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const udata = userDoc.data();
+        
+        const profileData = {
+          userId: udata.userId || trimmedId,
+          email: udata.email || `${trimmedId}@taskflow.space`,
+          phone: udata.phone || '0812345678',
+          password: loginPass,
+          uid: uid
+        };
+        // Save profiles locally
+        localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
+        localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
+        localStorage.setItem(`user_profile_${(udata.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
+
         triggerSuccess('เข้าสู่ระบบสำเร็จ กำลังนำคุณเข้าสู่แอปพลิเคชัน...');
         setTimeout(() => {
           onLoginSuccess(
@@ -143,9 +158,15 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           userId: trimmedId,
           email: `${trimmedId}@taskflow.space`,
           phone: '0812345678',
-          password: loginPass
+          password: loginPass,
+          uid: uid
         };
         await setDoc(doc(db, 'users', uid), profile);
+        
+        localStorage.setItem(`user_profile_${profile.email.toLowerCase()}`, JSON.stringify(profile));
+        localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profile));
+        localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profile));
+
         triggerSuccess('เข้าสู่ระบบสำเร็จ กำลังนำคุณเข้าสู่แอปพลิเคชัน...');
         setTimeout(() => {
           onLoginSuccess(trimmedId, profile.email, profile.phone, uid, loginPass);
@@ -155,6 +176,46 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     } catch (error: any) {
       console.log('Authentication error:', error);
       
+      // SELF-HEALING RECOVERY LOGIC
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        const matchedEmail = `${trimmedId}@taskflow.space`;
+        const localProfStr = localStorage.getItem(`user_profile_${matchedEmail}`) || localStorage.getItem(`user_profile_${trimmedId}`);
+        if (localProfStr) {
+          const profile = JSON.parse(localProfStr);
+          if (profile.password === loginPass) {
+            const oldPass = localStorage.getItem(`user_profile_old_password_${profile.email.toLowerCase()}`);
+            if (oldPass && oldPass !== loginPass) {
+              try {
+                console.log('🔄 Self-healing login triggered: signing in with raw old credentials...');
+                const oldFinalPass = padPass(oldPass);
+                const oldUserCred = await signInWithEmailAndPassword(auth, emailFirebase, oldFinalPass);
+                console.log('✅ Signed in successfully with previous old password, updating to reset password...');
+                
+                await updatePassword(oldUserCred.user, finalPass);
+                console.log('🎉 Firebase Auth password synchronizer completed!');
+                
+                localStorage.removeItem(`user_profile_old_password_${profile.email.toLowerCase()}`);
+                triggerSuccess('เข้าสู่ระบบสำเร็จ ด้วยรหัสกู้คืนที่ซิงค์ลงสู่แอปพลิเคชันเรียบร้อย...');
+                
+                setTimeout(() => {
+                  onLoginSuccess(
+                    profile.userId || trimmedId, 
+                    profile.email, 
+                    profile.phone || '0812345678', 
+                    oldUserCred.user.uid, 
+                    loginPass
+                  );
+                  setIsLoading(false);
+                }, 800);
+                return;
+              } catch (healingError) {
+                console.error('Self-healing sync password failed:', healingError);
+              }
+            }
+          }
+        }
+      }
+
       if (error.code === 'auth/operation-not-allowed') {
         setDiagnosticError('operation-not-allowed');
         triggerError('⚠️ โครงการคลาวด์ยังไม่เปิดสิทธิ์ Email/Password ใน Firebase Console หรือคลิกด้านล่างเพื่อสลับใช้โหมดออฟไลน์แสนด์บ็อกซ์');
@@ -179,10 +240,16 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             userId: trimmedId,
             email: `${trimmedId}@taskflow.space`,
             phone: '0812345678',
-            password: loginPass
+            password: loginPass,
+            uid: uid
           };
 
           await setDoc(doc(db, 'users', uid), profile);
+          
+          localStorage.setItem(`user_profile_${profile.email.toLowerCase()}`, JSON.stringify(profile));
+          localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profile));
+          localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profile));
+
           triggerSuccess('ยินดีต้อนรับ! สมัครและสร้างบัญชีใหม่เรียบร้อยแล้ว...');
           setTimeout(() => {
             onLoginSuccess(trimmedId, profile.email, profile.phone, uid, loginPass);
@@ -191,7 +258,6 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         } catch (regError: any) {
           console.log('Auto signup failed:', regError);
           if (regError.code === 'auth/email-already-in-use') {
-            // Already registered, correct password must have been wrong
             triggerError('⚠️ ไอดีผู้ใช้งานนี้มีอยู่บนเซิร์ฟเวอร์ แต่รหัสลับที่ป้อนไม่ถูกต้อง');
           } else if (regError.code === 'auth/operation-not-allowed') {
             setDiagnosticError('operation-not-allowed');
@@ -218,8 +284,8 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       triggerError('กรุณากรอกข้อมูลดาว (*) จัดหาให้ครบถ้วน');
       return;
     }
-    if (regPass.length < 4) {
-      triggerError('รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร');
+    if (regPass.length !== 6) {
+      triggerError('กรุณากำหนดรหัสผ่านลับเป็นตัวเลขหรือตัวอักษร 6 หลักเท่านั้นเพื่อความปลอดภัย');
       return;
     }
 
@@ -237,13 +303,21 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const userCredential = await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
       const uid = userCredential.user.uid;
 
-      // Save user to Firestore users collection (which runs as the signed-in user, passing security rules check perfectly!)
-      await setDoc(doc(db, 'users', uid), {
+      const profileData = {
         userId: trimmedId,
         email: trimmedEmail,
         phone: trimmedPhone,
-        password: regPass
-      });
+        password: regPass,
+        uid: uid
+      };
+
+      // Save user to Firestore users collection
+      await setDoc(doc(db, 'users', uid), profileData);
+
+      // Save user profiles globally in local registries for offline lookups
+      localStorage.setItem(`user_profile_${trimmedEmail.toLowerCase()}`, JSON.stringify(profileData));
+      localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
+      localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profileData));
 
       triggerSuccess('ลงทะเบียนผู้ใช้ใหม่สำเร็จ! กำลังนำคุณกลับไปหน้าเข้าสู่ระบบ...');
       
@@ -274,16 +348,10 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
 
   const handleRequestForgotOTP = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const trimmedId = forgotId.trim().toLowerCase();
-    const trimmedPhone = forgotPhone.trim();
+    const trimmedEmail = forgotEmail.trim().toLowerCase();
     
-    // Check fields based on recovery mode
-    if (recoverMode === 'password' && (!trimmedId || !trimmedPhone)) {
-      triggerError('กรุณากรอกไอดีผู้ใช้และเบอร์โทรศัพท์ที่บันทึกไว้');
-      return;
-    }
-    if (recoverMode === 'id_and_password' && !trimmedPhone) {
-      triggerError('กรุณากรอกเบอร์โทรศัพท์ที่บันทึกไว้สำหรับสแกนไอดี');
+    if (!trimmedEmail) {
+      triggerError('กรุณากรอกอีเมลเดิมที่เคยลงทะเบียนไว้');
       return;
     }
 
@@ -292,82 +360,107 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     setSuccessMsg('');
 
     try {
-      // In unauthenticated context, Firestore queries on /users will fail due to rules protection (Zero-Trust)
-      // To bypass this and guarantee robust operation for demo/playground, if we encounter a permissions error
-      // we gracefully fall back to local cached backup checks or allow simulated OTP generation for admin / local user
-      let matchedId = '';
       let foundUser: any = null;
 
+      // 1. Try to search Firestore users collection for matching email
       try {
         const usersRef = collection(db, 'users');
-        if (recoverMode === 'password') {
-          // Find specifically by Username ID
-          const q = query(usersRef, where('userId', '==', trimmedId));
-          const querySnapshot = await getDocs(q);
+        const q = query(usersRef, where('email', '==', trimmedEmail));
+        const querySnapshot = await getDocs(q);
 
-          if (!querySnapshot.empty) {
-            querySnapshot.forEach((doc) => {
-              const udata = doc.data();
-              if (udata.phone === trimmedPhone) {
-                foundUser = udata;
-              }
-            });
-          }
-        } else {
-          // Recover user ID option (Search purely by phone)
-          const q = query(usersRef, where('phone', '==', trimmedPhone));
-          const querySnapshot = await getDocs(q);
-
-          if (!querySnapshot.empty) {
-            querySnapshot.forEach((doc) => {
-              const udata = doc.data();
-              matchedId = udata.userId;
-            });
-          }
+        if (!querySnapshot.empty) {
+          querySnapshot.forEach((doc) => {
+            foundUser = { ...doc.data(), uid: doc.id };
+          });
         }
       } catch (permissionError) {
-        console.log('Firestore unauthenticated lookup blocked by Security Rules. Applying Offline local simulation...', permissionError);
-        // Fall back to local check inside browser localStorage cache
-        if (recoverMode === 'password') {
-          const cachedSettings = localStorage.getItem(`settings_${trimmedId}`);
-          if (cachedSettings || trimmedId === 'admin') {
-            foundUser = { userId: trimmedId, phone: trimmedPhone };
-          }
+        console.log('Firestore lookup blocked by rules. Searching local profiles...', permissionError);
+      }
+
+      // 2. If Firestore search didn't yield, look in local profile backup database
+      if (!foundUser) {
+        const localProf = localStorage.getItem(`user_profile_${trimmedEmail}`);
+        if (localProf) {
+          foundUser = JSON.parse(localProf);
+        } else if (trimmedEmail === 'admin@taskflow.space' || trimmedEmail === 'admin') {
+          foundUser = { userId: 'admin', email: 'admin@taskflow.space', phone: '0812345678', password: '000000', uid: 'admin' };
         } else {
-          // Local phone search fallback
-          matchedId = trimmedId || 'admin';
+          // If no lookup is found, look up if any matching profile exists in general local storage keys
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('user_profile_')) {
+              try {
+                const profile = JSON.parse(localStorage.getItem(key) || '{}');
+                if (profile.email && profile.email.toLowerCase() === trimmedEmail) {
+                  foundUser = profile;
+                  break;
+                }
+              } catch (_) {}
+            }
+          }
         }
       }
 
-      if (recoverMode === 'password') {
-        if (!foundUser && trimmedId !== 'admin') {
-          triggerError('ไม่พบข้อมูลบัญชีหรือเบอร์โทรศัพท์นี้ในระเบียนเก็บความปลอดภัย');
-          setIsLoading(false);
-          return;
-        }
+      if (!foundUser) {
+        triggerError('❌ ไม่พบประวัติผู้สมัครที่ใช้งานอีเมลนี้ในสารบบข้อมูล');
+        setIsLoading(false);
+        return;
+      }
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOTP(otp);
-        setOtpUserId(trimmedId || 'admin');
-        setFormType('otp');
-        triggerSuccess('สร้างบริการกู้คืนรหัส OTP ความปลอดภัยสำเร็จ!');
+      // Enforce the 6-digit/character code rule
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedOTP(otp);
+      setOtpUserId(foundUser.userId || 'admin');
+
+      // Save previous password so self-healing works automatically on next login
+      localStorage.setItem(`user_profile_old_password_${trimmedEmail}`, foundUser.password || '000000');
+
+      // Attempt to send real email via SMTP
+      let emailSent = false;
+      try {
+        const adminSettingsStr = localStorage.getItem('settings_admin') || localStorage.getItem(`settings_${foundUser.userId}`) || '';
+        if (adminSettingsStr) {
+          const adminSettings = JSON.parse(adminSettingsStr);
+          if (adminSettings.smtpHost && adminSettings.smtpUser && adminSettings.smtpPass) {
+            const emailBody = `สวัสดีครับ คุณผู้ใช้ไอดี: ${foundUser.userId}\n\nนี่คือรหัสยืนยันตัวตนสำหรับกู้คืนรหัสผ่านเข้าใช้งานระบบ TaskFlow Space ของคุณ:\n\n✨ รหัสยืนยัน OTP: ${otp} ✨\n\nกรุณากรอกตัวเลขหลัก 6 ตัวนี้ลงบนหน้าจอเพื่อทำรายการเปลี่ยนรหัสผ่านเพื่อเข้าใช้งานต่อไปครับ\n\nขอขอบพระคุณครับ,\nฝ่ายบริการช่วยเหลือความปลอดภัย TaskFlow Space`;
+            const response = await fetch('/api/send-email', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: trimmedEmail,
+                subject: '📢 รหัสยืนยันเพื่อเปลี่ยนรหัสผ่านใหม่ (Reset Password OTP) - TaskFlow Space',
+                body: emailBody,
+                smtpHost: adminSettings.smtpHost,
+                smtpPort: Number(adminSettings.smtpPort) || 587,
+                smtpUser: adminSettings.smtpUser,
+                smtpPass: adminSettings.smtpPass,
+                smtpSecure: adminSettings.smtpSecure || false,
+                smtpSenderName: adminSettings.smtpSenderName || adminSettings.appName || 'TaskFlow Security Center',
+              }),
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+              emailSent = true;
+            }
+          }
+        }
+      } catch (smtpErr) {
+        console.error('Failed to dispatch recovery email via SMTP:', smtpErr);
+      }
+
+      if (emailSent) {
+        triggerSuccess(`📧 ระบบส่งรหัส OTP 6 หลักสำหรับกู้คืนสิทธิ์ไปที่อีเมลเดิมของคุณ (${trimmedEmail}) เรียบร้อยแล้ว!`);
       } else {
-        if (!matchedId) {
-          triggerError('ไม่พบเบอร์โทรศัพท์นี้ลงทะเบียนในระบบ กรุณาตรวจสอบเบอร์โทรของคุณ');
-          setIsLoading(false);
-          return;
-        }
-
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOTP(otp);
-        setOtpUserId(matchedId); // Store target username for password reset too!
-        setForgotId(matchedId); // Autofill on recover
-        triggerSuccess(`พบประวัติผู้ใช้งานในระเบียน! ไอดีของคุณคือ "${matchedId}"`);
-        setTimeout(() => {
-          setFormType('otp');
-          setIsLoading(false);
-        }, 1800);
+        triggerSuccess(`📧 ส่งรหัสผ่านทางอีเมลจำลองเรียบร้อยแล้ว! (รหัสสิทธิ์ทดสอบสำหรับกรอกคือ: ${otp})`);
       }
+
+      setTimeout(() => {
+        setFormType('otp');
+        setIsLoading(false);
+      }, 1800);
+
     } catch (error: any) {
       triggerError('เกิดข้อผิดพลาดในการตรวจสอบ: ' + (error.message || String(error)));
       setIsLoading(false);
@@ -405,12 +498,12 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       triggerError('กรุณากำหนดไอดีผู้ใช้งาน (User ID) ใหม่');
       return;
     }
-    if (resetPass.length < 4) {
-      triggerError('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร');
+    if (resetPass.length !== 6) {
+      triggerError('กรุณากำหนดรหัสผ่านใหม่เป็นตัวเลขหรือตัวอักษรความยาว 6 หลักเท่านั้น');
       return;
     }
     if (resetPass !== resetPassConfirm) {
-      triggerError('การบันทึกฟาร์มรหัสผ่านทั้งสองช่องกรอกไม่ตรงกัน');
+      triggerError('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน');
       return;
     }
 
@@ -420,6 +513,16 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
 
     try {
       if (otpUserId === 'admin') {
+        const adminProfile = {
+          userId: 'admin',
+          email: 'admin@taskflow.space',
+          phone: '0812345678',
+          password: resetPass,
+          uid: 'admin'
+        };
+        localStorage.setItem('user_profile_admin@taskflow.space', JSON.stringify(adminProfile));
+        localStorage.setItem('user_profile_admin', JSON.stringify(adminProfile));
+
         triggerSuccess('แก้ไขจำลองเปลี่ยนข้อมูลและรหัสของบัญชีสาธารณะ admin สำเร็จ!');
         setTimeout(() => {
           setLoginId(cleanId);
@@ -436,8 +539,28 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        // If not found, create new record or fall back
-        triggerError('ไม่พบฐานข้อมูลผู้ใช้ต้นแบบบนระบบคลาวด์');
+        // Fallback local only update if Firestore was not accessible
+        const matchedEmail = `${otpUserId}@taskflow.space`;
+        const localProfStr = localStorage.getItem(`user_profile_${matchedEmail}`) || localStorage.getItem(`user_profile_${otpUserId}`);
+        if (localProfStr) {
+          const profile = JSON.parse(localProfStr);
+          profile.password = resetPass;
+          profile.userId = cleanId;
+
+          localStorage.setItem(`user_profile_${profile.email.toLowerCase()}`, JSON.stringify(profile));
+          localStorage.setItem(`user_profile_${cleanId.toLowerCase()}`, JSON.stringify(profile));
+
+          triggerSuccess('🎉 เปลี่ยนข้อมูลผ่านระบบจำลองออฟไลน์สำเร็จ! กำลังนำกลับไปล็อกอิน...');
+          setTimeout(() => {
+            setLoginId(cleanId);
+            setLoginPass(resetPass);
+            setFormType('login');
+            setIsLoading(false);
+          }, 2000);
+          return;
+        }
+
+        triggerError('ไม่พบฐานข้อมูลผู้ใช้ต้นแบบบนระบบคลาวด์หรือแคชออฟไลน์');
         setIsLoading(false);
         return;
       }
@@ -451,11 +574,19 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
 
       if (docId) {
         // Save back updated userId and password to Firestore
-        await setDoc(doc(db, 'users', docId), {
+        const updatedProfile = {
           ...matchedData,
           userId: cleanId,
           password: resetPass
-        }, { merge: true });
+        };
+
+        await setDoc(doc(db, 'users', docId), updatedProfile, { merge: true });
+
+        // Keep local registry matching perfectly
+        if (updatedProfile.email) {
+          localStorage.setItem(`user_profile_${updatedProfile.email.toLowerCase()}`, JSON.stringify(updatedProfile));
+          localStorage.setItem(`user_profile_${(updatedProfile.userId || cleanId).toLowerCase()}`, JSON.stringify(updatedProfile));
+        }
 
         // Synchronize browser local storage mappings
         const savedTasks = localStorage.getItem(`tasks_${otpUserId}`);
@@ -699,30 +830,31 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   disabled={isLoading}
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  กำหนดรหัสผ่านเข้าใช้ *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={regPass}
-                    onChange={(e) => setRegPass(e.target.value)}
-                    placeholder="รหัสผ่านขั้นต่ำ 4 หลักขึ้นไป"
-                    className="w-full h-11 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-bold font-mono"
-                    style={{ '--accent': accentColor } as React.CSSProperties}
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+               <div>
+                 <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                   <Lock className="w-3.5 h-3.5 text-slate-400" />
+                   กำหนดรหัสผ่านเข้าใช้งาน (ความยาว 6 หลักเท่านั้น) *
+                 </label>
+                 <div className="relative">
+                   <input
+                     type={showPassword ? 'text' : 'password'}
+                     value={regPass}
+                     onChange={(e) => setRegPass(e.target.value)}
+                     maxLength={6}
+                     placeholder="ระบุรหัสสัมบูรณ์ความยาว 6 หลัก"
+                     className="w-full h-11 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-bold font-mono"
+                     style={{ '--accent': accentColor } as React.CSSProperties}
+                     disabled={isLoading}
+                   />
+                   <button
+                     type="button"
+                     onClick={() => setShowPassword(!showPassword)}
+                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                   >
+                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                   </button>
+                 </div>
+               </div>
 
               <button
                 type="submit"
@@ -746,90 +878,53 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             </form>
           )}
 
-          {/* 3. FORGOT PASSWORD / ID RECOVERY FORM */}
-          {formType === 'forgot' && (
-            <form onSubmit={handleRequestForgotOTP} className="space-y-4">
-              {/* Reset Category Modes Dropdown tab */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-150 p-1 rounded-xl text-xs font-black dark:bg-slate-950">
-                <button
-                  type="button"
-                  onClick={() => { setRecoverMode('password'); setErrorMsg(''); }}
-                  className={`py-2 rounded-lg transition-all ${recoverMode === 'password' ? 'bg-white text-slate-800 shadow dark:bg-slate-800 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'}`}
-                >
-                  ลืมรหัสผ่าน
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setRecoverMode('id_and_password'); setErrorMsg(''); }}
-                  className={`py-2 rounded-lg transition-all ${recoverMode === 'id_and_password' ? 'bg-white text-slate-800 shadow dark:bg-slate-800 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'}`}
-                >
-                  ลืมไอดี/ลืมทั้งหมด
-                </button>
-              </div>
-
-              {recoverMode === 'password' ? (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400">ระบุชื่อยูสเซอร์เนม (ID) ที่เคยสมัครไว้</label>
-                    <input
-                      type="text"
-                      value={forgotId}
-                      onChange={(e) => setForgotId(e.target.value)}
-                      placeholder="ป้อนชื่อผู้ใช้ของคุณ...เช่น user1"
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100"
-                      style={{ '--accent': accentColor } as React.CSSProperties}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400">ระบุเบอร์โทรศัพท์มือถือที่สัมพันธ์กัน</label>
-                    <input
-                      type="text"
-                      value={forgotPhone}
-                      onChange={(e) => setForgotPhone(e.target.value)}
-                      placeholder="เบอร์โทรที่บันทึกสำรองไว้ (เช่น 0812345678)"
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-mono font-medium"
-                      style={{ '--accent': accentColor } as React.CSSProperties}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                    ป้อนหมายเลขเบอร์โทรศัพท์สำหรับสแกนหาไอดีของคุณ
-                  </label>
-                  <input
-                    type="text"
-                    value={forgotPhone}
-                    onChange={(e) => setForgotPhone(e.target.value)}
-                    placeholder="ป้อนเบอร์โทรติดต่อ เช่น 0812345678"
-                    className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-mono font-medium"
-                    style={{ '--accent': accentColor } as React.CSSProperties}
-                  />
-                  <p className="text-[10px] text-slate-400 mt-2">ระบบจะนำเบอร์ศัพท์ชุดนี้ไปค้นหาบัญชี เมื่อพบจะรายงานไอดีและขอเปลี่ยนพาสให้ทันที</p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full h-12 font-black text-xs text-white rounded-xl shadow-lg hover:brightness-105 transition-all bg-slate-800 dark:bg-slate-950 flex items-center justify-center gap-2"
-              >
-                {isLoading ? 'กำลังค้นหาประวัติข้อมูล...' : (recoverMode === 'password' ? 'ตรวจสอบสิทธิ์เพื่อส่ง OTP' : 'ค้นหาไอดีผู้ใช้ด้วยเบอร์โทร')}
-              </button>
-
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => { setFormType('login'); setErrorMsg(''); setSuccessMsg(''); }}
-                  className="text-xs font-bold hover:underline flex items-center justify-center gap-1.5 mx-auto text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  ย้อนกลับสู่หน้าเข้าสู่ระบบหลัก
-                </button>
-              </div>
-            </form>
-          )}
+           {/* 3. FORGOT PASSWORD / ID RECOVERY FORM */}
+           {formType === 'forgot' && (
+             <form onSubmit={handleRequestForgotOTP} className="space-y-4">
+               <div>
+                 <label className="block text-xs font-bold text-slate-800 mb-1.5 dark:text-slate-200">
+                   📧 ระบุอีเมลเดิมที่ลงทะเบียนไว้ในระบบ เพื่อรับรหัสยืนยัน
+                 </label>
+                 <input
+                   type="email"
+                   value={forgotEmail}
+                   onChange={(e) => setForgotEmail(e.target.value)}
+                   placeholder="เช่น user@example.com"
+                   className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium font-mono animate-fade-in"
+                   style={{ '--accent': accentColor } as React.CSSProperties}
+                   required
+                 />
+                 <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                   ระบบจะทำการค้นหาและส่งรหัสยืนยันความปลอดภัย OTP 6 หลัก เพื่อไปทำการตั้งค่ารหัสผ่านใหม่ของคุณผ่านอีเมลเดิมนี้ปักหมุดความปลอดภัย
+                 </p>
+               </div>
+ 
+               <button
+                 type="submit"
+                 disabled={isLoading}
+                 className="w-full h-12 font-black text-xs text-white rounded-xl shadow-lg hover:brightness-105 transition-all flex items-center justify-center gap-2"
+                 style={{ backgroundColor: accentColor }}
+               >
+                 {isLoading ? (
+                   <>
+                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                     กำลังดำเนินการตรวจสอบเซกเมนต์ประวัติ...
+                   </>
+                 ) : 'ส่งรหัสยืนยันความปลอดภัยไปยังอีเมล'}
+               </button>
+ 
+               <div className="pt-2 text-center">
+                 <button
+                   type="button"
+                   onClick={() => { setFormType('login'); setErrorMsg(''); setSuccessMsg(''); }}
+                   className="text-xs font-bold hover:underline flex items-center justify-center gap-1.5 mx-auto text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                 >
+                   <ArrowLeft className="w-3.5 h-3.5" />
+                   ย้อนกลับสู่หน้าเข้าสู่ระบบหลัก
+                 </button>
+               </div>
+             </form>
+           )}
 
           {/* 4. OTP CONFIRMATION FORM */}
           {formType === 'otp' && (

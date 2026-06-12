@@ -584,8 +584,8 @@ export default function App() {
       setProfileMessage({ text: 'กรุณากรอกไอดีผู้ใช้งาน', type: 'err' });
       return;
     }
-    if (newPassword.length < 4) {
-      setProfileMessage({ text: 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร', type: 'err' });
+    if (newPassword.length !== 6) {
+      setProfileMessage({ text: 'รหัสผ่านใหม่ต้องมีความยาว 6 หลักเท่านั้นเพื่อความเป็นระเบียบ', type: 'err' });
       return;
     }
 
@@ -628,6 +628,17 @@ export default function App() {
       if (savedTasks) localStorage.setItem(`tasks_${cleanId}`, savedTasks);
       if (savedExpenses) localStorage.setItem(`expenses_${cleanId}`, savedExpenses);
       if (savedSettings) localStorage.setItem(`settings_${cleanId}`, savedSettings);
+
+      // Update in our localized profiles cache
+      const profileData = {
+        userId: cleanId,
+        email: sessionUser.email || `${cleanId}@taskflow.space`,
+        phone: sessionUser.phone || '0812345678',
+        password: newPassword,
+        uid: uid
+      };
+      localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
+      localStorage.setItem(`user_profile_${cleanId.toLowerCase()}`, JSON.stringify(profileData));
 
       setSessionUser(prev => ({ ...prev, userId: cleanId, password: newPassword }));
       setProfileMessage({ text: 'อัปเดตบัญชีผู้ใช้และรหัสผ่านเรียบร้อยแล้ว!', type: 'ok' });
@@ -1588,18 +1599,19 @@ export default function App() {
                     <p className="text-[10px] text-slate-400 mt-1">ใช้พิมพ์ในช่องยูเซอร์เนมเข้าสู่เว็บไซต์ในครั้งถัดไป</p>
                   </div>
 
-                  <div>
+                   <div>
                     <label className="block text-xs font-bold text-slate-600 dark:text-slate-450 mb-1.5">
-                      🔑 รหัสผ่านลับก่อนเข้าเว็บคัดกรอง (Password)
+                      🔑 รหัสผ่านเข้าใช้งานระบบ (Password ยาว 6 หลักเท่านั้น)
                     </label>
                     <input
                       type="text"
+                      maxLength={6}
                       value={editPassword}
                       onChange={(e) => setEditPassword(e.target.value)}
-                      placeholder="เช่น 000000"
+                      placeholder="เช่น 123456"
                       className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">รหัสผ่านลับพื้นฐานเริ่มต้นถูกกำหนดไว้ที่ <span className="font-bold underline text-amber-500">000000</span></p>
+                    <p className="text-[10px] text-slate-400 mt-1">รหัสผ่านใหม่ต้องมีความยาว <span className="font-bold text-amber-500">6 หลักเท่านั้น</span> เพื่อความปลอดภัยในการเข้าใช้งานในครั้งถัดไป</p>
                   </div>
                 </div>
 
