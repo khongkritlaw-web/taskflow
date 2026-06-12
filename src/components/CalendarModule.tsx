@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText, Printer } from 'lucide-react';
 import { Task } from '../types';
 import { useDialog } from './CustomDialog';
 
@@ -547,6 +547,15 @@ export default function CalendarModule({
 
         {/* Filters/Navigates controls */}
         <div className="flex items-center gap-3 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-print-modal', { detail: { initialTab: 'calendar' } }))}
+            className="h-10 px-3.5 border border-slate-200 bg-white rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
+          >
+            <Printer className="w-4 h-4 text-slate-500" />
+            <span>พิมพ์รายงานปฏิทิน / PDF</span>
+          </button>
+
           <div className="flex border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
             <button
               onClick={handlePrevMonth}

@@ -53,6 +53,7 @@ import AuthScreen from './components/AuthScreen';
 import TaskModule from './components/TaskModule';
 import CalendarModule from './components/CalendarModule';
 import ExpenseModule from './components/ExpenseModule';
+import { PrintReportModal } from './components/PrintReportModal';
 
 const DEFAULT_CATEGORIES = ['💼 งานทั่วไป', '🏠 ส่วนตัว', '🛒 ช้อปปิ้ง', '🔥 เร่งด่วน'];
 
@@ -123,6 +124,18 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('tasks');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Print modal state and listener
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  useEffect(() => {
+    const handleOpenPrint = () => {
+      setIsPrintModalOpen(true);
+    };
+    window.addEventListener('open-print-modal', handleOpenPrint);
+    return () => {
+      window.removeEventListener('open-print-modal', handleOpenPrint);
+    };
+  }, []);
   
   // Custom theme settings helpers
   const [harmoniousMode, setHarmoniousMode] = useState(true);
@@ -2461,6 +2474,13 @@ export default function App() {
         </main>
       </div>
 
+      <PrintReportModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        tasks={tasks}
+        expenses={expenses}
+        settings={settings}
+      />
     </div>
   );
 }

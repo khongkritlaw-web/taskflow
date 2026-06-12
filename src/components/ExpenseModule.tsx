@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag } from 'lucide-react';
+import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer } from 'lucide-react';
 import { Expense } from '../types';
 import { useDialog } from './CustomDialog';
 
@@ -220,14 +220,26 @@ export default function ExpenseModule({
           <Coins className="w-5 h-5 text-accent" style={{ color: accentColor }} />
           คำนวณและติดตามประวัติค่าใช้จ่าย
         </span>
-        <button
-          onClick={triggerAddModal}
-          className="h-10 px-5 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 hover:opacity-90 active:scale-95"
-          style={{ backgroundColor: accentColor }}
-        >
-          <Plus className="w-4 h-4" />
-          เพิ่มรายการชำระเงิน
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-print-modal', { detail: { initialTab: 'expenses' } }))}
+            className="flex-1 sm:flex-none h-10 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
+          >
+            <Printer className="w-4 h-4" />
+            พิมพ์สรุปบัญชี / PDF
+          </button>
+
+          <button
+            type="button"
+            onClick={triggerAddModal}
+            className="flex-1 sm:flex-none h-10 px-5 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all"
+            style={{ backgroundColor: accentColor }}
+          >
+            <Plus className="w-4 h-4" />
+            เพิ่มรายการชำระเงิน
+          </button>
+        </div>
       </div>
 
       {/* Grid summary cards */}

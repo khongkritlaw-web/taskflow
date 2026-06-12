@@ -206,7 +206,7 @@ export default function TaskModule({
 
   // Export static summaries with custom filter selection
   const triggerPdfExport = () => {
-    setIsPrintModalOpen(true);
+    window.dispatchEvent(new CustomEvent('open-print-modal', { detail: { initialTab: 'tasks' } }));
   };
 
   const handlePrintTasks = () => {
