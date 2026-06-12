@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layers,
   CheckSquare,
@@ -33,12 +33,13 @@ import {
   Info,
   ExternalLink,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  User
 } from 'lucide-react';
 import { Task, Expense, AppSettings } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
 
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { updateEmail, updatePassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { useDialog } from './components/CustomDialog';
@@ -156,6 +157,31 @@ export default function App() {
   const [profileMessage, setProfileMessage] = useState<{ text: string; type: 'ok' | 'err' } | null>(null);
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
+
+  // DB Unsubscribe pointers for real-time Firestore sync
+  const dbUnsubscribersRef = useRef<{ settings?: () => void; tasks?: () => void; expenses?: () => void }>({});
+
+  const cleanupSubscriptions = () => {
+    if (dbUnsubscribersRef.current.settings) {
+      dbUnsubscribersRef.current.settings();
+      delete dbUnsubscribersRef.current.settings;
+    }
+    if (dbUnsubscribersRef.current.tasks) {
+      dbUnsubscribersRef.current.tasks();
+      delete dbUnsubscribersRef.current.tasks;
+    }
+    if (dbUnsubscribersRef.current.expenses) {
+      dbUnsubscribersRef.current.expenses();
+      delete dbUnsubscribersRef.current.expenses;
+    }
+  };
+
+  // Clean subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      cleanupSubscriptions();
+    };
+  }, []);
 
   // Cloud Sync & Network Resiliency states
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -444,6 +470,46 @@ export default function App() {
           await setDoc(doc(db, 'users', uid, 'expenses', exp.id), exp);
         }
       }
+
+      // 4. Hook up real-time sync subscribers to Firestore for multi-device sync
+      cleanupSubscriptions();
+
+      dbUnsubscribersRef.current.settings = onSnapshot(settingsRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const syncedSettings = { ...defaultSet, ...docSnap.data() };
+          setSettings(syncedSettings);
+          localStorage.setItem(`settings_${userId}`, JSON.stringify(syncedSettings));
+        }
+      }, (error) => {
+        console.error('Firestore real-time settings sync error:', error);
+      });
+
+      dbUnsubscribersRef.current.tasks = onSnapshot(tasksCol, (querySnap) => {
+        const tasksList: Task[] = [];
+        querySnap.forEach((docSnap) => {
+          tasksList.push(docSnap.data() as Task);
+        });
+        if (tasksList.length > 0) {
+          setTasks(tasksList);
+          localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
+        }
+      }, (error) => {
+        console.error('Firestore real-time tasks sync error:', error);
+      });
+
+      dbUnsubscribersRef.current.expenses = onSnapshot(expensesCol, (querySnap) => {
+        const expensesList: Expense[] = [];
+        querySnap.forEach((docSnap) => {
+          expensesList.push(docSnap.data() as Expense);
+        });
+        if (expensesList.length > 0) {
+          setExpenses(expensesList);
+          localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
+        }
+      }, (error) => {
+        console.error('Firestore real-time expenses sync error:', error);
+      });
+
       setDataLoaded(true);
     } catch (err) {
       console.error('Failed to sync or migrate from Firestore on login:', err);
@@ -477,14 +543,16 @@ export default function App() {
       'danger'
     );
     if (isConfirmed) {
+      cleanupSubscriptions();
       localStorage.removeItem('isLoggedIn');
       localStorage.removeItem('sess_userId');
       localStorage.removeItem('user_email');
       localStorage.removeItem('user_phone');
+      localStorage.removeItem('user_password');
       localStorage.removeItem('sess_uid');
       setIsLoggedIn(false);
       setDataLoaded(false);
-      setSessionUser({ userId: '', email: '', phone: '' });
+      setSessionUser({ userId: '', email: '', phone: '', password: '' });
       setTasks([]);
       setExpenses([]);
     }
@@ -1216,13 +1284,35 @@ export default function App() {
         </nav>
 
         {/* Sidebar Footer account section */}
-        <div className="p-2 border-t border-slate-800 flex-shrink-0">
+        <div className="p-2 border-t border-slate-800 flex-shrink-0 bg-slate-900/30">
+          {/* User Profile visual badge */}
+          <div className={`p-2 rounded-xl mb-2 flex items-center gap-2.5 bg-slate-900/60 border border-slate-800/40 overflow-hidden ${sidebarCollapsed ? 'justify-center' : ''}`}>
+            <div 
+              className="w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs text-white select-none flex-shrink-0 shadow-inner"
+              style={{ backgroundColor: settings.colorAccent }}
+              title={sessionUser.userId}
+            >
+              {sessionUser.userId ? sessionUser.userId.charAt(0).toUpperCase() : 'U'}
+            </div>
+            {!sidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-black text-slate-100 truncate flex items-center gap-1" title={sessionUser.userId}>
+                  <User className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                  <span className="truncate">{sessionUser.userId}</span>
+                </div>
+                <div className="text-[9px] text-slate-500 font-medium truncate" title={sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}>
+                  {sessionUser.email || sessionUser.phone || 'บัญชีระยะไกล'}
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleLogout}
-            className="w-full h-11 px-3 rounded-xl hover:bg-rose-950/40 text-rose-450 hover:text-rose-400 font-semibold text-xs transition-all flex items-center gap-3"
+            className="w-full h-11 px-3 rounded-xl hover:bg-rose-950/40 text-rose-400 hover:text-rose-350 font-bold text-xs transition-all flex items-center gap-3 border border-transparent hover:border-rose-950/40"
           >
             <LogOut className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>ออกสู่ระบบ</span>}
+            {!sidebarCollapsed && <span>ออกจากระบบ</span>}
           </button>
         </div>
       </aside>
@@ -1445,6 +1535,25 @@ export default function App() {
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Header User Profile Badge */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-xl px-2.5 py-1">
+              <div 
+                className="w-7 h-7 rounded-full flex items-center justify-center font-extrabold text-xs text-white select-none shadow-sm flex-shrink-0"
+                style={{ backgroundColor: settings.colorAccent }}
+                title={sessionUser.userId}
+              >
+                {sessionUser.userId ? sessionUser.userId.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <div className="hidden md:block text-left min-w-0 pr-1.5">
+                <span className="block text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 leading-tight">
+                  {sessionUser.userId}
+                </span>
+                <span className="block text-[9px] text-slate-400 font-medium leading-none truncate max-w-[100px]">
+                  {sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}
+                </span>
+              </div>
             </div>
 
             <button
