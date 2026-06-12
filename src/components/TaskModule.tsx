@@ -18,6 +18,7 @@ import {
   ChevronsRight
 } from 'lucide-react';
 import { Task } from '../types';
+import { useDialog } from './CustomDialog';
 
 const getThailandTodayStr = () => {
   return new Intl.DateTimeFormat('fr-CA', {
@@ -47,6 +48,7 @@ export default function TaskModule({
   categories,
   accentColor
 }: TaskModuleProps) {
+  const { showAlert, showConfirm } = useDialog();
   const [searchQuery, setSearchQuery] = useState('');
   const [openDrawers, setOpenDrawers] = useState<Record<string, boolean>>({});
   
@@ -116,10 +118,10 @@ export default function TaskModule({
     setIsTaskModalOpen(true);
   };
 
-  const submitTaskForm = (e: React.FormEvent) => {
+  const submitTaskForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim()) {
-      alert('กรุณากรอกหัวชื่องานให้ครบถ้วน');
+      await showAlert('กรุณากรอกหัวชื่องานให้ครบถ้วนถูกต้องก่อนบันทึกรายการ', 'ข้อมูลไม่สมบูรณ์', 'warning');
       return;
     }
 
@@ -146,20 +148,35 @@ export default function TaskModule({
     setIsTaskModalOpen(false);
   };
 
-  const handleQuickComplete = (id: string, title: string) => {
-    if (confirm(`คุณเสร็จสิ้นภารกิจ "${title}" แล้วใช่หรือไม่?`)) {
+  const handleQuickComplete = async (id: string, title: string) => {
+    const isConfirmed = await showConfirm(
+      `คุณทำเสร็จสิ้นภารกิจ "${title}" เรียบร้อยแล้วใช่หรือไม่?`,
+      'เสร็จสิ้นภารกิจ',
+      'success'
+    );
+    if (isConfirmed) {
       onEditTask(id, { status: 'completed' });
     }
   };
 
-  const handleDeleteClick = (id: string, title: string) => {
-    if (confirm(`ยืนยันการลบงาน "${title}" ใช่หรือไม่?`)) {
+  const handleDeleteClick = async (id: string, title: string) => {
+    const isConfirmed = await showConfirm(
+      `คุณต้องการยืนยันลบกิจกรรมงาน "${title}" ออกจากระบบใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนคืนได้`,
+      'ยืนยันการลบงาน',
+      'danger'
+    );
+    if (isConfirmed) {
       onDeleteTask(id);
     }
   };
 
-  const handleClearCompletedClick = () => {
-    if (confirm('คุณแน่ใจว่าต้องการลบงานที่ทำเสร็จแล้วทั้งหมดเป็นข้อมูลขยะหรือไม่?')) {
+  const handleClearCompletedClick = async () => {
+    const isConfirmed = await showConfirm(
+      'คุณเสร็จสิ้นภารกิจทั้งหมดแล้ว และต้องการลบงานสัมฤทธิ์ผลเหล่านั้นเป็นข้อมูลขยะใช่หรือไม่?',
+      'ลบงานเสร็จสิ้นทั้งหมด',
+      'danger'
+    );
+    if (isConfirmed) {
       onDeleteAllCompleted();
     }
   };

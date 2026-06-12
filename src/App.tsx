@@ -41,6 +41,7 @@ import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './them
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 import { updateEmail, updatePassword } from 'firebase/auth';
 import { db, auth } from './firebase';
+import { useDialog } from './components/CustomDialog';
 
 const padPass = (pass: string) => {
   if (pass.length >= 6) return pass;
@@ -78,6 +79,7 @@ function getCustomLinkIconComponent(name: string) {
 }
 
 export default function App() {
+  const { showAlert, showConfirm } = useDialog();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [sessionUser, setSessionUser] = useState({ userId: '', email: '', phone: '', password: '' });
   
@@ -455,8 +457,13 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    if (confirm('คุณต้องการออกจากระบบ TaskFlow Space ใช่หรือไม่?')) {
+  const handleLogout = async () => {
+    const isConfirmed = await showConfirm(
+      'คุณต้องการออกจากระบบ TaskFlow Space ใช่หรือไม่?',
+      'ยืนยันการออกจากระบบ',
+      'danger'
+    );
+    if (isConfirmed) {
       localStorage.removeItem('isLoggedIn');
       localStorage.removeItem('sess_userId');
       localStorage.removeItem('user_email');
@@ -681,11 +688,11 @@ export default function App() {
   };
 
   // 5. Settings Tab Handlers
-  const handleAddNewCategory = () => {
+  const handleAddNewCategory = async () => {
     const cat = newCatInput.trim();
     if (!cat) return;
     if (settings.categories.includes(cat)) {
-      alert('หมวดหมู่นี้ถูกสร้างแล้ว');
+      await showAlert('หมวดหมู่กิจกรรมนี้มีอยู่แล้วในระบบ', 'ไม่สำเร็จ', 'warning');
       return;
     }
     const updatedCats = [...settings.categories, cat];
@@ -693,18 +700,23 @@ export default function App() {
     setNewCatInput('');
   };
 
-  const handleRemoveCategory = (index: number) => {
-    if (confirm('คุณต้องการนำหมวดหมู่นี้ออกจากฟิลเตอร์ใช่หรือไม่?')) {
+  const handleRemoveCategory = async (index: number) => {
+    const isConfirmed = await showConfirm(
+      'คุณต้องการนำหมวดหมู่นี้ออกจากตัวกรองกิจกรรมใช่หรือไม่?',
+      'ลบหมวดหมู่',
+      'danger'
+    );
+    if (isConfirmed) {
       const updatedCats = settings.categories.filter((_, idx) => idx !== index);
       syncSettings({ ...settings, categories: updatedCats });
     }
   };
 
-  const handleAddMenuLink = () => {
+  const handleAddMenuLink = async () => {
     const title = newLinkTitle.trim();
     let url = newLinkUrl.trim();
     if (!title || !url) {
-      alert('กรุณากรอกทั้งชื่อเมนูและ URL ลิงก์เชื่อมโยงให้ครบถ้วน');
+      await showAlert('กรุณากรอกทั้งชื่อเมนูและ URL ลิงก์เชื่อมโยงให้ครบถ้วนถูกต้อง', 'ข้อมูลไม่ครบ', 'warning');
       return;
     }
     
@@ -727,8 +739,13 @@ export default function App() {
     setNewLinkIcon('Link');
   };
 
-  const handleRemoveMenuLink = (id: string) => {
-    if (confirm('คุณต้องการนำลิงก์เมนูนี้ออกจากแถบนำทางใช่หรือไม่?')) {
+  const handleRemoveMenuLink = async (id: string) => {
+    const isConfirmed = await showConfirm(
+      'คุณต้องการนำลิงก์เมนูนี้ออกจากรายการนำทางของแถบเครื่องมือด้านข้างใช่หรือไม่?',
+      'ลบลิงก์ภายนอก',
+      'danger'
+    );
+    if (isConfirmed) {
       const updatedLinks = (settings.customMenuLinks || []).filter(l => l.id !== id);
       syncSettings({ ...settings, customMenuLinks: updatedLinks });
       if (activeTab === `link_${id}`) {

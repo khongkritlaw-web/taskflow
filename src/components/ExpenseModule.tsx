@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag } from 'lucide-react';
 import { Expense } from '../types';
+import { useDialog } from './CustomDialog';
 
 interface ExpenseModuleProps {
   expenses: Expense[];
@@ -17,6 +18,7 @@ export default function ExpenseModule({
   onDeleteExpense,
   accentColor
 }: ExpenseModuleProps) {
+  const { showAlert, showConfirm } = useDialog();
   const [filterMonth, setFilterMonth] = useState<string>(() => {
     return String(new Date().getMonth() + 1).padStart(2, '0');
   });
@@ -122,15 +124,15 @@ export default function ExpenseModule({
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!expName.trim()) {
-      alert('กรุณาระบุชื่อรายการที่ถูกต้อง');
+      await showAlert('กรุณาระบุชื่อรายการที่ถูกต้องสมเหตุสมผลก่อนดำเนินการบันทึกบัญชี', 'ระบุชื่อรายการ', 'warning');
       return;
     }
     const parsedAmt = parseFloat(expAmount);
     if (isNaN(parsedAmt) || parsedAmt <= 0) {
-      alert('กรุณาระบุจำนวนเงินค่าใช้จ่ายที่ถูกต้อง (> 0)');
+      await showAlert('กรุณาระบุจำนวนเงินค่าใช้จ่ายที่ถูกต้องและมากกว่าศูนย์บาท (> 0)', 'ข้อมูลไม่ถูกต้อง', 'warning');
       return;
     }
 
@@ -158,14 +160,24 @@ export default function ExpenseModule({
     setIsModalOpen(false);
   };
 
-  const handleMarkPaid = (id: string, name: string) => {
-    if (confirm(`คุณชำระบิลป้อนยอดเงินสำหรับ "${name}" แล้วใช่หรือไม่?`)) {
+  const handleMarkPaid = async (id: string, name: string) => {
+    const isConfirmed = await showConfirm(
+      `คุณทำรายการชำระค่าใช้จ่าย/บิลรวมสำหรับ "${name}" เสร็จเรียบร้อยครบถ้วนแล้วใช่หรือไม่?`,
+      'ยืนยันการชำระเงิน',
+      'success'
+    );
+    if (isConfirmed) {
       onEditExpense(id, { paid: true });
     }
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`ต้องการลบรายการบิล "${name}" ใช่หรือไม่?`)) {
+  const handleDelete = async (id: string, name: string) => {
+    const isConfirmed = await showConfirm(
+      `คุณแน่ใจว่าต้องการลบรายการบัญชีค่าใช้จ่าย "${name}" ออกจากระบบถาวรใช่หรือไม่?`,
+      'ยืนยันการลบ',
+      'danger'
+    );
+    if (isConfirmed) {
       onDeleteExpense(id);
     }
   };

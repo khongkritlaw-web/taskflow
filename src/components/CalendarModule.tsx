@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText } from 'lucide-react';
 import { Task } from '../types';
+import { useDialog } from './CustomDialog';
 
 interface CalendarModuleProps {
   tasks: Task[];
@@ -19,6 +20,7 @@ export default function CalendarModule({
   onDeleteTask,
   accentColor
 }: CalendarModuleProps) {
+  const { showAlert, showConfirm } = useDialog();
   const [currentDate, setCurrentDate] = useState<Date>(() => {
     return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
   });
@@ -441,8 +443,13 @@ export default function CalendarModule({
     }
   };
 
-  const handleDeleteItem = (id: string, title: string) => {
-    if (confirm(`คุณแน่ใจว่าต้องการลบงาน "${title}" ใช่หรือไม่?`)) {
+  const handleDeleteItem = async (id: string, title: string) => {
+    const isConfirmed = await showConfirm(
+      `คุณต้องการยืนยันลบกิจกรรมงาน "${title}" ออกจากระบบใช่หรือไม่?`,
+      'ยืนยันการลบ',
+      'danger'
+    );
+    if (isConfirmed) {
       onDeleteTask(id);
       if (selectedDayTasks) {
         setSelectedDayTasks(prev => prev ? prev.filter(t => t.id !== id) : null);
