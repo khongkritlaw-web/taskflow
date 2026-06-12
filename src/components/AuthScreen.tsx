@@ -566,15 +566,6 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 <li>เลื่อนสลับสถานะเป็น <strong>Enable</strong> และคลิก <strong>Save</strong></li>
                 <li>กลับมาที่นี่เพื่อเข้าใช้งานระบบคลาวด์ได้โดยสมบูรณ์</li>
               </ol>
-              <div className="pt-1 flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleOfflineLogin}
-                  className="w-full py-2.5 bg-slate-800 text-white font-bold text-xs rounded-xl hover:bg-slate-755 transition-all dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  ⚡ สลับใช้ "โหมดจำลองออฟไลน์" ทันที (ไม่ต้องตั้งค่า)
-                </button>
-              </div>
             </div>
           )}
 
@@ -624,23 +615,14 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 </div>
               </div>
               
-              <div className="flex gap-2.5 pt-1.5">
+              <div className="pt-1.5 animate-fade-in">
                 <button
                   type="submit"
-                  className="flex-1 h-12 font-black text-xs text-white rounded-xl transition-all shadow-md shadow-accent/10 focus:outline-none hover:brightness-105 active:scale-98"
+                  className="w-full h-12 font-black text-xs text-white rounded-xl transition-all shadow-md shadow-accent/10 focus:outline-none hover:brightness-105 active:scale-98"
                   style={{ backgroundColor: accentColor }}
                   disabled={isLoading}
                 >
                   {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบเครือข่าย'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOfflineLogin}
-                  className="px-4.5 h-12 font-bold text-xs border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all rounded-xl shadow-sm dark:bg-slate-900 dark:border-slate-850 dark:text-slate-200 dark:hover:bg-slate-800"
-                  disabled={isLoading}
-                  title="เข้าใช้งานโดยตรง ไม่ต้องผ่าน Firebase คลาวด์"
-                >
-                  📍 โหมดออฟไลน์
                 </button>
               </div>
 

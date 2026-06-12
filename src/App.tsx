@@ -142,6 +142,71 @@ export default function App() {
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
 
+  // Cloud Sync & Network Resiliency states
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Force push local localStorage state up to Firestore on boot/reconnect
+  const forcePushLocalToCloud = async (userId: string, uid: string) => {
+    try {
+      console.log('🔄 forcePushLocalToCloud: Detected internet reconnection, validating local backup...');
+      const localTasksStr = localStorage.getItem(`tasks_${userId}`);
+      if (localTasksStr) {
+        const localTasksList = JSON.parse(localTasksStr) as Task[];
+        for (const task of localTasksList) {
+          await setDoc(doc(db, 'users', uid, 'tasks', task.id), task);
+        }
+      }
+      
+      const localExpensesStr = localStorage.getItem(`expenses_${userId}`);
+      if (localExpensesStr) {
+        const localExpensesList = JSON.parse(localExpensesStr) as Expense[];
+        for (const exp of localExpensesList) {
+          await setDoc(doc(db, 'users', uid, 'expenses', exp.id), exp);
+        }
+      }
+      
+      const localSettingsStr = localStorage.getItem(`settings_${userId}`);
+      if (localSettingsStr) {
+        const localSettingsObj = JSON.parse(localSettingsStr) as AppSettings;
+        await setDoc(doc(db, 'users', uid, 'settings', 'app'), localSettingsObj);
+      }
+      console.log('✅ forcePushLocalToCloud: Local caches securely published to Firebase.');
+    } catch (e) {
+      console.error('❌ forcePushLocalToCloud: Failed to auto synchronization to Firestore:', e);
+    }
+  };
+
+  // Listen to network online / offline events
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      const uid = localStorage.getItem('sess_uid');
+      if (sessionUser.userId && uid) {
+        await forcePushLocalToCloud(sessionUser.userId, uid);
+      }
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Run once on load if online to sync any pending offline changes
+    if (navigator.onLine) {
+      const uid = localStorage.getItem('sess_uid');
+      const sUserId = localStorage.getItem('sess_userId');
+      if (sUserId && uid) {
+        forcePushLocalToCloud(sUserId, uid);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [sessionUser.userId]);
+
   // Sychronize input values with loaded session user
   useEffect(() => {
     if (sessionUser.userId) {
@@ -367,6 +432,25 @@ export default function App() {
       setDataLoaded(true);
     } catch (err) {
       console.error('Failed to sync or migrate from Firestore on login:', err);
+      
+      // Fail-safe load from localStorage when Firestore is offline or disconnected
+      const savedTasks = localStorage.getItem(`tasks_${userId}`);
+      if (savedTasks) {
+        try { setTasks(JSON.parse(savedTasks)); } catch (e) {}
+      }
+      
+      const savedExpenses = localStorage.getItem(`expenses_${userId}`);
+      if (savedExpenses) {
+        try { setExpenses(JSON.parse(savedExpenses)); } catch (e) {}
+      }
+      
+      const savedSettings = localStorage.getItem(`settings_${userId}`);
+      if (savedSettings) {
+        try { setSettings({ ...defaultSet, ...JSON.parse(savedSettings) }); } catch (e) {}
+      } else {
+        setSettings(defaultSet);
+      }
+      
       setDataLoaded(true); // fall through so user doesn't get blocked
     }
   };
@@ -1138,6 +1222,21 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Connection Status Badge */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-extrabold shadow-sm transition-all duration-300 ${
+              isOnline 
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/60 dark:text-emerald-400' 
+                : 'bg-amber-50/80 border-amber-200 text-amber-850 dark:bg-amber-950/20 dark:border-amber-900/60 dark:text-amber-400 animate-pulse'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500' : 'bg-amber-500 animate-ping'}`} />
+              <span className="hidden xs:inline">
+                {isOnline ? 'เชื่อมต่อคลาวด์' : 'เซฟในเครื่องปลอดภัย'}
+              </span>
+              <span className="inline xs:hidden">
+                {isOnline ? 'คลาวด์' : 'ออฟไลน์'}
+              </span>
+            </div>
+
             {/* Clock Widget */}
             <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 font-mono text-[10.5px] font-bold text-slate-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400">
               <Clock className="w-3.5 h-3.5" style={{ color: settings.colorAccent }} />
