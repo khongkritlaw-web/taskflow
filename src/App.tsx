@@ -221,10 +221,6 @@ export default function App() {
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      const uid = localStorage.getItem('sess_uid');
-      if (sessionUser.userId && uid) {
-        await forcePushLocalToCloud(sessionUser.userId, uid);
-      }
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -232,15 +228,6 @@ export default function App() {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // Run once on load if online to sync any pending offline changes
-    if (navigator.onLine) {
-      const uid = localStorage.getItem('sess_uid');
-      const sUserId = localStorage.getItem('sess_userId');
-      if (sUserId && uid) {
-        forcePushLocalToCloud(sUserId, uid);
-      }
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -406,6 +393,7 @@ export default function App() {
       // 2. Fetch tasks from Firestore
       const tasksCol = collection(db, 'users', uid, 'tasks');
       const tasksSnap = await getDocs(tasksCol);
+      const isExistingUser = settingsSnap.exists();
 
       if (!tasksSnap.empty) {
         const tasksList: Task[] = [];
@@ -414,6 +402,11 @@ export default function App() {
         });
         setTasks(tasksList);
         localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
+      } else if (isExistingUser) {
+        // If they are an existing user and tasks database is empty, they have 0 tasks.
+        // We do NOT fallback or generate dummy/starting tasks.
+        setTasks([]);
+        localStorage.setItem(`tasks_${userId}`, JSON.stringify([]));
       } else {
         // Fallback or migrate existing local tasks to Firestore
         const savedTasks = localStorage.getItem(`tasks_${userId}`);
@@ -448,6 +441,11 @@ export default function App() {
         });
         setExpenses(expensesList);
         localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
+      } else if (isExistingUser) {
+        // If they are an existing user and expenses database is empty, they have 0 expenses.
+        // We do NOT fallback or generate dummy/starting expenses.
+        setExpenses([]);
+        localStorage.setItem(`expenses_${userId}`, JSON.stringify([]));
       } else {
         // Fallback or migrate existing local expenses
         const savedExpenses = localStorage.getItem(`expenses_${userId}`);
@@ -489,10 +487,8 @@ export default function App() {
         querySnap.forEach((docSnap) => {
           tasksList.push(docSnap.data() as Task);
         });
-        if (tasksList.length > 0) {
-          setTasks(tasksList);
-          localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
-        }
+        setTasks(tasksList);
+        localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
       }, (error) => {
         console.error('Firestore real-time tasks sync error:', error);
       });
@@ -502,10 +498,8 @@ export default function App() {
         querySnap.forEach((docSnap) => {
           expensesList.push(docSnap.data() as Expense);
         });
-        if (expensesList.length > 0) {
-          setExpenses(expensesList);
-          localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
-        }
+        setExpenses(expensesList);
+        localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
       }, (error) => {
         console.error('Firestore real-time expenses sync error:', error);
       });
