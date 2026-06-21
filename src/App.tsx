@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Layers,
   CheckSquare,
@@ -2027,55 +2028,88 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'tasks' && (
-            <TaskModule
-              tasks={tasks}
-              onAddTask={handleAddTask}
-              onEditTask={handleEditTask}
-              onDeleteTask={handleDeleteTask}
-              onDeleteAllCompleted={handleDeleteAllCompleted}
-              categories={settings.categories}
-              accentColor={settings.colorAccent}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            {activeTab === 'tasks' && (
+              <motion.div
+                key="tasks"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+              >
+                <TaskModule
+                  tasks={tasks}
+                  onAddTask={handleAddTask}
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                  onDeleteAllCompleted={handleDeleteAllCompleted}
+                  categories={settings.categories}
+                  accentColor={settings.colorAccent}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === 'calendar' && (
-            <CalendarModule
-              tasks={tasks}
-              holidays={customHolidays}
-              onAddTaskOnDate={(dt) => {
-                setActiveTab('tasks');
-                // Auto trigger new modal via micro timeout
-                setTimeout(() => {
-                  const ev = new CustomEvent('trigger-add-modal', { detail: dt });
-                  window.dispatchEvent(ev);
-                }, 200);
-              }}
-              onEditTask={handleEditTask}
-              onDeleteTask={handleDeleteTask}
-              accentColor={settings.colorAccent}
-            />
-          )}
+            {activeTab === 'calendar' && (
+              <motion.div
+                key="calendar"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+              >
+                <CalendarModule
+                  tasks={tasks}
+                  holidays={customHolidays}
+                  onAddTaskOnDate={(dt) => {
+                    setActiveTab('tasks');
+                    // Auto trigger new modal via micro timeout
+                    setTimeout(() => {
+                      const ev = new CustomEvent('trigger-add-modal', { detail: dt });
+                      window.dispatchEvent(ev);
+                    }, 200);
+                  }}
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                  accentColor={settings.colorAccent}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === 'expenses' && (
-            <ExpenseModule
-              expenses={expenses}
-              onAddExpense={handleAddExpense}
-              onEditExpense={handleEditExpense}
-              onDeleteExpense={handleDeleteExpense}
-              accentColor={settings.colorAccent}
-            />
-          )}
+            {activeTab === 'expenses' && (
+              <motion.div
+                key="expenses"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+              >
+                <ExpenseModule
+                  expenses={expenses}
+                  onAddExpense={handleAddExpense}
+                  onEditExpense={handleEditExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                  accentColor={settings.colorAccent}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === 'settings' && (
-            !isSettingsUnlocked ? (
-              <SettingsLockScreen
-                correctPassword={settings.settingsPassword || '0000'}
-                onUnlock={() => setIsSettingsUnlocked(true)}
-                accentColor={settings.colorAccent}
-              />
-            ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+            {activeTab === 'settings' && (
+              <motion.div
+                key="settings"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+                className="w-full"
+              >
+                {!isSettingsUnlocked ? (
+                  <SettingsLockScreen
+                    correctPassword={settings.settingsPassword || '0000'}
+                    onUnlock={() => setIsSettingsUnlocked(true)}
+                    accentColor={settings.colorAccent}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
               
               {/* STATUS ACTION BANNER */}
               <div className="xl:col-span-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 p-4 border border-emerald-500/20 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 dark:from-emerald-950/20 dark:via-teal-950/20 dark:to-blue-950/20 dark:border-emerald-800/30">
@@ -3009,7 +3043,10 @@ export default function App() {
               </div>
 
             </div>
-          ))}
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
         </main>
       </div>
 

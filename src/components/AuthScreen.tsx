@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Lock, 
   UserPlus, 
@@ -633,7 +634,12 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transition-all dark:bg-slate-900 dark:border-slate-850">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 150, damping: 16 }}
+        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transition-all dark:bg-slate-900 dark:border-slate-850"
+      >
         
         {/* Header Branding Ribbon */}
         <div className="p-8 text-center bg-slate-50 border-b border-slate-100 dark:bg-slate-950 dark:border-slate-850">
@@ -1072,7 +1078,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           )}
 
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Task } from '../types';
 import { useDialog } from './CustomDialog';
+import { motion, AnimatePresence } from 'motion/react';
 
 const getThailandTodayStr = () => {
   return new Intl.DateTimeFormat('fr-CA', {
@@ -511,41 +512,61 @@ export default function TaskModule({
     <div className="flex flex-col gap-6">
       {/* 1. Metric widgets */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div
+        <motion.div
           onClick={() => setActiveFilterPopup('all')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm hover:translate-y-[-2px] transition-all relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.04, y: -4 }}
+          whileTap={{ scale: 0.96 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.02 }}
+          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-slate-400"></div>
           <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">งานทั้งหมด</div>
           <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{tasks.length}</div>
-        </div>
+        </motion.div>
 
-        <div
+        <motion.div
           onClick={() => setActiveFilterPopup('pending')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm hover:translate-y-[-2px] transition-all relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.04, y: -4 }}
+          whileTap={{ scale: 0.96 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.05 }}
+          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-amber-500"></div>
           <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">กำลังดำเนินการ</div>
           <div className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{countPending}</div>
-        </div>
+        </motion.div>
 
-        <div
+        <motion.div
           onClick={() => setActiveFilterPopup('completed')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm hover:translate-y-[ -2px] transition-all relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.04, y: -4 }}
+          whileTap={{ scale: 0.96 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.08 }}
+          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-500"></div>
           <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">เสร็จสิ้นแล้ว</div>
           <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{countCompleted}</div>
-        </div>
+        </motion.div>
 
-        <div
+        <motion.div
           onClick={() => setActiveFilterPopup('overdue')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm hover:translate-y-[-2px] transition-all relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.04, y: -4 }}
+          whileTap={{ scale: 0.96 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.11 }}
+          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-rose-500"></div>
           <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">เกินกำหนดส่ง</div>
           <div className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{countOverdue}</div>
-        </div>
+        </motion.div>
       </div>
 
       {/* 2. Actions toolbar */}
@@ -1062,7 +1083,16 @@ export default function TaskModule({
     const daysPill = getDaysPillInfo(t.dueDate);
 
     return (
-      <div key={t.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm transition-all hover:shadow-md dark:bg-slate-900 dark:border-slate-800">
+      <motion.div
+        key={t.id}
+        layout
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        whileHover={{ y: -3, scale: 1.015 }}
+        transition={{ type: "spring", stiffness: 180, damping: 15 }}
+        className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm transition-all hover:shadow-md dark:bg-slate-900 dark:border-slate-800"
+      >
         
         {/* Main Header */}
         <div className="p-3.5">
@@ -1149,36 +1179,46 @@ export default function TaskModule({
         </div>
 
         {/* Dynamic sliding drawer content */}
-        {isDrawerOpen && (
-          <div className="px-3.5 pb-4 pt-1 bg-slate-50 border-t border-slate-105/50 space-y-3 text-[11.5px] text-slate-500 animate-in slide-in-from-top-2 duration-200 dark:bg-slate-950/60 dark:border-slate-800">
-            <div className="flex gap-2">
-              <AlignLeft className="w-3.5 h-3.5 mt-0.5 text-slate-400 flex-shrink-0" />
-              <p className="leading-relaxed whitespace-pre-wrap flex-1 dark:text-slate-300">
-                {t.desc ? t.desc : <em className="text-slate-400">ไม่มีข้อมูลบันทึกรายละเอียด</em>}
-              </p>
-            </div>
+        <AnimatePresence initial={false}>
+          {isDrawerOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 220, damping: 20 }}
+              className="overflow-hidden"
+            >
+              <div className="px-3.5 pb-4 pt-1 bg-slate-50 border-t border-slate-105/50 space-y-3 text-[11.5px] text-slate-500 dark:bg-slate-950/60 dark:border-slate-800">
+                <div className="flex gap-2">
+                  <AlignLeft className="w-3.5 h-3.5 mt-0.5 text-slate-400 flex-shrink-0" />
+                  <p className="leading-relaxed whitespace-pre-wrap flex-1 dark:text-slate-300">
+                    {t.desc ? t.desc : <em className="text-slate-400">ไม่มีข้อมูลบันทึกรายละเอียด</em>}
+                  </p>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2 text-[10.5px]">
-              <div className="flex items-center gap-1.5 text-slate-400">
-                <Folder className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-semibold text-slate-600 dark:text-slate-400">{t.category}</span>
-              </div>
-              <div className="flex items-center gap-1.5 font-mono text-slate-400">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>{t.dueDate || 'ไม่มีกำหนด'}</span>
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Folder className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-semibold text-slate-600 dark:text-slate-400">{t.category}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-mono text-slate-400">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{t.dueDate || 'ไม่มีกำหนด'}</span>
+                  </div>
+                </div>
 
-            {t.dueTime && (
-              <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400 border-t border-slate-200/50 pt-2 dark:border-slate-800">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>เวลาระบุส่ง: <strong className="text-slate-700 dark:text-slate-300">{t.dueTime} น.</strong></span>
+                {t.dueTime && (
+                  <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400 border-t border-slate-200/50 pt-2 dark:border-slate-800">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>เวลาระบุส่ง: <strong className="text-slate-700 dark:text-slate-300">{t.dueTime} น.</strong></span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      </div>
+      </motion.div>
     );
   }
 }
