@@ -38,3 +38,47 @@ body {
   background: #cbd5e1;
   border-radius: 999px;
 }
+
+/* FORCE VISIBILITY ON INPUTS, TEXTAREAS AND SELECTS ACROSS THE ENTIRE APP */
+input, textarea, select {
+  color: #1e293b !important; /* slate-800 default text color */
+}
+input:focus, textarea:focus, select:focus {
+  background-color: #ffffff !important;
+  color: #0f172a !important; /* slate-900 active text color */
+}
+
+/* DARK MODE OVERRIDES */
+.dark input, .dark textarea, .dark select {
+  color: #f8fafc !important; /* slate-50 dark mode text color */
+}
+.dark input:focus, .dark textarea:focus, .dark select:focus {
+  background-color: #020617 !important; /* dark slate bg (slate-950) on focus */
+  color: #ffffff !important; /* pure white text color on focus */
+}
+
+/* Chrome/Safari Autofill fixes to keep text highly visible */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0f172a !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover, 
+.dark input:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill,
+.dark textarea:-webkit-autofill:hover,
+.dark textarea:-webkit-autofill:focus,
+.dark select:-webkit-autofill,
+.dark select:-webkit-autofill:hover,
+.dark select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff !important;
+}
