@@ -1850,12 +1850,13 @@ export default function App() {
                 className="flex flex-col w-full h-full overflow-hidden"
                 id="custom-link-viewport"
               >
-                <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 flex-shrink-0">
+                <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 gap-2 flex-shrink-0">
                   <div className="flex items-center gap-2 min-w-0">
                     <Link className="w-4 h-4 flex-shrink-0" style={{ color: settings.colorAccent }} />
                     <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{targetLink.title}</span>
+                    <span className="text-[10px] font-mono text-slate-400 truncate max-w-[150px] sm:max-w-xs">{targetLink.url}</span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
                     <button 
                       onClick={() => {
                         try {
@@ -1901,7 +1902,38 @@ export default function App() {
                     >
                       🔄 เริ่มใหม่
                     </button>
+
+                    <button 
+                      onClick={() => {
+                        // Standardize the URL before opening
+                        const fullUrl = targetLink.url.match(/^[a-zA-Z]+:\/\//) ? targetLink.url : 'https://' + targetLink.url;
+                        window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="hover:scale-105 active:scale-95 transition-all px-3 py-1 bg-white hover:text-white rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 shadow-sm border"
+                      style={{ 
+                        color: settings.colorAccent, 
+                        borderColor: settings.colorAccent,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = settings.colorAccent;
+                        e.currentTarget.style.color = '#fff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fff';
+                        e.currentTarget.style.color = settings.colorAccent;
+                      }}
+                      title="เปิดหน้าต่างภายนอก / แก้ปัญหาเปิดบางเว็บไม่ได้"
+                    >
+                      🚀 เปิดลิงก์ตรง (แก้ปัญหาเปิดหน้าเว็บไม่ได้)
+                    </button>
                   </div>
+                </div>
+
+                {/* HELP BANNER FOR IFRAME SECURITY POLICIES */}
+                <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center gap-2 text-slate-600 dark:text-slate-350 flex-shrink-0">
+                  <span className="text-[11px] font-medium leading-relaxed">
+                    💡 <strong>คำแนะนำระบบ:</strong> บางเว็บไซต์ที่มีความปลอดภัยสูง (เช่น Google, Facebook, Youtube, Wikipedia) อาจถูกบล็อกไม่ให้แสดงผลในเฟรม (แซนด์บ็อกซ์ปกติของเบราว์เซอร์) ท่านสามารถคลิกปุ่ม <strong>"🚀 เปิดลิงก์ตรง"</strong> ด้านบนขวา เพื่อเข้าชมเว็บไซต์โดยตรงและเปิดใช้ได้ทันทีทุกที่เชื่อมโยง
+                  </span>
                 </div>
 
                 <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950">
