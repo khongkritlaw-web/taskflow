@@ -53,6 +53,7 @@ const padPass = (pass: string) => {
 import AuthScreen from './components/AuthScreen';
 import TaskModule from './components/TaskModule';
 import CalendarModule from './components/CalendarModule';
+import SettingsLockScreen from './components/SettingsLockScreen';
 import ExpenseModule from './components/ExpenseModule';
 import { PrintReportModal } from './components/PrintReportModal';
 
@@ -118,13 +119,21 @@ export default function App() {
     colorSidebarActive: '#2563eb',
     colorBgAppStart: '#f8fafc',
     colorBgAppEnd: '#e2e8f0',
-    bgType: 'gradient'
+    bgType: 'gradient',
+    settingsPassword: '0000'
   });
 
   // UI state controllers
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('tasks');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isSettingsUnlocked, setIsSettingsUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'settings') {
+      setIsSettingsUnlocked(false);
+    }
+  }, [activeTab]);
 
   // Print modal state and listener
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -343,7 +352,8 @@ export default function App() {
       colorSidebarActive: '#2563eb',
       colorBgAppStart: '#f8fafc',
       colorBgAppEnd: '#e2e8f0',
-      bgType: 'gradient' as const
+      bgType: 'gradient' as const,
+      settingsPassword: '0000'
     };
 
     setCustomHolidays({
@@ -1686,7 +1696,14 @@ export default function App() {
           )}
 
           {activeTab === 'settings' && (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+            !isSettingsUnlocked ? (
+              <SettingsLockScreen
+                correctPassword={settings.settingsPassword || '0000'}
+                onUnlock={() => setIsSettingsUnlocked(true)}
+                accentColor={settings.colorAccent}
+              />
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
               
               {/* ส่วนความปลอดภัย & แก้ไขรหัสผ่านก่อนเข้าใช้งาน */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 dark:bg-slate-900 dark:border-slate-800 xl:col-span-2">
@@ -1728,6 +1745,36 @@ export default function App() {
                       className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">รหัสผ่านใหม่ต้องมีความยาว <span className="font-bold text-amber-500">6 หลักเท่านั้น</span> เพื่อความปลอดภัยในการเข้าใช้งานในครั้งถัดไป</p>
+                  </div>
+                </div>
+
+                {/* Settings Menu PIN Lock Password Section */}
+                <div className="border-t border-slate-100 pt-5 mt-4 dark:border-slate-800">
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-3">
+                    <span>🔒</span> รหัสผ่านปลดล็อกเมนูตั้งค่ารวม (Settings Menu Tab Lock PIN)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-450 mb-1.5">
+                        🔑 รหัสล็อกปัจจุบันหรือตั้งค่าใหม่ (ค่าเริ่มต้นคือ 0000)
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={12}
+                        value={settings.settingsPassword || '0000'}
+                        onChange={(e) => syncSettings({ ...settings, settingsPassword: e.target.value.trim() })}
+                        placeholder="เช่น 0000"
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        เมื่อคุณท่านเปลี่ยนรหัสตรงส่วนนี้ รหัสความปลอดภัยจะอัปเดตแบบเรียลไทม์ และจะซิงค์ไปยังระบบคลาวด์อัตโนมัติ
+                      </p>
+                    </div>
+                    <div className="flex items-center bg-amber-50/50 p-4 border border-amber-100 rounded-xl dark:bg-amber-950/10 dark:border-amber-900/30">
+                      <div className="text-amber-800 dark:text-amber-400 text-[11px] leading-relaxed font-semibold">
+                        💡 <strong>คำแนะนำเพิ่มเติม:</strong> รหัสนี้นอกจากป้องกันมือไม่พึงประสงค์สวิตช์และแก้ไขหน้าเว็บแล้ว ยังถูกอัปโหลดขึ้นระดับเซิร์ฟเวอร์คลาวด์เพื่อให้ทุกอุปกรณ์ของท่านซิงค์เข้าหากันอย่างปลอดภัย หากตั้งค่าแล้วโปรดจดจำไว้ให้ดี
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -2573,7 +2620,7 @@ export default function App() {
               </div>
 
             </div>
-          )}
+          ))}
         </main>
       </div>
 

@@ -62,4 +62,5 @@ export interface AppSettings {
   colorBgAppEnd: string;
   bgType: 'solid' | 'gradient'; // 'solid' or 'gradient'
   customMenuLinks?: CustomMenuLink[];
+  settingsPassword?: string;
 }
