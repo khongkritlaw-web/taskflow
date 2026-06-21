@@ -125,9 +125,28 @@ export default function App() {
 
   // UI state controllers
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('header_collapsed') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const handleSetHeaderCollapsed = (val: boolean) => {
+    setHeaderCollapsed(val);
+    try {
+      localStorage.setItem('header_collapsed', String(val));
+    } catch (e) {}
+  };
   const [activeTab, setActiveTab] = useState<string>('tasks');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSettingsUnlocked, setIsSettingsUnlocked] = useState(false);
+
+  // Admin and Multi-profile states
+  const [allUsersList, setAllUsersList] = useState<{ userId: string; email: string; phone: string; uid: string }[]>([]);
+  const [currentViewUid, setCurrentViewUid] = useState<string>('');
+  const [currentViewUserId, setCurrentViewUserId] = useState<string>('');
 
   useEffect(() => {
     if (activeTab !== 'settings') {
@@ -363,6 +382,25 @@ export default function App() {
       '2026-08-12': 'วันแม่แห่งชาติ'
     });
 
+    // Default viewing profile set to self
+    setCurrentViewUid(uid);
+    setCurrentViewUserId(userId);
+
+    // Fetch registered profiles for multi-profile administrative management if user is 'admin'
+    if (userId === 'admin' && uid) {
+      try {
+        const usersCol = collection(db, 'users');
+        const usersSnap = await getDocs(usersCol);
+        const usersList: any[] = [];
+        usersSnap.forEach((docRef) => {
+          usersList.push(docRef.data());
+        });
+        setAllUsersList(usersList);
+      } catch (e) {
+        console.error('Failed to fetch user profiles for administration:', e);
+      }
+    }
+
     if (!uid) {
       // Local fallback if no Firebase session logged in
       const savedTasks = localStorage.getItem(`tasks_${userId}`);
@@ -377,168 +415,218 @@ export default function App() {
 
       if (savedSettings) setSettings(JSON.parse(savedSettings));
       else setSettings(defaultSet);
+      setDataLoaded(true);
       return;
     }
-
-    try {
-      // 1. Fetch settings from Firestore
-      const settingsRef = doc(db, 'users', uid, 'settings', 'app');
-      const settingsSnap = await getDoc(settingsRef);
-
-      let currentSettings = defaultSet;
-      if (settingsSnap.exists()) {
-        currentSettings = { ...defaultSet, ...settingsSnap.data() };
-        setSettings(currentSettings);
-        localStorage.setItem(`settings_${userId}`, JSON.stringify(currentSettings));
-      } else {
-        // Fallback or migrate existing local settings to Firestore
-        const savedSettings = localStorage.getItem(`settings_${userId}`);
-        if (savedSettings) {
-          try { currentSettings = { ...defaultSet, ...JSON.parse(savedSettings) }; } catch (e) {}
-        }
-        setSettings(currentSettings);
-        await setDoc(settingsRef, currentSettings);
-      }
-
-      // 2. Fetch tasks from Firestore
-      const tasksCol = collection(db, 'users', uid, 'tasks');
-      const tasksSnap = await getDocs(tasksCol);
-      const isExistingUser = settingsSnap.exists();
-
-      if (!tasksSnap.empty) {
-        const tasksList: Task[] = [];
-        tasksSnap.forEach((doc) => {
-          tasksList.push(doc.data() as Task);
-        });
-        setTasks(tasksList);
-        localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
-      } else if (isExistingUser) {
-        // If they are an existing user and tasks database is empty, they have 0 tasks.
-        // We do NOT fallback or generate dummy/starting tasks.
-        setTasks([]);
-        localStorage.setItem(`tasks_${userId}`, JSON.stringify([]));
-      } else {
-        // Fallback or migrate existing local tasks to Firestore
-        const savedTasks = localStorage.getItem(`tasks_${userId}`);
-        let tasksList: Task[] = [];
-        if (savedTasks) {
-          try { tasksList = JSON.parse(savedTasks); } catch (e) {}
-        }
-        if (tasksList.length === 0) {
-          tasksList = [
-            { id: 't1', title: 'ประชุมวางแผนงบประมาณโครงการก่อสร้างใหม่', desc: 'สรุปงบประมาณไตรมาสที่ 3 และพิจารณาสัญญารับเหมาช่วง', category: '💼 งานทั่วไป', dueDate: getThailandTodayStr(), dueTime: '13:00', status: 'pending', userId, createdAt: new Date().toISOString() },
-            { id: 't2', title: 'ชำระค่าไฟและค่าน้ำสำนักงานใหญ่', desc: 'ยอดชำระตรวจสอบจากแดชบอร์ดค่าใช้จ่าย บิลรอบเดือนพฤษภาคม', category: '🔥 เร่งด่วน', dueDate: getThailandTodayStr(), dueTime: '17:00', status: 'pending', userId, createdAt: new Date().toISOString() },
-            { id: 't3', title: 'ทบทวนสไลด์นำเสนอพาร์ทเนอร์ชาวต่างชาติ', desc: 'เตรียมจุดเด่นผลิตภัณฑ์ใหม่ และนโยบายส่วนลด', category: '💼 งานทั่วไป', dueDate: getDaysFromNowStr(2), status: 'pending', userId, createdAt: new Date().toISOString() }
-          ];
-        }
-        setTasks(tasksList);
-        localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
-        
-        // Write each migrated task to Firestore sync
-        for (const task of tasksList) {
-          await setDoc(doc(db, 'users', uid, 'tasks', task.id), task);
-        }
-      }
-
-      // 3. Fetch expenses from Firestore
-      const expensesCol = collection(db, 'users', uid, 'expenses');
-      const expensesSnap = await getDocs(expensesCol);
-
-      if (!expensesSnap.empty) {
-        const expensesList: Expense[] = [];
-        expensesSnap.forEach((doc) => {
-          expensesList.push(doc.data() as Expense);
-        });
-        setExpenses(expensesList);
-        localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
-      } else if (isExistingUser) {
-        // If they are an existing user and expenses database is empty, they have 0 expenses.
-        // We do NOT fallback or generate dummy/starting expenses.
-        setExpenses([]);
-        localStorage.setItem(`expenses_${userId}`, JSON.stringify([]));
-      } else {
-        // Fallback or migrate existing local expenses
-        const savedExpenses = localStorage.getItem(`expenses_${userId}`);
-        let expensesList: Expense[] = [];
-        if (savedExpenses) {
-          try { expensesList = JSON.parse(savedExpenses); } catch (e) {}
-        }
-        if (expensesList.length === 0) {
-          expensesList = [
-            { id: 'e1', name: 'ค่าเช่าอาคารสำนักงานและโกดัง', amount: 45000, cat: '🏠 ที่พัก', date: getThailandTodayStr(), dueDate: getDaysFromNowStr(5), note: 'โอนชำระภายในวันที่ 5', paid: false, userId },
-            { id: 'e2', name: 'ค่าบริการคลาวด์และโฮสติ้งเซิร์ฟเวอร์', amount: 3500.50, cat: '💡 สาธารณูปโภค', date: getThailandTodayStr(), dueDate: getThailandTodayStr(), note: 'ตัดบัตรเครดิตอัตโนมัติ', paid: true, userId },
-            { id: 'e3', name: 'จัดซื้อเครื่องเขียนและอุปกรณ์สำนักงานส่วนกลาง', amount: 1200, cat: '🛒 ของใช้/อาหาร', date: getDaysFromNowStr(-1), dueDate: getDaysFromNowStr(2), note: 'เบิกจ่ายจาก Petty cash', paid: false, userId }
-          ];
-        }
-        setExpenses(expensesList);
-        localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
-
-        // Write each migrated expense to Firestore
-        for (const exp of expensesList) {
-          await setDoc(doc(db, 'users', uid, 'expenses', exp.id), exp);
-        }
-      }
-
-      // 4. Hook up real-time sync subscribers to Firestore for multi-device sync
-      cleanupSubscriptions();
-
-      dbUnsubscribersRef.current.settings = onSnapshot(settingsRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const syncedSettings = { ...defaultSet, ...docSnap.data() };
-          setSettings(syncedSettings);
-          localStorage.setItem(`settings_${userId}`, JSON.stringify(syncedSettings));
-        }
-      }, (error) => {
-        console.error('Firestore real-time settings sync error:', error);
-      });
-
-      dbUnsubscribersRef.current.tasks = onSnapshot(tasksCol, (querySnap) => {
-        const tasksList: Task[] = [];
-        querySnap.forEach((docSnap) => {
-          tasksList.push(docSnap.data() as Task);
-        });
-        setTasks(tasksList);
-        localStorage.setItem(`tasks_${userId}`, JSON.stringify(tasksList));
-      }, (error) => {
-        console.error('Firestore real-time tasks sync error:', error);
-      });
-
-      dbUnsubscribersRef.current.expenses = onSnapshot(expensesCol, (querySnap) => {
-        const expensesList: Expense[] = [];
-        querySnap.forEach((docSnap) => {
-          expensesList.push(docSnap.data() as Expense);
-        });
-        setExpenses(expensesList);
-        localStorage.setItem(`expenses_${userId}`, JSON.stringify(expensesList));
-      }, (error) => {
-        console.error('Firestore real-time expenses sync error:', error);
-      });
-
-      setDataLoaded(true);
-    } catch (err) {
-      console.error('Failed to sync or migrate from Firestore on login:', err);
-      
-      // Fail-safe load from localStorage when Firestore is offline or disconnected
-      const savedTasks = localStorage.getItem(`tasks_${userId}`);
-      if (savedTasks) {
-        try { setTasks(JSON.parse(savedTasks)); } catch (e) {}
-      }
-      
-      const savedExpenses = localStorage.getItem(`expenses_${userId}`);
-      if (savedExpenses) {
-        try { setExpenses(JSON.parse(savedExpenses)); } catch (e) {}
-      }
-      
-      const savedSettings = localStorage.getItem(`settings_${userId}`);
-      if (savedSettings) {
-        try { setSettings({ ...defaultSet, ...JSON.parse(savedSettings) }); } catch (e) {}
-      } else {
-        setSettings(defaultSet);
-      }
-      
-      setDataLoaded(true); // fall through so user doesn't get blocked
-    }
   };
+
+  // Reactive Effect to handle loading and setting real-time observers whenever currentViewUid changes
+  useEffect(() => {
+    if (!isLoggedIn || !currentViewUid) return;
+
+    let active = true;
+    setDataLoaded(false);
+
+    const defaultSet = {
+      appName: 'TaskFlow Space Executive Pro',
+      appDesc: 'ระบบบอร์ดงาน ปฏิทินจดจำสรุปกิจกรรม และจัดการค่าชำระส่วนบุคคลสำหรับผู้บริหาร',
+      appLogoUrl: '',
+      bgStyle: 'theme-custom' as const,
+      customBgUrl: '',
+      darkMode: false,
+      categories: DEFAULT_CATEGORIES,
+      emailRecipient: sessionUser.email || '',
+      emailNotificationEnabled: true,
+      emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
+      smtpHost: '',
+      smtpPort: 587,
+      smtpUser: '',
+      smtpPass: '',
+      smtpSecure: false,
+      smtpSenderName: '',
+      autoSendEnabled: false,
+      lastAutoSentDate: '',
+      alertDays: [0, 1, 3],
+      themePreset: 'indigo-dream',
+      colorAccent: '#2563eb',
+      colorAccentHover: '#1d4ed8',
+      colorAccentLight: '#dbeafe',
+      colorAccentText: '#ffffff',
+      colorSidebarBg: '#0f172a',
+      colorSidebarText: '#94a3b8',
+      colorSidebarActive: '#2563eb',
+      colorBgAppStart: '#f8fafc',
+      colorBgAppEnd: '#e2e8f0',
+      bgType: 'gradient' as const,
+      settingsPassword: '0000'
+    };
+
+    const loadAndSetupProfile = async () => {
+      const uid = currentViewUid;
+      const targetUserId = currentViewUserId;
+
+      try {
+        // 1. Fetch settings from Firestore
+        const settingsRef = doc(db, 'users', uid, 'settings', 'app');
+        const settingsSnap = await getDoc(settingsRef);
+
+        let currentSettings = defaultSet;
+        if (settingsSnap.exists()) {
+          currentSettings = { ...defaultSet, ...settingsSnap.data() };
+          if (active) setSettings(currentSettings);
+          localStorage.setItem(`settings_${targetUserId}`, JSON.stringify(currentSettings));
+        } else {
+          const savedSettings = localStorage.getItem(`settings_${targetUserId}`);
+          if (savedSettings) {
+            try { currentSettings = { ...defaultSet, ...JSON.parse(savedSettings) }; } catch (e) {}
+          }
+          if (active) setSettings(currentSettings);
+          await setDoc(settingsRef, currentSettings);
+        }
+
+        // 2. Fetch tasks from Firestore
+        const tasksCol = collection(db, 'users', uid, 'tasks');
+        const tasksSnap = await getDocs(tasksCol);
+        const isExistingUser = settingsSnap.exists();
+
+        if (!tasksSnap.empty) {
+          const tasksList: Task[] = [];
+          tasksSnap.forEach((doc) => {
+            tasksList.push(doc.data() as Task);
+          });
+          if (active) setTasks(tasksList);
+          localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify(tasksList));
+        } else if (isExistingUser) {
+          if (active) setTasks([]);
+          localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify([]));
+        } else {
+          const savedTasks = localStorage.getItem(`tasks_${targetUserId}`);
+          let tasksList: Task[] = [];
+          if (savedTasks) {
+            try { tasksList = JSON.parse(savedTasks); } catch (e) {}
+          }
+          if (tasksList.length === 0) {
+            tasksList = [
+              { id: 't1', title: 'ประชุมวางแผนงบประมาณโครงการก่อสร้างใหม่', desc: 'สรุปงบประมาณไตรมาสที่ 3 และพิจารณาสัญญารับเหมาช่วง', category: '💼 งานทั่วไป', dueDate: getThailandTodayStr(), dueTime: '13:00', status: 'pending', userId: targetUserId, createdAt: new Date().toISOString() },
+              { id: 't2', title: 'ชำระค่าไฟและค่าน้ำสำนักงานใหญ่', desc: 'ยอดชำระตรวจสอบจากแดชบอร์ดค่าใช้จ่าย บิลรอบเดือนพฤษภาคม', category: '🔥 เร่งด่วน', dueDate: getThailandTodayStr(), dueTime: '17:00', status: 'pending', userId: targetUserId, createdAt: new Date().toISOString() },
+              { id: 't3', title: 'ทบทวนสไลด์นำเสนอพาร์ทเนอร์ชาวต่างชาติ', desc: 'เตรียมจุดเด่นผลิตภัณฑ์ใหม่ และนโยบายส่วนลด', category: '💼 งานทั่วไป', dueDate: getDaysFromNowStr(2), status: 'pending', userId: targetUserId, createdAt: new Date().toISOString() }
+            ];
+          }
+          if (active) setTasks(tasksList);
+          localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify(tasksList));
+          
+          for (const task of tasksList) {
+            await setDoc(doc(db, 'users', uid, 'tasks', task.id), task);
+          }
+        }
+
+        // 3. Fetch expenses from Firestore
+        const expensesCol = collection(db, 'users', uid, 'expenses');
+        const expensesSnap = await getDocs(expensesCol);
+
+        if (!expensesSnap.empty) {
+          const expensesList: Expense[] = [];
+          expensesSnap.forEach((doc) => {
+            expensesList.push(doc.data() as Expense);
+          });
+          if (active) setExpenses(expensesList);
+          localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
+        } else if (isExistingUser) {
+          if (active) setExpenses([]);
+          localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify([]));
+        } else {
+          const savedExpenses = localStorage.getItem(`expenses_${targetUserId}`);
+          let expensesList: Expense[] = [];
+          if (savedExpenses) {
+            try { expensesList = JSON.parse(savedExpenses); } catch (e) {}
+          }
+          if (expensesList.length === 0) {
+            expensesList = [
+              { id: 'e1', name: 'ค่าเช่าอาคารสำนักงานและโกดัง', amount: 45000, cat: '🏠 ที่พัก', date: getThailandTodayStr(), dueDate: getDaysFromNowStr(5), note: 'โอนชำระภายในวันที่ 5', paid: false, userId: targetUserId },
+              { id: 'e2', name: 'ค่าบริการคลาวด์และโฮสติ้งเซิร์ฟเวอร์', amount: 3500.50, cat: '💡 สาธารณูปโภค', date: getThailandTodayStr(), dueDate: getThailandTodayStr(), note: 'ตัดบัตรเครดิตอัตโนมัติ', paid: true, userId: targetUserId },
+              { id: 'e3', name: 'จัดซื้อเครื่องเขียนและอุปกรณ์สำนักงานส่วนกลาง', amount: 1200, cat: '🛒 ของใช้/อาหาร', date: getDaysFromNowStr(-1), dueDate: getDaysFromNowStr(2), note: 'เบิกจ่ายจาก Petty cash', paid: false, userId: targetUserId }
+            ];
+          }
+          if (active) setExpenses(expensesList);
+          localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
+
+          for (const exp of expensesList) {
+            await setDoc(doc(db, 'users', uid, 'expenses', exp.id), exp);
+          }
+        }
+
+        if (!active) return;
+
+        // 4. Hook up real-time sync subscribers to Firestore for multi-device sync
+        cleanupSubscriptions();
+
+        dbUnsubscribersRef.current.settings = onSnapshot(settingsRef, (docSnap) => {
+          if (docSnap.exists() && active) {
+            const syncedSettings = { ...defaultSet, ...docSnap.data() };
+            setSettings(syncedSettings);
+            localStorage.setItem(`settings_${targetUserId}`, JSON.stringify(syncedSettings));
+          }
+        }, (error) => {
+          console.error('Firestore real-time settings sync error:', error);
+        });
+
+        dbUnsubscribersRef.current.tasks = onSnapshot(tasksCol, (querySnap) => {
+          if (!active) return;
+          const tasksList: Task[] = [];
+          querySnap.forEach((docSnap) => {
+            tasksList.push(docSnap.data() as Task);
+          });
+          setTasks(tasksList);
+          localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify(tasksList));
+        }, (error) => {
+          console.error('Firestore real-time tasks sync error:', error);
+        });
+
+        dbUnsubscribersRef.current.expenses = onSnapshot(expensesCol, (querySnap) => {
+          if (!active) return;
+          const expensesList: Expense[] = [];
+          querySnap.forEach((docSnap) => {
+            expensesList.push(docSnap.data() as Expense);
+          });
+          setExpenses(expensesList);
+          localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
+        }, (error) => {
+          console.error('Firestore real-time expenses sync error:', error);
+        });
+
+        if (active) setDataLoaded(true);
+      } catch (err) {
+        console.error('Failed to sync or migrate from Firestore on login:', err);
+        
+        // Fail-safe load from localStorage when Firestore is offline or disconnected
+        const savedTasks = localStorage.getItem(`tasks_${targetUserId}`);
+        if (savedTasks && active) {
+          try { setTasks(JSON.parse(savedTasks)); } catch (e) {}
+        }
+        
+        const savedExpenses = localStorage.getItem(`expenses_${targetUserId}`);
+        if (savedExpenses && active) {
+          try { setExpenses(JSON.parse(savedExpenses)); } catch (e) {}
+        }
+        
+        const savedSettings = localStorage.getItem(`settings_${targetUserId}`);
+        if (savedSettings && active) {
+          try { setSettings({ ...defaultSet, ...JSON.parse(savedSettings) }); } catch (e) {}
+        } else {
+          if (active) setSettings(defaultSet);
+        }
+        
+        if (active) setDataLoaded(true);
+      }
+    };
+
+    loadAndSetupProfile();
+
+    return () => {
+      active = false;
+      cleanupSubscriptions();
+    };
+  }, [isLoggedIn, currentViewUid, currentViewUserId]);
 
   const handleLogout = async () => {
     const isConfirmed = await showConfirm(
@@ -586,11 +674,14 @@ export default function App() {
   // Synchronizers of data
   const syncTasks = async (newTasks: Task[]) => {
     setTasks(newTasks);
+    if (currentViewUserId) {
+      localStorage.setItem(`tasks_${currentViewUserId}`, JSON.stringify(newTasks));
+    }
     if (sessionUser.userId) {
       localStorage.setItem(`tasks_${sessionUser.userId}`, JSON.stringify(newTasks));
     }
 
-    const uid = localStorage.getItem('sess_uid');
+    const uid = currentViewUid || localStorage.getItem('sess_uid');
     if (uid) {
       try {
         const previousMap = new Map<string, Task>(tasks.map(t => [t.id, t]));
@@ -618,11 +709,14 @@ export default function App() {
 
   const syncExpenses = async (newExpenses: Expense[]) => {
     setExpenses(newExpenses);
+    if (currentViewUserId) {
+      localStorage.setItem(`expenses_${currentViewUserId}`, JSON.stringify(newExpenses));
+    }
     if (sessionUser.userId) {
       localStorage.setItem(`expenses_${sessionUser.userId}`, JSON.stringify(newExpenses));
     }
 
-    const uid = localStorage.getItem('sess_uid');
+    const uid = currentViewUid || localStorage.getItem('sess_uid');
     if (uid) {
       try {
         const previousMap = new Map<string, Expense>(expenses.map(e => [e.id, e]));
@@ -650,11 +744,14 @@ export default function App() {
 
   const syncSettings = async (newSettings: AppSettings) => {
     setSettings(newSettings);
+    if (currentViewUserId) {
+      localStorage.setItem(`settings_${currentViewUserId}`, JSON.stringify(newSettings));
+    }
     if (sessionUser.userId) {
       localStorage.setItem(`settings_${sessionUser.userId}`, JSON.stringify(newSettings));
     }
 
-    const uid = localStorage.getItem('sess_uid');
+    const uid = currentViewUid || localStorage.getItem('sess_uid');
     if (uid) {
       try {
         await setDoc(doc(db, 'users', uid, 'settings', 'app'), newSettings);
@@ -1328,7 +1425,9 @@ export default function App() {
         }`}
       >
         {/* UPPER RESPONSIVE APP HEADER */}
-        <header className="h-16 border-b border-slate-200/85 px-4 lg:px-8 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30 dark:bg-slate-900/80 dark:border-slate-800">
+        <header className={`border-b border-slate-200/85 px-4 lg:px-8 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30 dark:bg-slate-900/80 dark:border-slate-800 transition-all duration-300 ${
+          headerCollapsed ? 'h-0 py-0 border-b-0 opacity-0 pointer-events-none overflow-hidden' : 'h-16'
+        }`}>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -1373,12 +1472,38 @@ export default function App() {
             </div>
 
             {/* Clock Widget */}
-            <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 font-mono text-[10.5px] font-bold text-slate-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400">
-              <Clock className="w-3.5 h-3.5" style={{ color: settings.colorAccent }} />
-              <span>{currentTime || '00:00:00'}</span>
-            </div>
+             <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 font-mono text-[10.5px] font-bold text-slate-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400">
+               <Clock className="w-3.5 h-3.5" style={{ color: settings.colorAccent }} />
+               <span>{currentTime || '00:00:00'}</span>
+             </div>
 
-            {/* Notification center */}
+             {/* Admin multi-profile dropdown switch */}
+             {sessionUser.userId === 'admin' && allUsersList.length > 0 && (
+               <div className="flex items-center gap-1.5 bg-indigo-50/90 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-900/40 rounded-full px-3 py-1 font-sans text-[11px] font-bold text-indigo-800 dark:text-indigo-400">
+                 <User className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                 <span className="hidden select-none sm:inline">สลับดูหลังบ้านโปรไฟล์:</span>
+                 <select
+                   value={currentViewUid}
+                   onChange={(e) => {
+                     const selectedUid = e.target.value;
+                     const selectedUser = allUsersList.find(u => u.uid === selectedUid);
+                     if (selectedUser) {
+                       setCurrentViewUid(selectedUser.uid);
+                       setCurrentViewUserId(selectedUser.userId);
+                     }
+                   }}
+                   className="bg-transparent border-none text-[11px] font-black focus:ring-0 cursor-pointer text-indigo-700 dark:text-indigo-300 py-0 pl-1 pr-5"
+                 >
+                   {allUsersList.map((usr) => (
+                     <option key={usr.uid} value={usr.uid} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
+                       {usr.userId === 'admin' ? 'แอดมิน (ตัวเอง)' : usr.userId}
+                     </option>
+                   ))}
+                 </select>
+               </div>
+             )}
+
+             {/* Notification center */}
             <div className="relative">
               <button
                 onClick={() => setShowNotificationFlyout(!showNotificationFlyout)}
@@ -1562,13 +1687,36 @@ export default function App() {
 
             <button
               onClick={handleLogout}
-              className="h-10 px-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl flex items-center gap-1.5 text-xs font-bold hover:bg-rose-100 transition-all dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-450"
+              className="h-10 px-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl flex items-center gap-1.5 text-xs font-bold hover:bg-rose-100 transition-all dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-450 flex-shrink-0"
             >
               <LogOut className="w-3.5 h-3.5 animate-pulse" />
               <span className="hidden sm:inline">ออก</span>
             </button>
+
+            {/* Collapse/Hide Header Trigger button */}
+            <button
+              onClick={() => handleSetHeaderCollapsed(true)}
+              className="w-10 h-10 border border-slate-200 text-slate-500 bg-white rounded-xl flex items-center justify-center hover:bg-slate-50 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all flex-shrink-0"
+              title="ซ่อนแถบเมนูหลักด้านบน"
+            >
+              <ArrowUp className="w-4 h-4" />
+            </button>
           </div>
         </header>
+
+        {/* Small floating restore / expand trigger when header is collapsed */}
+        {headerCollapsed && (
+          <div className="sticky top-0 z-50 h-0 w-full flex justify-center">
+            <button
+              onClick={() => handleSetHeaderCollapsed(false)}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-b-2xl shadow-xl text-[10.5px] font-extrabold hover:brightness-110 active:scale-95 transition-all border border-t-0 border-slate-700/50"
+              title="แสดงแถบเมนูหลักด้านบน"
+            >
+              <ArrowDown className="w-3.5 h-3.5 animate-bounce" style={{ color: settings.colorAccent }} />
+              <span>แสดงแถบเมนูหลัก (TaskFlow Space Executive Pro)</span>
+            </button>
+          </div>
+        )}
 
         {/* PRIMARY WINDOW CONTENT VIEW */}
         <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-16"}>
@@ -1654,6 +1802,32 @@ export default function App() {
               </div>
             );
           })()}
+
+          {/* Admin warning banner */}
+          {sessionUser.userId === 'admin' && currentViewUserId !== 'admin' && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl shadow-lg border border-indigo-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center font-black text-lg flex-shrink-0">
+                  🛡️
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white leading-tight">โหมดผู้ดูแลระบบหลังบ้านระดับสูง (Super Admin Backend Control)</h3>
+                  <p className="text-[11px] text-indigo-100 font-medium mt-0.5 leading-relaxed">
+                    คุณกำลังดูและจัดการข้อมูลภารกิจ, งบประมาณ, และการตั้งค่าทั้งหมดของผู้ใช้: <strong className="underline decoration-wavy text-white font-bold">{currentViewUserId}</strong> (การเปลี่ยนแปลงทั้งหมดจะถูกบันทึกขึ้นระบบคลาวด์แบบเรียลไทม์ทันที)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setCurrentViewUid(localStorage.getItem('sess_uid') || '');
+                  setCurrentViewUserId('admin');
+                }}
+                className="px-3.5 py-1.5 bg-white text-indigo-600 hover:bg-indigo-50 font-extrabold text-[11px] rounded-xl transition-all shadow-sm flex-shrink-0"
+              >
+                หมุนกลับสู่บัญชีตนเอง
+              </button>
+            </div>
+          )}
 
           {activeTab === 'tasks' && (
             <TaskModule

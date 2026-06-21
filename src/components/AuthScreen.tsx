@@ -294,6 +294,22 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     setSuccessMsg('');
     setDiagnosticError(null);
 
+    // Block registering duplicate admin accounts
+    if (trimmedId === 'admin') {
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('userId', '==', 'admin'));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          triggerError('⚠️ ไอดีสำหรับผู้ดูแลระบบ (admin) ได้ถูกสร้างและเปิดใช้งานในระบบแล้ว และอนุญาตให้มีเพียงการลงทะเบียนเดียวเท่านั้น ไม่สามารถสร้างซ้ำได้!');
+          setIsLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('Silent admin check duplicate error:', e);
+      }
+    }
+
     try {
       const emailFirebase = formatEmail(trimmedId);
       const finalPass = padPass(regPass);
