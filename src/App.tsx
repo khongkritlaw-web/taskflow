@@ -44,6 +44,7 @@ import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, onSnapshot } from 
 import { updateEmail, updatePassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { useDialog } from './components/CustomDialog';
+import { playNotificationSound } from './lib/soundUtils';
 
 const padPass = (pass: string) => {
   if (pass.length >= 6) return pass;
@@ -121,6 +122,8 @@ export default function App() {
   const { showAlert, showConfirm } = useDialog();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [sessionUser, setSessionUser] = useState({ userId: '', email: '', phone: '', password: '' });
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [showNotificationFlyout, setShowNotificationFlyout] = useState(false);
   
   // App data states
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -156,7 +159,12 @@ export default function App() {
     colorBgAppStart: '#f8fafc',
     colorBgAppEnd: '#e2e8f0',
     bgType: 'gradient',
-    settingsPassword: '0000'
+    settingsPassword: '0000',
+    soundEnabled: true,
+    soundType: 'chime',
+    soundVolume: 80,
+    soundOnComplete: true,
+    soundOnAdd: true
   });
 
   // UI state controllers
@@ -227,9 +235,48 @@ export default function App() {
   const [emailResult, setEmailResult] = useState<{ text: string; type: 'ok' | 'err' | 'loading' | null }>({ text: '', type: null });
   const [customHolidays, setCustomHolidays] = useState<Record<string, string>>({});
   const [currentTime, setCurrentTime] = useState('');
-  const [showNotificationFlyout, setShowNotificationFlyout] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  
+  const [activeAlarms, setActiveAlarms] = useState<Task[]>([]);
+  const alarmedTaskIds = useRef<Set<string>>(new Set());
+
+  // Background Real-time Task Due Alert Engine
+  useEffect(() => {
+    if (!isLoggedIn || !dataLoaded || !tasks || tasks.length === 0) return;
+
+    // Get current local time
+    const now = new Date();
+    const currentHHMM = now.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Bangkok'
+    });
+    
+    const todayStr = getThailandTodayStr();
+
+    tasks.forEach(task => {
+      if (
+        task.status === 'pending' &&
+        task.dueDate === todayStr &&
+        task.dueTime
+      ) {
+        const taskHHMM = task.dueTime.trim();
+        if (currentHHMM === taskHHMM) {
+          if (!alarmedTaskIds.current.has(task.id)) {
+            alarmedTaskIds.current.add(task.id);
+            setActiveAlarms(prev => {
+              if (prev.some(a => a.id === task.id)) return prev;
+              return [...prev, task];
+            });
+
+            if (settings.soundEnabled !== false) {
+              playNotificationSound(settings.soundType || 'alert', settings.soundVolume ?? 80);
+            }
+          }
+        }
+      }
+    });
+  }, [currentTime, isLoggedIn, dataLoaded, tasks, settings.soundEnabled, settings.soundType, settings.soundVolume]);
+
   // Account / Security states
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{ text: string; type: 'ok' | 'err' } | null>(null);
@@ -537,7 +584,12 @@ export default function App() {
       colorBgAppStart: '#f8fafc',
       colorBgAppEnd: '#e2e8f0',
       bgType: 'gradient' as const,
-      settingsPassword: '0000'
+      settingsPassword: '0000',
+      soundEnabled: true,
+      soundType: 'chime' as const,
+      soundVolume: 80,
+      soundOnComplete: true,
+      soundOnAdd: true
     };
 
     setCustomHolidays({
@@ -623,7 +675,12 @@ export default function App() {
       colorBgAppStart: '#f8fafc',
       colorBgAppEnd: '#e2e8f0',
       bgType: 'gradient' as const,
-      settingsPassword: '0000'
+      settingsPassword: '0000',
+      soundEnabled: true,
+      soundType: 'chime' as const,
+      soundVolume: 80,
+      soundOnComplete: true,
+      soundOnAdd: true
     };
 
     const loadAndSetupProfile = async () => {
@@ -1009,9 +1066,18 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
     syncTasks([...tasks, created]);
+    if (settings.soundEnabled !== false && settings.soundOnAdd !== false) {
+      playNotificationSound(settings.soundType || 'chime', settings.soundVolume ?? 80);
+    }
   };
 
   const handleEditTask = (id: string, updated: Partial<Task>) => {
+    const oldTask = tasks.find(t => t.id === id);
+    if (updated.status === 'completed' && oldTask?.status !== 'completed') {
+      if (settings.soundEnabled !== false && settings.soundOnComplete !== false) {
+        playNotificationSound('success', settings.soundVolume ?? 80);
+      }
+    }
     const updatedTasks = tasks.map(t => t.id === id ? { ...t, ...updated } : t);
     syncTasks(updatedTasks);
   };
@@ -1033,9 +1099,18 @@ export default function App() {
       id: 'exp_' + Date.now() + '_' + Math.floor(Math.random() * 9999)
     };
     syncExpenses([...expenses, created]);
+    if (settings.soundEnabled !== false && settings.soundOnAdd !== false) {
+      playNotificationSound('pop', settings.soundVolume ?? 80);
+    }
   };
 
   const handleEditExpense = (id: string, updated: Partial<Expense>) => {
+    const oldExp = expenses.find(e => e.id === id);
+    if (updated.paid === true && oldExp?.paid !== true) {
+      if (settings.soundEnabled !== false && settings.soundOnComplete !== false) {
+        playNotificationSound('success', settings.soundVolume ?? 80);
+      }
+    }
     const updatedExps = expenses.map(e => e.id === id ? { ...e, ...updated } : e);
     syncExpenses(updatedExps);
   };
@@ -2969,6 +3044,129 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Sound & Notification Settings Panel */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100 text-left">
+                  <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-sm">🔔</span>
+                  <span>ระบบเสียงและการแจ้งเตือน (Notification Sound & Customizer)</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold dark:text-slate-400 text-left">
+                  คุณท่านสามารถเปิดใช้งานระบบสังเคราะห์คลื่นเสียงแจ้งเตือนอัตโนมัติ (Web Audio Synth Level-2) ทดสอบระดับความดัง และปรับเลือกพฤติกรรมแจ้งเตือนต่างๆ ให้มีความลงตัวและเรียบร้อยสูงสุด
+                </p>
+
+                <div className="space-y-4 text-xs font-semibold text-slate-650">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Enable Sounds Toggle */}
+                    <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl dark:bg-slate-950 border border-slate-100 dark:border-slate-850">
+                      <div className="text-left pr-2">
+                        <h4 className="font-bold text-slate-850 dark:text-slate-200">เปิดระบบเสียงเอฟเฟกต์ (Enable Audio Feedback)</h4>
+                        <p className="text-[10px] text-slate-450 font-normal">เปิด/ปิดการ สังเคราะห์คลื่นเสียงประกอบเมื่อทำกิจกรรมงานต่างๆ</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => syncSettings({ ...settings, soundEnabled: settings.soundEnabled === false ? true : false })}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+                          settings.soundEnabled !== false ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.soundEnabled !== false ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+
+                    {/* Choose audio theme */}
+                    <div>
+                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">รูปแบบเสียงหลักของแอปพลิเคชัน (Main App Sound)</label>
+                      <select
+                        value={settings.soundType || 'chime'}
+                        onChange={(e) => syncSettings({ ...settings, soundType: e.target.value as any })}
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-bold"
+                      >
+                        <option value="chime">🔔 Chime (ระฆังแก้วคริสตัลสูง ดึงดูดสมาธิ)</option>
+                        <option value="success">🎉 Success (อาร์เพจจิโอ 4 โน้ตแห่งความสำเร็จรื่นเริง)</option>
+                        <option value="alert">🚨 Alert (ไซเรนดับเบิล พาร์เชียลคู่ เร่งด่วนจัดจ้าน)</option>
+                        <option value="bell">⛪ Cathedral Bell (เสียงระฆังโบสถ์โบราณ อบอุ่นกังวานลึก)</option>
+                        <option value="pop">🫧 Organic Pop (ฟองสบู่น้ำเด้งเบา ดนตรีน่ารักกะทัดรัด)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Volume setting */}
+                    <div className="space-y-1.5 text-left bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-100 dark:border-slate-850">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-slate-600 dark:text-slate-450">ความกังวานและเกนระดับเสียง (Sound Volume)</label>
+                        <span className="text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.5 rounded-md font-extrabold">{settings.soundVolume ?? 80}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        value={settings.soundVolume ?? 80}
+                        onChange={(e) => syncSettings({ ...settings, soundVolume: Number(e.target.value) })}
+                        className="w-full accent-rose-500 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-800"
+                      />
+                    </div>
+
+                    {/* Test Audio Button */}
+                    <div className="flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => playNotificationSound(settings.soundType || 'chime', settings.soundVolume ?? 80)}
+                        className="w-full h-12 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400"
+                      >
+                        <span className="text-sm animate-pulse">🔊</span>
+                        <span>ยิงพลังเสียงทดสอบเสียงปัจจุบัน (Test Sound)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sound Trigger Behaviours */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-100 dark:border-slate-850 text-left space-y-3">
+                    <h4 className="font-extrabold text-slate-705 dark:text-slate-300 text-xs flex items-center gap-1.5">
+                      <span>⚙️</span>
+                      <span>เลือกเงื่อนไขสถานการณ์เล่นเสียงแจ้งเตือน (Detailed Sound Rules)</span>
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-900/50 transition-all">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">เสียงเมื่อจบภารกิจ / ชำระสะสม</span>
+                          <span className="text-[10px] text-slate-450 font-normal">เล่นเอฟเฟกต์ "Success" เมื่อปิดเฉลิมฉลองงานหรือบิลบอร์ดสำเร็จ</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={settings.soundOnComplete !== false}
+                          onChange={(e) => syncSettings({ ...settings, soundOnComplete: e.target.checked })}
+                          className="w-4.5 h-4.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 accent-rose-500"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-900/50 transition-all">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">เสียงเมื่อเพิ่มเป้าหมายหรือค่าใช้จ่าย</span>
+                          <span className="text-[10px] text-slate-450 font-normal">เล่นเสียง "Pop/Chime" ทันทีที่จดงานลงในแบบฟอร์มสำเร็จ</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={settings.soundOnAdd !== false}
+                          onChange={(e) => syncSettings({ ...settings, soundOnAdd: e.target.checked })}
+                          className="w-4.5 h-4.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 accent-rose-500"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Built-in warning notes */}
+                  <div className="flex items-start gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-xl border border-indigo-100/30">
+                    <span className="text-xs">💡</span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-450 font-normal text-left leading-relaxed">
+                      <strong>เกร็ดความรู้:</strong> หากกำหนดเวลาส่ง (Due Time) ของภารกิจมาถึงวันนี้ตามเป้าหมายของหน้าแรก ระบบจะยิงเสียงสัญญาณเร่งด่วน 🚨 และหน้าจอจะสไลด์ข้อความแจ้งเตือนสีโรสแดงด้านขวาล่างทันทีแบบ Real-time เพื่อพยุงความก้าวหน้าของคุณท่านให้บรรลุเป้าหมายสูงสุดได้อย่างสมบูรณ์แบบ
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Custom Menu Links integration panel */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
@@ -3137,6 +3335,82 @@ export default function App() {
         expenses={expenses}
         settings={settings}
       />
+
+      {/* Floating Alarm Notifications Stack */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        <AnimatePresence>
+          {activeAlarms.map((alarm) => (
+            <motion.div
+              key={alarm.id}
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.2 } }}
+              className="bg-white dark:bg-slate-900 border-2 border-rose-500 rounded-2xl shadow-xl p-5 pointer-events-auto flex flex-col gap-3 relative overflow-hidden"
+            >
+              {/* Pulsing light behind icon */}
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500 animate-pulse" />
+              
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-lg animate-bounce">
+                  🔔
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-500 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full inline-block mb-1.5 animate-pulse">
+                    🚨 ถึงเวลาด่วน / Task Alert
+                  </span>
+                  <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-100 truncate">
+                    {alarm.title}
+                  </h4>
+                  {alarm.dueTime && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1.5 mt-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>เวลาส่ง: {alarm.dueTime} น. (วันนี้)</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {alarm.desc && (
+                <p className="text-xs text-slate-650 dark:text-slate-450 line-clamp-2 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-100 dark:border-slate-850 text-left">
+                  {alarm.desc}
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleEditTask(alarm.id, { status: 'completed' });
+                    setActiveAlarms(prev => prev.filter(a => a.id !== alarm.id));
+                  }}
+                  className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <span>✓ ทำงานเสร็จแล้ว</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playNotificationSound(settings.soundType || 'alert', settings.soundVolume ?? 80);
+                  }}
+                  className="px-3 h-9 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-350 rounded-lg text-xs transition-colors"
+                  title="ฟังเสียงแจ้งเตือนอีกครั้ง"
+                >
+                  📢
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveAlarms(prev => prev.filter(a => a.id !== alarm.id));
+                  }}
+                  className="h-9 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-550 dark:text-slate-400 rounded-lg text-xs transition-colors hover:text-slate-800 font-bold"
+                >
+                  ปิด
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

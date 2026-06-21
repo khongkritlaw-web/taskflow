@@ -68,4 +68,9 @@ export interface AppSettings {
   printTemplatePattern?: 'standard' | 'formal' | 'compact' | 'creative';
   printShowSignatures?: boolean;
   printFooterText?: string;
+  soundEnabled?: boolean;
+  soundType?: 'chime' | 'success' | 'alert' | 'bell' | 'pop';
+  soundVolume?: number; // 0 to 100
+  soundOnComplete?: boolean;
+  soundOnAdd?: boolean;
 }
