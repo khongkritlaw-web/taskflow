@@ -63,4 +63,9 @@ export interface AppSettings {
   bgType: 'solid' | 'gradient'; // 'solid' or 'gradient'
   customMenuLinks?: CustomMenuLink[];
   settingsPassword?: string;
+  printTitle?: string;
+  printSubtitle?: string;
+  printTemplatePattern?: 'standard' | 'formal' | 'compact' | 'creative';
+  printShowSignatures?: boolean;
+  printFooterText?: string;
 }

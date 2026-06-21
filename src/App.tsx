@@ -2889,6 +2889,86 @@ export default function App() {
                 </div>
               </div>
 
+              {/* PDF & Print Settings Panel */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
+                  <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-400 font-bold text-sm">🖨️</span>
+                  <span>ตั้งค่าการจัดรูปแบบรายงาน PDF & การสั่งพิมพ์ (Print & PDF Customizer)</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold dark:text-slate-400 text-left">
+                  คุณท่านสามารถกำหนดหัวข้อรายงาน ย่อยของชื่อเรื่อง เลือกดีไซน์/แพทเทิร์น และเปิด-ปิดส่วนท้าย เพื่อให้เอกสารที่ได้ออกมาเป็นระบบ อ่านง่าย เข้าใจอย่างมีประสิทธิภาพ และเป็นทางการสูงสุด
+                </p>
+
+                <div className="space-y-4 text-xs font-semibold text-slate-650">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">หัวข้อรายงานหลัก (Report Title)</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น รายงานสรุปงานและบันทึกค่าใช้จ่าย"
+                        value={settings.printTitle || ''}
+                        onChange={(e) => syncSettings({ ...settings, printTitle: e.target.value })}
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">คำจ่าหน้าย่อย/สโลแกน (Report Subtitle/Header)</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น ระบบบัญชีและบันทึกติดตามงานเพื่อสุขภาพทางการเงิน"
+                        value={settings.printSubtitle || ''}
+                        onChange={(e) => syncSettings({ ...settings, printSubtitle: e.target.value })}
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">แพทเทิร์น/เทมเพลตรูปแบบ Layout (Report Pattern)</label>
+                      <select
+                        value={settings.printTemplatePattern || 'formal'}
+                        onChange={(e) => syncSettings({ ...settings, printTemplatePattern: e.target.value as any })}
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-bold"
+                      >
+                        <option value="formal">👔 ทางการ (Formal Document Layout - มีตราประทับและกรอบเส้นตาราง)</option>
+                        <option value="standard">📊 มาตรฐาน (Modern Slate - มีเสาไฮไลต์หัวข้อและสีสันสดใส)</option>
+                        <option value="compact">📄 ประหยัดกระดาษป้อน (Compact Spacing - ตัวหนังสือกะทัดรัด สรุปสั้น)</option>
+                        <option value="creative">🎨 สร้างสรรค์ (Creative Pastel Theme - ขอบโค้งมน ตารางแบบอบอุ่น)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">รายละเอียดหมายเหตุระบุด้านล่าง (Footer Memo Text)</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น เอกสารสรุปส่วนบุคคลสร้างขึ้นด้วยความเคารพอย่างสูง"
+                        value={settings.printFooterText || ''}
+                        onChange={(e) => syncSettings({ ...settings, printFooterText: e.target.value })}
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl dark:bg-slate-950 border border-slate-100 dark:border-slate-850">
+                    <div className="text-left">
+                      <h4 className="font-bold text-slate-800 dark:text-slate-200">แสดงกล่องช่องเซ็นชื่อท้ายรายงาน (Signature Blocks)</h4>
+                      <p className="text-[10px] text-slate-400 font-normal">เพิ่มตารางและเส้นประสำหรับการลงชื่อกำกับอย่างเป็นทางการที่ท้ายหน้า PDF</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => syncSettings({ ...settings, printShowSignatures: settings.printShowSignatures === false ? true : false })}
+                      className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none ${
+                        settings.printShowSignatures !== false ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${settings.printShowSignatures !== false ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Custom Menu Links integration panel */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">

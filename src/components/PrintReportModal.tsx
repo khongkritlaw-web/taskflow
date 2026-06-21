@@ -148,26 +148,81 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
     const paidExpenseAmount = filteredExpenses.filter(e => e.paid).reduce((sum, e) => sum + e.amount, 0);
     const unpaidExpenseAmount = totalExpenseAmount - paidExpenseAmount;
 
-    // Build complete report HTML documents with clean, neat, and simple typesetting
+    // Build complete report HTML documents with clean, neat, and highly polished typesetting
+    const userPrintTitle = settings.printTitle || 'รายงานสรุปงานและบันทึกค่าใช้จ่าย';
+    const userPrintSubtitle = settings.printSubtitle || `${settings.appName || 'TaskFlow Space'} — ${settings.appDesc || 'ระบบบันทึกและจัดการข้อมูลส่วนบุคคล'}`;
+    const userPattern = settings.printTemplatePattern || 'formal';
+    const userFooterText = settings.printFooterText || 'รายงานนี้จัดทำขึ้นโดยอัตโนมัติเพื่อความเรียบร้อย สรุปสั้น อ่านง่าย และใช้สำหรับจัดการงานส่วนบุคคลเท่านั้น';
+    const showSignatures = settings.printShowSignatures !== false;
+
+    // Elegant styling params depending on selected template pattern
+    let bodyBg = '#ffffff';
+    let documentFont = "'Sarabun', 'Helvetica Neue', sans-serif";
+    let headerBorderValue = `2px solid #0f172a`;
+    let mainColor = '#0f172a';
+    let secondaryColor = '#475569';
+    let pagePadding = '40px';
+    let baseFontSize = '12.5px';
+    let tableHeaderBg = '#f8fafc';
+    let tableRowEvenBg = '#fcfdfe';
+    let tableBorderColor = '#cbd5e1';
+    let tablePadding = '8px 10px';
+    let titleFontSize = '23px';
+    let sectionTitleStyle = `border-left: 5px solid ${accentColor}; font-weight: 750; background-color: #f1f5f9; padding: 7px 12px; border-radius: 4px;`;
+    let bodyClassSuffix = '';
+    let tableBorderWidth = '1px';
+    let decorativeSeal = '';
+
+    if (userPattern === 'formal') {
+      bodyBg = '#ffffff';
+      headerBorderValue = `3px double #1e3a8a`;
+      mainColor = '#1e3a8a';
+      secondaryColor = '#334155';
+      tableHeaderBg = '#f1f5f9';
+      tableRowEvenBg = '#f8fafc';
+      tableBorderColor = '#475569'; // High contrast for crisp printing
+      tablePadding = '10px 12px';
+      titleFontSize = '24px';
+      sectionTitleStyle = `border-left: 6px solid #1e3a8a; border-bottom: 2px solid #1e3a8a; font-weight: 800; background-color: #f8fafc; padding: 8px 12px; border-radius: 0; letter-spacing: 0.1px; text-transform: uppercase; color: #1e3a8a;`;
+      tableBorderWidth = '1.2px';
+      decorativeSeal = `<div style="position: absolute; top: 40px; right: 40px; border: 2px solid #1e3a8a; color: #1e3a8a; padding: 4px 10px; font-size: 10px; font-weight: 800; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85;">OFFICIAL REPORT</div>`;
+    } else if (userPattern === 'compact') {
+      pagePadding = '20px';
+      baseFontSize = '11.5px';
+      tablePadding = '5px 7px';
+      tableBorderColor = '#cbd5e1';
+      titleFontSize = '18px';
+      sectionTitleStyle = `border-left: 3.5px solid ${accentColor}; font-weight: 700; background-color: #f8fafc; padding: 5px 8px; border-radius: 3px; margin-top: 14px; margin-bottom: 5px;`;
+    } else if (userPattern === 'creative') {
+      documentFont = "'Niramit', 'Sarabun', sans-serif";
+      headerBorderValue = 'none';
+      tableHeaderBg = 'rgba(99, 102, 241, 0.08)';
+      tableRowEvenBg = 'rgba(99, 102, 241, 0.02)';
+      tableBorderColor = '#e2e8f0';
+      tablePadding = '11px 13px';
+      baseFontSize = '13px';
+      sectionTitleStyle = `border-left: none; font-weight: 700; background-color: ${accentColor}12; color: ${accentColor}; padding: 10px 16px; border-radius: 12px; margin-top: 24px; margin-bottom: 12px; box-shadow: inset 0 0 0 1px ${accentColor}30;`;
+    }
+
     const reportHtml = `
       <!DOCTYPE html>
       <html lang="th">
       <head>
         <meta charset="utf-8" />
-        <title>รายงานสรุปข้อมูล - ${settings.appName || 'TaskFlow Space'}</title>
+        <title>${userPrintTitle} - ${settings.appName || 'TaskFlow Space'}</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Niramit:wght@400;500;600;700&display=swap');
           
           body {
-            font-family: 'Sarabun', 'Helvetica Neue', sans-serif;
+            font-family: ${documentFont};
             color: #1e293b;
             margin: 0;
-            padding: 40px;
+            padding: ${pagePadding};
             line-height: 1.5;
-            background-color: #ffffff;
-            font-size: 13px;
+            background-color: ${bodyBg};
+            font-size: ${baseFontSize};
           }
-
+ 
           @media print {
             body {
               padding: 0;
@@ -182,71 +237,70 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
               margin: 1.5cm;
             }
           }
-
+ 
           .header-box {
+            position: relative;
             text-align: center;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 12px;
+            border-bottom: ${headerBorderValue};
+            padding-bottom: 16px;
             margin-bottom: 25px;
           }
-
+ 
           .header-box h1 {
-            font-size: 21px;
-            font-weight: 700;
-            margin: 0 0 5px 0;
-            color: #0f172a;
+            font-size: ${titleFontSize};
+            font-weight: 800;
+            margin: 0 0 6px 0;
+            color: ${mainColor};
             letter-spacing: -0.5px;
           }
-
+ 
           .header-box p {
-            font-size: 12px;
-            color: #64748b;
+            font-size: 12.5px;
+            color: ${secondaryColor};
             margin: 0;
+            font-weight: 500;
           }
-
+ 
           .meta-info-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 15px;
             margin-bottom: 25px;
             background-color: #f8fafc;
             border: 1px solid #e2e8f0;
-            padding: 12px 15px;
-            border-radius: 8px;
+            padding: 12px 18px;
+            border-radius: 10px;
             font-size: 12px;
           }
-
+ 
           .meta-item {
             display: flex;
             justify-content: space-between;
             border-bottom: 1px dashed #e2e8f0;
-            padding-bottom: 4px;
+            padding-bottom: 5px;
+            padding-top: 2px;
           }
-
+ 
           .meta-item:last-child {
             border-bottom: none;
           }
-
+ 
           .meta-label {
             font-weight: 600;
             color: #475569;
           }
-
+ 
           .section-title {
             font-size: 14px;
-            font-weight: 750;
-            background-color: #f1f5f9;
             color: #0f172a;
-            padding: 6px 12px;
-            border-left: 4px solid ${accentColor};
-            border-radius: 4px;
             margin-top: 25px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            ${sectionTitleStyle}
           }
-
+ 
           /* Stat metrics grids */
           .stats-container {
             display: grid;
@@ -254,28 +308,29 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             gap: 12px;
             margin-bottom: 20px;
           }
-
+ 
           .stat-card {
             border: 1px solid #e2e8f0;
             background-color: #ffffff;
-            border-radius: 6px;
-            padding: 10px;
+            border-radius: 8px;
+            padding: 12px 10px;
             text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
           }
-
+ 
           .stat-label {
             font-size: 11px;
             color: #64748b;
             font-weight: 500;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
           }
-
+ 
           .stat-val {
             font-size: 15px;
             font-weight: 700;
             color: #0f172a;
           }
-
+ 
           /* Tables formatting */
           table {
             width: 100%;
@@ -283,188 +338,191 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             font-size: 11.5px;
             margin-bottom: 20px;
           }
-
+ 
           th {
-            background-color: #f8fafc;
-            border: 1px solid #cbd5e1;
+            background-color: ${tableHeaderBg};
+            border: ${tableBorderWidth} solid ${tableBorderColor};
             color: #0f172a;
-            font-weight: 700;
+            font-weight: 800;
             text-align: left;
-            padding: 8px;
+            padding: ${tablePadding};
           }
-
+ 
           td {
-            border: 1px solid #cbd5e1;
-            padding: 7px 8px;
+            border: ${tableBorderWidth} solid ${tableBorderColor};
+            padding: ${tablePadding};
             vertical-align: top;
+            word-break: break-word;
           }
-
+ 
           tr:nth-child(even) {
-            background-color: #fcfdfe;
+            background-color: ${tableRowEvenBg};
           }
-
+ 
           .text-center {
             text-align: center;
           }
-
+ 
           .text-right {
             text-align: right;
           }
-
+ 
           /* Badges styling */
           .badge {
             font-size: 10px;
-            font-weight: bold;
-            padding: 2px 6px;
+            font-weight: 700;
+            padding: 3px 7px;
             border-radius: 4px;
             display: inline-block;
             text-align: center;
           }
-
+ 
           .badge-pending {
             background-color: #fef3c7;
             color: #b45309;
             border: 1px solid #fde68a;
           }
-
+ 
           .badge-completed {
             background-color: #d1fae5;
             color: #047857;
             border: 1px solid #a7f3d0;
           }
-
+ 
           .badge-paid {
             background-color: #d1fae5;
             color: #047857;
             border: 1px solid #a7f3d0;
           }
-
+ 
           .badge-unpaid {
             background-color: #fee2e2;
             color: #b91c1c;
             border: 1px solid #fca5a5;
           }
-
+ 
           /* Signatures blocks */
           .signatures-block {
-            margin-top: 40px;
+            margin-top: 45px;
             display: flex;
             justify-content: space-between;
             page-break-inside: avoid;
           }
-
+ 
           .sig-column {
             width: 44%;
             text-align: center;
           }
-
+ 
           .dotted-line {
-            border-bottom: 1px dotted #94a3b8;
-            height: 35px;
-            width: 75%;
-            margin: 0 auto 8px auto;
+            border-bottom: 1.2px dotted #64748b;
+            height: 40px;
+            width: 80%;
+            margin: 0 auto 10px auto;
           }
-
+ 
           .footer-note {
-            font-size: 9px;
-            color: #94a3b8;
+            font-size: 9.5px;
+            color: #64748b;
             text-align: center;
-            margin-top: 40px;
+            margin-top: 45px;
             border-top: 1px solid #e2e8f0;
-            padding-top: 12px;
+            padding-top: 14px;
             page-break-inside: avoid;
+            font-style: italic;
           }
         </style>
       </head>
       <body>
+        ${decorativeSeal}
 
         <div class="header-box">
-          <h1>รายงานสรุปงานและบันทึกค่าใช้จ่าย</h1>
-          <p>${settings.appName || 'TaskFlow Space'} — ${settings.appDesc || 'ระบบบันทึกและจัดการข้อมูลส่วนบุคคล'}</p>
+          <h1>${userPrintTitle}</h1>
+          <p>${userPrintSubtitle}</p>
         </div>
-
+ 
         <div class="meta-info-grid">
           <div>
             <div class="meta-item">
-              <span class="meta-label">ช่วงเวลาข้อมูล:</span>
-              <span>${scopeLabel}</span>
+              <span class="meta-label">ช่วงเวลาคัดกรองข้อมูล:</span>
+              <span style="font-weight:600;">${scopeLabel}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">ประเภทเอกสาร:</span>
-              <span>รายงานข้อมูลส่วนบุคคล (ส่วนตัว)</span>
+              <span class="meta-label">ประเภทรายงานเอกสาร:</span>
+              <span style="font-weight:600;">เอกสารประมวลระดับส่วนตัว (Personal Summary Report)</span>
             </div>
           </div>
           <div>
             <div class="meta-item">
-              <span class="meta-label">วันที่พิมพ์:</span>
+              <span class="meta-label">วันที่จัดพิมพ์ข้อมูล:</span>
               <span>${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">ผู้จัดทำ:</span>
-              <span>ผู้ใช้งานระบบ (${userId})</span>
+              <span class="meta-label">พนักงาน / ผู้จัดทำ:</span>
+              <span style="font-weight:600;">${userId}</span>
             </div>
           </div>
         </div>
-
+ 
         ${modules.summary ? `
-          <div class="section-title">📊 ยอดสรุปสำคัญ</div>
+          <div class="section-title">📊 สรุปรายงานการดำเนินงานและยอดเงินสำคัญ (Dashboard Overview)</div>
           <div class="stats-container">
-            <div class="stat-card" style="border-top: 3px solid #6366f1;">
+            <div class="stat-card" style="border-top: 3.5px solid #6366f1;">
               <div class="stat-label">จำนวนงานทั้งหมด</div>
               <div class="stat-val" style="color: #4f46e5;">${totalTasksCount} รายการ</div>
             </div>
-            <div class="stat-card" style="border-top: 3px solid #10b981;">
-              <div class="stat-label">ทำงานเสร็จแล้ว</div>
+            <div class="stat-card" style="border-top: 3.5px solid #10b981;">
+              <div class="stat-label">งานดำเนินเสร็จสิ้นแล้ว</div>
               <div class="stat-val" style="color: #059669;">${completedTasksCount} รายการ</div>
             </div>
-            <div class="stat-card" style="border-top: 3px solid #f59e0b;">
-              <div class="stat-label">ค่าใช้จ่ายทั้งหมด</div>
+            <div class="stat-card" style="border-top: 3.5px solid #f59e0b;">
+              <div class="stat-label">ยอดสรุปค่าใช้จ่ายสะสม</div>
               <div class="stat-val" style="color: #d97706;">฿${totalExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             </div>
-            <div class="stat-card" style="border-top: 3px solid #ef4444;">
-              <div class="stat-label">ยอดที่ค้างชำระ</div>
+            <div class="stat-card" style="border-top: 3.5px solid #ef4444;">
+              <div class="stat-label">คงค้างชำระ (Pending bills)</div>
               <div class="stat-val" style="color: #dc2626;">฿${unpaidExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             </div>
           </div>
         ` : ''}
-
+ 
         ${modules.tasks ? `
           <div class="section-title">
-            <span>📋 รายการงานและภารกิจ</span>
-            <span style="font-size: 11px; font-weight: normal;">รวมทั้งหมด ${totalTasksCount} รายการ</span>
+            <span>📋 บัญชีและรายละเอียดรายการภารกิจ (Task and Objectives Diary)</span>
+            <span style="font-size: 11px; font-weight: normal; color: #475569;">รวมข้อมูลทั้งหมด <strong>${totalTasksCount}</strong> งาน</span>
           </div>
-
+ 
           <table>
             <thead>
               <tr>
-                <th style="width: 6%; text-align: center;">ลำดับ</th>
-                <th style="width: 30%;">ชื่องาน / ภารกิจ</th>
-                ${includeNotes ? '<th style="width: 32%;">รายละเอียดงาน</th>' : ''}
-                <th style="width: 14%;">หมวดหมู่</th>
-                <th style="width: 11%;">กำหนดส่ง</th>
-                <th style="width: 9%; text-align: center;">สถานะ</th>
+                <th style="width: 7%; text-align: center;">ลำดับ</th>
+                <th style="width: 32%;">ชื่องาน / ภารกิจ</th>
+                ${includeNotes ? '<th style="width: 32%;">รายละเอียดงานและหมายเหตุ</th>' : ''}
+                <th style="width: 14%;">หมวดหมู่งาน</th>
+                <th style="width: 15%;">วันกำหนดส่งเป้าหมาย</th>
+                <th style="width: 10%; text-align: center;">สถานะงาน</th>
               </tr>
             </thead>
             <tbody>
               ${filteredTasks.length === 0 ? `
                 <tr>
-                   <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 20px; color: #94a3b8;">
-                    <i>- ไม่มีรายการงานในช่วงเวลานี้ -</i>
+                   <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 25px; color: #94a3b8;">
+                    <i>- ไม่พบรายการงานในช่วงเวลาที่เลือกพิมพ์ -</i>
                   </td>
                 </tr>
               ` : filteredTasks.map((t, idx) => `
                 <tr>
-                  <td class="text-center font-bold">${idx + 1}</td>
+                  <td class="text-center font-bold" style="color: #475569;">${idx + 1}</td>
                   <td><strong>${t.title}</strong></td>
-                  ${includeNotes ? `<td>${t.desc ? t.desc.replace(/\n/g, '<br/>') : '<span style="color:#cbd5e1">-</span>'}</td>` : ''}
-                  <td>${t.category}</td>
+                  ${includeNotes ? `<td>${t.desc ? t.desc.replace(/\n/g, '<br/>') : '<span style="color:#cbd5e1; font-style:italic;">- ไม่มีรายละเอียดในรายการนี้ -</span>'}</td>` : ''}
+                  <td><span style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; border: 1px solid #e2e8f0;">${t.category}</span></td>
                   <td>
-                    ${formatThaiDateStr(t.dueDate)}
-                    ${t.dueTime ? `<div style="font-size: 9.5px; color:#64748b; margin-top:2px;">⏰ ${t.dueTime} น.</div>` : ''}
+                    <span style="font-weight: 500;">${formatThaiDateStr(t.dueDate)}</span>
+                    ${t.dueTime ? `<div style="font-size: 9.5px; color:#475569; margin-top:3.5px; font-weight: 600;">⏰ เวลาส่ง: ${t.dueTime} น.</div>` : ''}
                   </td>
                   <td class="text-center">
                     <span class="badge ${t.status === 'completed' ? 'badge-completed' : 'badge-pending'}">
-                      ${t.status === 'completed' ? 'เสร็จแล้ว' : 'รอดำเนินการ'}
+                      ${t.status === 'completed' ? 'เสร็จสมบูรณ์' : 'กำลังดำเนินการ'}
                     </span>
                   </td>
                 </tr>
@@ -472,75 +530,77 @@ export function PrintReportModal({ isOpen, onClose, tasks, expenses, settings }:
             </tbody>
           </table>
         ` : ''}
-
+ 
         ${modules.expenses ? `
           <div class="section-title">
-            <span>💰 บัญชีรายจ่ายและรายรับ</span>
-            <span style="font-size: 11px; font-weight: normal;">รวมทั้งหมด ${filteredExpenses.length} รายการ</span>
+            <span>💰 บัญชีแจกแจงรายจ่ายและรายรับทางการเงิน (Financial Ledger Statement)</span>
+            <span style="font-size: 11px; font-weight: normal; color: #475569;">รวมธุรกรรมทั้งหมด <strong>${filteredExpenses.length}</strong> บิล</span>
           </div>
-
+ 
           <table>
             <thead>
               <tr>
-                <th style="width: 6%; text-align: center;">ลำดับ</th>
-                <th style="width: 27%;">ชื่อรายการ / ธุรกรรม</th>
-                ${includeNotes ? '<th style="width: 32%;">รายละเอียด / บันทึกย่อ</th>' : ''}
-                <th style="width: 13%;">หมวดหมู่</th>
-                <th style="width: 12%; text-align: right;">จำนวนเงิน</th>
-                <th style="width: 10%; text-align: center;">สถานะ</th>
+                <th style="width: 7%; text-align: center;">ลำดับ</th>
+                <th style="width: 32%;">ชื่อรายการทางการเงิน / ธุรกรรม</th>
+                ${includeNotes ? '<th style="width: 32%;">รายละเอียดค่าใช้จ่าย / ข้อมูลอ้างอิงบิล</th>' : ''}
+                <th style="width: 14%;">หมวดรายจ่าย</th>
+                <th style="width: 15%; text-align: right;">จำนวนยอดเงินรวม</th>
+                <th style="width: 10%; text-align: center;">สถานะของบิล</th>
               </tr>
             </thead>
             <tbody>
               ${filteredExpenses.length === 0 ? `
                 <tr>
-                  <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 20px; color: #94a3b8;">
-                    <i>- ไม่มีรายการค่าใช้จ่ายในช่วงเวลานี้ -</i>
+                  <td colspan="${includeNotes ? 6 : 5}" style="text-align: center; padding: 25px; color: #94a3b8;">
+                    <i>- ไม่พบธุรกรรมหรือบันทึกรายจ่ายในช่วงเวลาที่จัดพิมพ์ -</i>
                   </td>
                 </tr>
               ` : filteredExpenses.map((e, idx) => `
                 <tr>
-                  <td class="text-center font-bold">${idx + 1}</td>
+                  <td class="text-center font-bold" style="color: #475569;">${idx + 1}</td>
                   <td><strong>${e.name}</strong></td>
-                  ${includeNotes ? `<td>${e.note ? e.note.replace(/\n/g, '<br/>') : '<span style="color:#cbd5e1">-</span>'}</td>` : ''}
-                  <td>${e.cat}</td>
-                  <td class="text-right" style="font-weight: 600;">฿${e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  ${includeNotes ? `<td>${e.note ? e.note.replace(/\n/g, '<br/>') : '<span style="color:#cbd5e1; font-style:italic;">- ไม่มีบันทึกย่อกำกับ -</span>'}</td>` : ''}
+                  <td><span style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; border: 1px solid #e2e8f0;">${e.cat}</span></td>
+                  <td class="text-right" style="font-weight: 700; color: #0f172a; font-family: monospace; font-size: 12px;">฿${e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td class="text-center">
                     <span class="badge ${e.paid ? 'badge-paid' : 'badge-unpaid'}">
-                      ${e.paid ? 'ชำระแล้ว' : 'ค้างชำระ'}
+                      ${e.paid ? 'ชำระเงินเรียบร้อย' : 'คงค้างชำrate'}
                     </span>
                   </td>
                 </tr>
               `).join('')}
               ${filteredExpenses.length > 0 ? `
-                <tr style="background-color: #f8fafc; font-weight: bold;">
-                  <td colspan="${includeNotes ? 4 : 3}" class="text-right" style="padding: 8px;">ยอดรวมทั้งหมด:</td>
-                  <td class="text-right" style="color: #0f172a; padding: 8px; font-size: 13px;">฿${totalExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td style="background-color:#f1f5f9; padding: 8px;" class="text-center">
-                    <div style="font-size: 9px; color:#475569;">จ่ายแล้ว ฿${paidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}<br/>ค้างจ่าย ฿${unpaidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</div>
+                <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #475569;">
+                  <td colspan="${includeNotes ? 4 : 3}" class="text-right" style="padding: 10px; font-size: 12.5px;">ยอดรวมค่าเดบิตสุทธิประจำรอบ:</td>
+                  <td class="text-right" style="color: #1e3a8a; padding: 10px; font-size: 13.5px; font-family: monospace;">฿${totalExpenseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td style="background-color:#e2e8f0; padding: 10px;" class="text-center">
+                    <div style="font-size: 9px; color:#1e293b; font-weight: bold; line-height: 1.3;">ชำระแล้ว: ฿${paidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}<br/>ค้างจ่าย: ฿${unpaidExpenseAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</div>
                   </td>
                 </tr>
               ` : ''}
             </tbody>
           </table>
         ` : ''}
-
-        <div class="signatures-block">
-          <div class="sig-column">
-            <div class="dotted-line"></div>
-            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงชื่อผู้รายงาน</p>
-            <p style="font-size: 9.5px; color: #64748b; margin-top: 3.5px;">ผู้ใช้งานระบบ</p>
+ 
+        ${showSignatures ? `
+          <div class="signatures-block">
+            <div class="sig-column">
+              <div class="dotted-line"></div>
+              <p style="font-size: 11px; margin: 0; font-weight: 700; color: #334155;">ลงชื่อผู้พิมพ์รายงาน</p>
+              <p style="font-size: 10px; color: #64748b; margin-top: 4px;">ผู้สั่งพิมพ์งาน (${userId})</p>
+            </div>
+            <div class="sig-column">
+              <div class="dotted-line"></div>
+              <p style="font-size: 11px; margin: 0; font-weight: 700; color: #334155;">ลงชื่อผู้อนุมัติ / ผู้ตรวจสอบรายการ</p>
+              <p style="font-size: 10px; color: #64748b; margin-top: 4px;">( .................................................... )</p>
+            </div>
           </div>
-          <div class="sig-column">
-            <div class="dotted-line"></div>
-            <p style="font-size: 11px; margin: 0; font-weight: 600;">ลงชื่อผู้ตรวจสอบ / พยาน</p>
-            <p style="font-size: 9.5px; color: #64748b; margin-top: 3.5px;">( .................................................... )</p>
-          </div>
-        </div>
-
+        ` : ''}
+ 
         <p class="footer-note">
-          รายงานนี้ถูกสร้างขึ้นโดยอัตโนมัติด้วยระบบ TaskFlow Space เพื่อความเรียบร้อยและง่ายต่อการใช้งาน
+          ${userFooterText}
         </p>
-
+ 
       </body>
       </html>
     `;
