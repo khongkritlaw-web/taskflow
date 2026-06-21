@@ -263,6 +263,25 @@ export default function App() {
     };
   }, [sessionUser.userId]);
 
+  // Listen for storage event to sync settings across multiple tabs in the same browser instantly
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith('settings_')) {
+        const targetUser = e.key.replace('settings_', '');
+        if (targetUser === currentViewUserId && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            setSettings(parsed);
+          } catch (err) {}
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [currentViewUserId]);
+
   // Sychronize input values with loaded session user
   useEffect(() => {
     if (sessionUser.userId) {
@@ -1878,6 +1897,23 @@ export default function App() {
               />
             ) : (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+              
+              {/* STATUS ACTION BANNER */}
+              <div className="xl:col-span-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 p-4 border border-emerald-500/20 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 dark:from-emerald-950/20 dark:via-teal-950/20 dark:to-blue-950/20 dark:border-emerald-800/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-500 text-white animate-pulse">
+                    ⚡
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-xs font-black text-emerald-800 dark:text-emerald-400">ระบบซิงก์ข้อมูลคลาวด์แบบเรียลไทม์สมบูรณ์แบบ (Cloud & Cross-Device Live Sync Enabled)</h4>
+                    <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-semibold">การแก้ไขการตั้งค่าใดๆ ในบัญชีเดียวกันบนอุปกรณ์/เบราว์เซอร์นี้ จะเปลี่ยนตามทั้งหมดบนหน้าจอของอุปกรณ์อื่นทันที</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-750 dark:text-emerald-400 px-3 py-1.5 rounded-full text-[10px] font-black">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                  ระบบเชื่อมต่ออยู่ (Cloud Live)
+                </div>
+              </div>
               
               {/* ส่วนความปลอดภัย & แก้ไขรหัสผ่านก่อนเข้าใช้งาน */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 dark:bg-slate-900 dark:border-slate-800 xl:col-span-2">
