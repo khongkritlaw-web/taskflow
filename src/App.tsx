@@ -314,6 +314,102 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
+  // ----------------------------------------------------
+  // IDLE TIMEOUT AUTO-LOGOUT ENGINE (1 HOUR INACTIVITY DETECTOR)
+  // ----------------------------------------------------
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    // Use a user-specific id to calculate inactivity so cross-user interactions don't collide
+    const activityKey = `sys_last_activity_${sessionUser.userId || 'generic'}`;
+    const IDLE_TIMEOUT = 1 * 60 * 60 * 1000; // 1 Hour in milliseconds
+    const checkIntervalTime = 10000; // Check every 10 seconds
+
+    // Update active user interaction / physical engagement timestamp
+    const updateActivity = () => {
+      try {
+        localStorage.setItem(activityKey, String(Date.now()));
+      } catch (e) {}
+    };
+
+    // Initialize/reset timestamp upon initial trigger
+    updateActivity();
+
+    // Specific user input events indicating active engagement on client
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    
+    // Throttle timestamp writes to protect execution speed and local storage state from lagging
+    let lastRegisterTime = Date.now();
+    const handleUserActivity = () => {
+      const now = Date.now();
+      if (now - lastRegisterTime > 2000) { // Throttle interval: 2 seconds
+        lastRegisterTime = now;
+        updateActivity();
+      }
+    };
+
+    // Attach passive listeners to avoid main-thread scroll blocks
+    events.forEach((ev) => {
+      window.addEventListener(ev, handleUserActivity, { passive: true });
+    });
+
+    const checkIdleStatus = () => {
+      try {
+        const lastActivityStr = localStorage.getItem(activityKey);
+        if (lastActivityStr) {
+          const lastActivity = parseInt(lastActivityStr, 10);
+          const diff = Date.now() - lastActivity;
+          if (diff >= IDLE_TIMEOUT) {
+            console.log('🚪 Inactivity timeout triggered. Auto logging out user.');
+            
+            // Perform automatic silent logout steps
+            cleanupSubscriptions();
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('sess_userId');
+            localStorage.removeItem('user_email');
+            localStorage.removeItem('user_phone');
+            localStorage.removeItem('user_password');
+            localStorage.removeItem('sess_uid');
+            
+            setIsLoggedIn(false);
+            setDataLoaded(false);
+            setSessionUser({ userId: '', email: '', phone: '', password: '' });
+            setTasks([]);
+            setExpenses([]);
+
+            // Trigger beautiful native-design dialog warning of connection timeout
+            showAlert(
+              'คุณถูกออกจากระบบโดยอัตโนมัติเพื่อความปลอดภัย เนื่องจากไม่มีความเคลื่อนไหวทางหน้าจอหรือปิดหน้าเว็บค้างไว้นานเกิน 1 ชั่วโมง',
+              'หมดเวลารอบเซสชัน (Session Expired)',
+              'warning'
+            ).catch(() => {});
+          }
+        }
+      } catch (e) {}
+    };
+
+    // Periodically verify remaining time limit
+    const intervalTimer = setInterval(checkIdleStatus, checkIntervalTime);
+
+    // Immediate check on focusing window back, or when the tab becomes active/visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkIdleStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', checkIdleStatus);
+
+    return () => {
+      events.forEach((ev) => {
+        window.removeEventListener(ev, handleUserActivity);
+      });
+      clearInterval(intervalTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', checkIdleStatus);
+    };
+  }, [isLoggedIn, sessionUser.userId]);
+
   // 1.1 Automatic Daily Email Auto-Send Evaluation
   useEffect(() => {
     if (!isLoggedIn || !dataLoaded) return;
