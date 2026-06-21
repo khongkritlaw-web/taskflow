@@ -81,6 +81,41 @@ function getCustomLinkIconComponent(name: string) {
   return item ? item.component : Link;
 }
 
+// Check if a URL might fail to load in standard sandboxed iframe (such as Mixed Content or X-Frame-Options blocked sites)
+function isFrameRestricted(url: string | undefined): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  
+  // Mixed Content block: HTTP embedded inside HTTPS application
+  if (lower.startsWith('http://')) {
+    return true;
+  }
+  
+  const restrictedKeywords = [
+    'google.',
+    'facebook.',
+    'fb.com',
+    'youtube.',
+    'youtu.be',
+    'wikipedia.',
+    'github.',
+    'twitter.',
+    'x.com',
+    'instagram.',
+    'linkedin.',
+    'pantip.',
+    'shopee.',
+    'lazada.',
+    'netflix.',
+    'yahoo.',
+    'bing.',
+    'apple.',
+    'microsoft.'
+  ];
+  
+  return restrictedKeywords.some(kw => lower.includes(kw));
+}
+
 export default function App() {
   const { showAlert, showConfirm } = useDialog();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -172,6 +207,20 @@ export default function App() {
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [newLinkIcon, setNewLinkIcon] = useState('Link');
+  const [linkHintVisible, setLinkHintVisible] = useState(false);
+
+  // Manage visibility of iframe frame security guidelines banner (shows for 5 seconds when switching custom links)
+  useEffect(() => {
+    if (activeTab.startsWith('link_')) {
+      setLinkHintVisible(true);
+      const timer = setTimeout(() => {
+        setLinkHintVisible(false);
+      }, 5000); // Hide after exactly 5 seconds
+      return () => clearTimeout(timer);
+    } else {
+      setLinkHintVisible(false);
+    }
+  }, [activeTab]);
   
   // Email connection notifications test result
   const [emailResult, setEmailResult] = useState<{ text: string; type: 'ok' | 'err' | 'loading' | null }>({ text: '', type: null });
@@ -1930,11 +1979,13 @@ export default function App() {
                 </div>
 
                 {/* HELP BANNER FOR IFRAME SECURITY POLICIES */}
-                <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center gap-2 text-slate-600 dark:text-slate-350 flex-shrink-0">
-                  <span className="text-[11px] font-medium leading-relaxed">
-                    💡 <strong>คำแนะนำระบบ:</strong> บางเว็บไซต์ที่มีความปลอดภัยสูง (เช่น Google, Facebook, Youtube, Wikipedia) อาจถูกบล็อกไม่ให้แสดงผลในเฟรม (แซนด์บ็อกซ์ปกติของเบราว์เซอร์) ท่านสามารถคลิกปุ่ม <strong>"🚀 เปิดลิงก์ตรง"</strong> ด้านบนขวา เพื่อเข้าชมเว็บไซต์โดยตรงและเปิดใช้ได้ทันทีทุกที่เชื่อมโยง
-                  </span>
-                </div>
+                {linkHintVisible && isFrameRestricted(targetLink.url) && (
+                  <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center gap-2 text-slate-600 dark:text-slate-350 flex-shrink-0 transition-opacity duration-350 animate-fade-in">
+                    <span className="text-[11px] font-medium leading-relaxed">
+                      💡 <strong>คำแนะนำระบบ:</strong> บางเว็บไซต์ที่มีความปลอดภัยสูง (เช่น Google, Facebook, Youtube, Wikipedia) อาจถูกบล็อกไม่ให้แสดงผลในเฟรม (แซนด์บ็อกซ์ปกติของเบราว์เซอร์) ท่านสามารถคลิกปุ่ม <strong>"🚀 เปิดลิงก์ตรง"</strong> ด้านบนขวา เพื่อเข้าชมเว็บไซต์โดยตรงและเปิดใช้ได้ทันทีทุกที่เชื่อมโยง
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950">
                   <iframe 
