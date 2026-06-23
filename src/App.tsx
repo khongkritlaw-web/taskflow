@@ -193,6 +193,7 @@ export default function App() {
   const [allUsersList, setAllUsersList] = useState<{ userId: string; email: string; phone: string; uid: string }[]>([]);
   const [currentViewUid, setCurrentViewUid] = useState<string>('');
   const [currentViewUserId, setCurrentViewUserId] = useState<string>('');
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
 
   useEffect(() => {
     if (activeTab !== 'settings') {
@@ -701,6 +702,7 @@ export default function App() {
 
       if (savedSettings) setSettings(JSON.parse(savedSettings));
       else setSettings(defaultSet);
+      setIsCloudSynced(false);
       setDataLoaded(true);
       return;
     }
@@ -890,9 +892,13 @@ export default function App() {
           console.error('Firestore real-time expenses sync error:', error);
         });
 
-        if (active) setDataLoaded(true);
+        if (active) {
+          setIsCloudSynced(true);
+          setDataLoaded(true);
+        }
       } catch (err) {
         console.error('Failed to sync or migrate from Firestore on login:', err);
+        if (active) setIsCloudSynced(false);
         
         // Fail-safe load from localStorage when Firestore is offline or disconnected
         const savedTasks = localStorage.getItem(`tasks_${targetUserId}`);
@@ -1828,6 +1834,12 @@ export default function App() {
                 <div className="text-[9px] text-slate-500 font-medium truncate" title={sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}>
                   {sessionUser.email || sessionUser.phone || 'บัญชีระยะไกล'}
                 </div>
+                <div className="flex items-center gap-1 mt-0.5 select-none leading-none">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+                  <span className={`text-[8px] font-extrabold ${isCloudSynced ? 'text-emerald-400' : 'text-amber-500'}`}>
+                    {isCloudSynced ? 'ซิงก์คลาวด์แล้ว (Online)' : 'จัดเก็บในเครื่อง (Offline)'}
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -2106,6 +2118,12 @@ export default function App() {
                 <span className="block text-[9px] text-slate-400 font-medium leading-none truncate max-w-[100px]">
                   {sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}
                 </span>
+                <div className="flex items-center gap-1 mt-0.5 select-none leading-none">
+                  <span className={`w-1 h-1 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+                  <span className={`text-[7.5px] font-extrabold ${isCloudSynced ? 'text-emerald-500' : 'text-amber-500'}`}>
+                    {isCloudSynced ? 'ออนไลน์' : 'ออฟไลน์'}
+                  </span>
+                </div>
               </div>
             </div>
 
