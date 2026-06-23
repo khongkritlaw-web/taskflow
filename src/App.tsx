@@ -165,7 +165,8 @@ export default function App() {
     soundType: 'chime',
     soundVolume: 80,
     soundOnComplete: true,
-    soundOnAdd: true
+    soundOnAdd: true,
+    customMenuLinks: []
   });
 
   // UI state controllers
@@ -591,7 +592,8 @@ export default function App() {
       soundVolume: 80,
       soundOnComplete: true,
       soundOnAdd: true,
-      aiAssistantEnabled: true
+      aiAssistantEnabled: true,
+      customMenuLinks: []
     };
 
     setCustomHolidays({
@@ -683,12 +685,16 @@ export default function App() {
       soundVolume: 80,
       soundOnComplete: true,
       soundOnAdd: true,
-      aiAssistantEnabled: true
+      aiAssistantEnabled: true,
+      customMenuLinks: []
     };
 
     const loadAndSetupProfile = async () => {
-      const uid = currentViewUid;
       const targetUserId = currentViewUserId;
+      // UNIFIED CROSS-MACHINE CLOUD SYNC: ALWAYS use the canonical username (targetUserId)
+      // as the Firestore document subcollection path key. This ensures perfect sync across all devices
+      // and different login techniques.
+      const uid = targetUserId;
 
       try {
         // 1. Fetch settings from Firestore
@@ -906,7 +912,7 @@ export default function App() {
       localStorage.setItem(`tasks_${sessionUser.userId}`, JSON.stringify(newTasks));
     }
 
-    const uid = currentViewUid || localStorage.getItem('sess_uid');
+    const uid = currentViewUserId || localStorage.getItem('sess_userId');
     if (uid) {
       try {
         const previousMap = new Map<string, Task>(tasks.map(t => [t.id, t]));
@@ -941,7 +947,7 @@ export default function App() {
       localStorage.setItem(`expenses_${sessionUser.userId}`, JSON.stringify(newExpenses));
     }
 
-    const uid = currentViewUid || localStorage.getItem('sess_uid');
+    const uid = currentViewUserId || localStorage.getItem('sess_userId');
     if (uid) {
       try {
         const previousMap = new Map<string, Expense>(expenses.map(e => [e.id, e]));
@@ -976,7 +982,7 @@ export default function App() {
       localStorage.setItem(`settings_${sessionUser.userId}`, JSON.stringify(newSettings));
     }
 
-    const uid = currentViewUid || localStorage.getItem('sess_uid');
+    const uid = currentViewUserId || localStorage.getItem('sess_userId');
     if (uid) {
       try {
         await setDoc(doc(db, 'users', uid, 'settings', 'app'), newSettings);
