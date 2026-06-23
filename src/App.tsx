@@ -1834,10 +1834,29 @@ export default function App() {
                 <div className="text-[9px] text-slate-500 font-medium truncate" title={sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}>
                   {sessionUser.email || sessionUser.phone || 'บัญชีระยะไกล'}
                 </div>
-                <div className="flex items-center gap-1 mt-0.5 select-none leading-none">
+                <div 
+                  className="flex items-center gap-1 mt-0.5 select-none leading-none cursor-pointer hover:opacity-85"
+                  onClick={async () => {
+                    if (!isCloudSynced) {
+                      showAlert("ตรวจพบสถานะการทำงานในเครื่อง (Offline) ระบบกำลังเตรียมซิงก์ผลลัพธ์ในเครื่องทั้งหมดขึ้นเซิร์ฟเวอร์แบบแมนนวลให้ทันทีค่ะ...", "ประสานระบบสำรองข้อมูล", "info");
+                      try {
+                        const uid = currentViewUserId || localStorage.getItem('sess_userId');
+                        if (uid) {
+                          await forcePushLocalToCloud(currentViewUserId, uid);
+                          setIsCloudSynced(true);
+                          showAlert("🚀 ซิงก์ประวัติการแก้ไขและบอร์ดงานในเครื่องทั้งหมดขึ้นสู่ระบบ Cloud Firestore เรียบร้อยแล้วค่ะ! เปิดเครื่องอื่นงานจะเชื่อมโยงกันทันทีโดยไม่ต้องแก้ไขซ้ำค่ะ", "คลาวด์ซิงก์เสร็จสิ้น", "success");
+                        }
+                      } catch (e: any) {
+                        showAlert("ไม่สามารถเชื่อมต่อประสานระบบแมนนวลได้ในขณะนี้: " + (e.message || String(e)), "ผิดพลาด", "error");
+                      }
+                    } else {
+                      showAlert("ระบบคลาวด์ Cloud Firestore ทำงานได้สมบูรณ์ ปกติ และเชื่อมต่อเรียลไทม์เรียบร้อยแล้วค่ะ! ทุกข้อมูลอัปเดตเรียลไทม์แล้ว", "เชื่อมต่อคลาวด์สมบูรณ์", "success");
+                    }
+                  }}
+                >
                   <span className={`w-1.5 h-1.5 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
                   <span className={`text-[8px] font-extrabold ${isCloudSynced ? 'text-emerald-400' : 'text-amber-500'}`}>
-                    {isCloudSynced ? 'ซิงก์คลาวด์แล้ว (Online)' : 'จัดเก็บในเครื่อง (Offline)'}
+                    {isCloudSynced ? 'ซิงก์คลาวด์แล้ว (Online)' : 'จัดเก็บในเครื่อง (Offline) - คลิกซิงก์'}
                   </span>
                 </div>
               </div>
@@ -2118,10 +2137,29 @@ export default function App() {
                 <span className="block text-[9px] text-slate-400 font-medium leading-none truncate max-w-[100px]">
                   {sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}
                 </span>
-                <div className="flex items-center gap-1 mt-0.5 select-none leading-none">
+                <div 
+                  className="flex items-center gap-1 mt-0.5 select-none leading-none cursor-pointer hover:opacity-85"
+                  onClick={async () => {
+                    if (!isCloudSynced) {
+                      showAlert("ตรวจพบสถานะการทำงานในเครื่อง (Offline) ระบบกำลังเตรียมซิงก์ผลลัพธ์ในเครื่องทั้งหมดขึ้นเซิร์ฟเวอร์แบบแมนนวลให้ทันทีค่ะ...", "ประสานระบบสำรองข้อมูล", "info");
+                      try {
+                        const uid = currentViewUserId || localStorage.getItem('sess_userId');
+                        if (uid) {
+                          await forcePushLocalToCloud(currentViewUserId, uid);
+                          setIsCloudSynced(true);
+                          showAlert("🚀 ซิงก์ประวัติการแก้ไขและบอร์ดงานในเครื่องทั้งหมดขึ้นสู่ระบบ Cloud Firestore เรียบร้อยแล้วค่ะ! เปิดเครื่องอื่นงานจะเชื่อมโยงกันทันทีโดยไม่ต้องแก้ไขซ้ำค่ะ", "คลาวด์ซิงก์เสร็จสิ้น", "success");
+                        }
+                      } catch (e: any) {
+                        showAlert("ไม่สามารถเชื่อมต่อประสานระบบแมนนวลได้ในขณะนี้: " + (e.message || String(e)), "ผิดพลาด", "error");
+                      }
+                    } else {
+                      showAlert("ระบบคลาวด์ Cloud Firestore ทำงานได้สมบูรณ์ ปกติ และเชื่อมต่อเรียลไทม์เรียบร้อยแล้วค่ะ! ทุกข้อมูลอัปเดตเรียลไทม์แล้ว", "เชื่อมต่อคลาวด์สมบูรณ์", "success");
+                    }
+                  }}
+                >
                   <span className={`w-1 h-1 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
                   <span className={`text-[7.5px] font-extrabold ${isCloudSynced ? 'text-emerald-500' : 'text-amber-500'}`}>
-                    {isCloudSynced ? 'ออนไลน์' : 'ออฟไลน์'}
+                    {isCloudSynced ? 'ออนไลน์' : 'ออฟไลน์ (คลิกซิงก์)'}
                   </span>
                 </div>
               </div>

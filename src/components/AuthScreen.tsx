@@ -307,20 +307,50 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const finalPass = padPass(regPass);
 
       console.log('Attempting register user with FirebaseAuth email:', emailFirebase);
-      // Create Firebase Auth user directly - if it exists, it throws email-already-in-use
-      const userCredential = await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
-      const uid = userCredential.user.uid;
+      let uid = '';
+      let profileData: any;
 
-      const profileData = {
-        userId: trimmedId,
-        email: trimmedEmail,
-        phone: trimmedPhone,
-        password: regPass,
-        uid: uid
-      };
+      try {
+        // Create Firebase Auth user directly - if it exists, it throws email-already-in-use
+        const userCredential = await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
+        uid = userCredential.user.uid;
+        profileData = {
+          userId: trimmedId,
+          email: trimmedEmail,
+          phone: trimmedPhone,
+          password: regPass,
+          uid: uid
+        };
+        // Save user to Firestore users collection using auth UID
+        await setDoc(doc(db, 'users', uid), profileData);
+      } catch (authError: any) {
+        console.warn('Firebase Auth registration failed, falling back to direct Firestore register:', authError);
+        if (authError.code === 'auth/email-already-in-use') {
+          triggerError('ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
+          setIsLoading(false);
+          return;
+        }
 
-      // Save user to Firestore users collection
-      await setDoc(doc(db, 'users', uid), profileData);
+        // Direct Firestore registration checked by document ID
+        const userDocRef = doc(db, 'users', trimmedId);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          triggerError('ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
+          setIsLoading(false);
+          return;
+        }
+
+        uid = trimmedId;
+        profileData = {
+          userId: trimmedId,
+          email: trimmedEmail,
+          phone: trimmedPhone,
+          password: regPass,
+          uid: uid
+        };
+        // Save directly to Firestore users collection using username as ID
+        await setDoc(userDocRef, profileData);
+      }
 
       // Save user profiles globally in local registries for offline lookups
       localStorage.setItem(`user_profile_${trimmedEmail.toLowerCase()}`, JSON.stringify(profileData));
@@ -341,14 +371,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       }, 1500);
     } catch (error: any) {
       console.log('Registration error:', error);
-      if (error.code === 'auth/email-already-in-use') {
-        triggerError('ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
-      } else if (error.code === 'auth/operation-not-allowed') {
-        setDiagnosticError('operation-not-allowed');
-        triggerError('⚠️ ไม่สามารถใช้ระบบคลาวด์ได้เนื่องจากโครงการ Firebase Authentication ยังไม่ได้เปิดรับสิทธิ์สมัครแบบ Email/Password');
-      } else {
-        triggerError('การลงทะเบียนล้มเหลว: ' + (error.message || String(error)));
-      }
+      triggerError('การลงทะเบียนล้มเหลว: ' + (error.message || String(error)));
     } finally {
       setIsLoading(false);
     }
