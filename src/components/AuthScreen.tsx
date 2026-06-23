@@ -712,21 +712,6 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           {/* 1. LOGIN FORM */}
           {formType === 'login' && (
             <div className="space-y-4">
-              {/* Predefined Demo / Auto-registration Tip */}
-              <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex flex-col gap-1.5 dark:bg-slate-900 dark:border-slate-850/50">
-                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  💡 บัญชีเข้าทดสอบระบบแอปพลิเคชัน
-                </span>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700 dark:text-slate-300">
-                  <div>ไอดีผู้ใช้งาน: <code className="px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-800 text-slate-950 dark:text-white font-mono font-bold">admin</code></div>
-                  <div>รหัสผ่าน: <code className="px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-800 text-slate-950 dark:text-white font-mono font-bold">000000</code></div>
-                </div>
-                <p className="text-[10px] text-slate-450 dark:text-slate-500 leading-normal">
-                  * คุณสามารถใช้ไอดี <strong className="text-slate-950 dark:text-slate-200">admin</strong> ข้อมูลสมมติจะเชื่อมโยงไปที่เก็บคลาวด์ หรือ 
-                  <strong className="text-slate-950 dark:text-slate-200"> สร้าง/กรอกชื่อผู้ใช้และรหัสใหม่ได้เลย</strong> ระบบจะทำงานสมัครบัญชีเครือข่ายให้ทันทีถ้าไม่พบบัญชีเดิม!
-                </p>
-              </div>
-
               <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
@@ -738,7 +723,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                     type="text"
                     value={loginId}
                     onChange={(e) => setLoginId(e.target.value)}
-                    placeholder="ป้อนชื่อไอดีผู้ใช้ของคุณ... (เช่น admin)"
+                    placeholder="ป้อนชื่อไอดีผู้ใช้งานของคุณ..."
                     className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                     disabled={isLoading}
@@ -748,14 +733,14 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                  รหัสผ่านลับ
+                  รหัสผ่าน
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={loginPass}
                     onChange={(e) => setLoginPass(e.target.value)}
-                    placeholder="ป้อนรหัสผ่านสำรอง..."
+                    placeholder="ป้อนรหัสผ่าน..."
                     className="w-full h-12 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-mono font-bold"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                     disabled={isLoading}
