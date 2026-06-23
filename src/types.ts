@@ -73,4 +73,5 @@ export interface AppSettings {
   soundVolume?: number; // 0 to 100
   soundOnComplete?: boolean;
   soundOnAdd?: boolean;
+  aiAssistantEnabled?: boolean;
 }

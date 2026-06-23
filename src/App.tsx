@@ -45,6 +45,7 @@ import { updateEmail, updatePassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { useDialog } from './components/CustomDialog';
 import { playNotificationSound } from './lib/soundUtils';
+import AiAssistant from './components/AiAssistant';
 
 const padPass = (pass: string) => {
   if (pass.length >= 6) return pass;
@@ -589,7 +590,8 @@ export default function App() {
       soundType: 'chime' as const,
       soundVolume: 80,
       soundOnComplete: true,
-      soundOnAdd: true
+      soundOnAdd: true,
+      aiAssistantEnabled: true
     };
 
     setCustomHolidays({
@@ -680,7 +682,8 @@ export default function App() {
       soundType: 'chime' as const,
       soundVolume: 80,
       soundOnComplete: true,
-      soundOnAdd: true
+      soundOnAdd: true,
+      aiAssistantEnabled: true
     };
 
     const loadAndSetupProfile = async () => {
@@ -1118,6 +1121,76 @@ export default function App() {
   const handleDeleteExpense = (id: string) => {
     const filtered = expenses.filter(e => e.id !== id);
     syncExpenses(filtered);
+  };
+
+  // AI Actions dispatcher
+  const handleExecuteAiActions = (actions: any[]) => {
+    if (!actions || !Array.isArray(actions)) return;
+
+    actions.forEach(action => {
+      try {
+        const { type, payload } = action;
+        if (!payload) return;
+
+        switch (type) {
+          case 'add_task': {
+            handleAddTask({
+              title: payload.title || 'งานด่วนจากเลขา AI',
+              desc: payload.desc || '',
+              category: payload.category || settings.categories[0] || '💼 งานทั่วไป',
+              dueDate: payload.dueDate || getThailandTodayStr(),
+              dueTime: payload.dueTime || '',
+              status: 'pending',
+              userId: sessionUser.userId
+            });
+            break;
+          }
+          case 'delete_task': {
+            if (payload.id) {
+              handleDeleteTask(payload.id);
+            }
+            break;
+          }
+          case 'update_task': {
+            if (payload.id) {
+              const { id, ...rest } = payload;
+              handleEditTask(id, rest);
+            }
+            break;
+          }
+          case 'add_expense': {
+            handleAddExpense({
+              name: payload.name || 'ค่าใช้จ่ายจดโดยเลขา AI',
+              amount: Number(payload.amount) || 0,
+              cat: payload.cat || '🍔 อาหาร',
+              date: payload.date || getThailandTodayStr(),
+              dueDate: payload.dueDate || getThailandTodayStr(),
+              note: payload.note || '',
+              paid: payload.paid === true,
+              userId: sessionUser.userId
+            });
+            break;
+          }
+          case 'delete_expense': {
+            if (payload.id) {
+              handleDeleteExpense(payload.id);
+            }
+            break;
+          }
+          case 'update_expense': {
+            if (payload.id) {
+              const { id, ...rest } = payload;
+              handleEditExpense(id, rest);
+            }
+            break;
+          }
+          default:
+            console.warn('Unknown AI Action Type:', type);
+        }
+      } catch (e) {
+        console.error('Error executing AI action:', e, action);
+      }
+    });
   };
 
   // 5. Settings Tab Handlers
@@ -3163,6 +3236,35 @@ export default function App() {
                     <p className="text-[10px] text-slate-500 dark:text-slate-450 font-normal text-left leading-relaxed">
                       <strong>เกร็ดความรู้:</strong> หากกำหนดเวลาส่ง (Due Time) ของภารกิจมาถึงวันนี้ตามเป้าหมายของหน้าแรก ระบบจะยิงเสียงสัญญาณเร่งด่วน 🚨 และหน้าจอจะสไลด์ข้อความแจ้งเตือนสีโรสแดงด้านขวาล่างทันทีแบบ Real-time เพื่อพยุงความก้าวหน้าของคุณท่านให้บรรลุเป้าหมายสูงสุดได้อย่างสมบูรณ์แบบ
                     </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Clever AI Assistant Settings Panel */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100 text-left">
+                  <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-400 font-bold text-sm">🤖</span>
+                  <span>ระบบเลขาเอไออัจฉริยะ (Nong Chalat AI Personal Assistant Command)</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold dark:text-slate-400 text-left">
+                  คุณท่านสามารถเปิดหรือปิดการแสดงผลเลขาอัจฉริยะ "น้องฉลาด" ได้ที่นี่ ซึ่งเลขา AI จะช่วยประเมินและประมวลผลคำสั่ง ทั้งลงบันทึกข้อมูล ปรับแต่ง แก้ไข ลบ ค้นหา และคำนวณแทนคนทำจริง
+                </p>
+
+                <div className="space-y-4 text-xs font-semibold text-slate-650">
+                  <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl dark:bg-slate-950 border border-slate-100 dark:border-slate-850">
+                    <div className="text-left pr-2">
+                      <h4 className="font-bold text-slate-850 dark:text-slate-200">เปิดการใช้งานเลขา AI "น้องฉลาด" บนหน้าจอหลัก (Show AI Assistant UI)</h4>
+                      <p className="text-[10px] text-slate-450 font-normal">แสดงปุ่มลอยน้องฉลาดขนาดเคลื่อนย้ายได้สำหรับป้อนส่งคำสั่งแบบสนทนาด่วน</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => syncSettings({ ...settings, aiAssistantEnabled: settings.aiAssistantEnabled === false ? true : false })}
+                      className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+                        settings.aiAssistantEnabled !== false ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.aiAssistantEnabled !== false ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
                   </div>
                 </div>
               </div>
