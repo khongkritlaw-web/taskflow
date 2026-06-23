@@ -240,6 +240,60 @@ export default function App() {
   const [activeAlarms, setActiveAlarms] = useState<Task[]>([]);
   const alarmedTaskIds = useRef<Set<string>>(new Set());
 
+  // Web Notification Permission State & Handlers
+  const [browserPermission, setBrowserPermission] = useState<string>('default');
+
+  useEffect(() => {
+    if ('Notification' in window) {
+      setBrowserPermission(Notification.permission);
+    }
+  }, []);
+
+  const handleRequestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert('เบราว์เซอร์หรืออุปกรณ์ของคุณไม่สนับสนุนระบบแจ้งเตือน Web Notifications');
+      return;
+    }
+    
+    try {
+      const permission = await Notification.requestPermission();
+      setBrowserPermission(permission);
+      if (permission === 'granted') {
+        const updated = {
+          ...settings,
+          nativeNotificationsEnabled: true
+        };
+        syncSettings(updated);
+        
+        try {
+          new Notification('🎉 เชื่อมต่อแจ้งเตือนสำเร็จ!', {
+            body: 'อุปกรณ์และเบราว์เซอร์นี้พร้อมรับการแจ้งเตือนงานค้างส่ง และรายจ่ายจาก TaskFlow Space แล้วครับ!',
+            icon: settings.appLogoUrl || '/icon.png'
+          });
+        } catch (e) {
+          console.warn('Notification constructor failed inside this scope (sandboxed)', e);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to request notification permission:', err);
+    }
+  };
+
+  const handleTestNotification = () => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('🔔 ทดสอบระบบแจ้งเตือน!', {
+          body: 'นี่คือข้อความพุชจำลองจากอุปกรณ์ที่ใช้งานอยู่ของท่าน ระบบสื่อสารทำงานปกติเรียบร้อยดี!',
+          icon: settings.appLogoUrl || '/icon.png'
+        });
+      } catch (e) {
+        alert('ระบบพยายามส่งแจ้งเตือนแล้ว แต่เบราว์เซอร์ล้มเหลวเนื่องจากการบล็อก sandbox ของ iFrame พรีวิว แนะนำให้กดเปิดแอปในแท็บใหม่ (Open in a new tab) เพื่อทดสอบได้แบบสมบูรณ์ 100%!');
+      }
+    } else {
+      alert('กรุณากดยืนยันสิทธิ์อนุญาตแจ้งเตือนบนอุปกรณ์นี้ก่อนทำการทดสอบครับ');
+    }
+  };
+
   // Background Real-time Task Due Alert Engine
   useEffect(() => {
     if (!isLoggedIn || !dataLoaded || !tasks || tasks.length === 0) return;
@@ -273,11 +327,22 @@ export default function App() {
             if (settings.soundEnabled !== false) {
               playNotificationSound(settings.soundType || 'alert', settings.soundVolume ?? 80);
             }
+
+            if (settings.nativeNotificationsEnabled !== false && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(`⏰ แจ้งเตือนงานด่วน: ${task.title}`, {
+                  body: `ถึงเวลาที่กำหนดส่งแล้ว: ${task.dueTime} น. [หมวดหมู่: ${task.category || 'ทั่วไป'}]\n${task.desc || ''}`,
+                  icon: settings.appLogoUrl || '/icon.png'
+                });
+              } catch (e) {
+                console.warn('Failed to construct alert notification:', e);
+              }
+            }
           }
         }
       }
     });
-  }, [currentTime, isLoggedIn, dataLoaded, tasks, settings.soundEnabled, settings.soundType, settings.soundVolume]);
+  }, [currentTime, isLoggedIn, dataLoaded, tasks, settings]);
 
   // Account / Security states
   const [profileSaving, setProfileSaving] = useState(false);
@@ -1078,6 +1143,16 @@ export default function App() {
     if (settings.soundEnabled !== false && settings.soundOnAdd !== false) {
       playNotificationSound(settings.soundType || 'chime', settings.soundVolume ?? 80);
     }
+    if (settings.nativeNotificationsEnabled !== false && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('📝 เพิ่มเป้าหมายภารกิจใหม่', {
+          body: `ชื่องาน: "${created.title}"\nกำหนดส่ง: ${created.dueDate} ${created.dueTime || ''} (${created.category || 'ทั่วไป'})`,
+          icon: settings.appLogoUrl || '/icon.png'
+        });
+      } catch (e) {
+        console.warn('Native notification blocked or failed:', e);
+      }
+    }
   };
 
   const handleEditTask = (id: string, updated: Partial<Task>) => {
@@ -1085,6 +1160,16 @@ export default function App() {
     if (updated.status === 'completed' && oldTask?.status !== 'completed') {
       if (settings.soundEnabled !== false && settings.soundOnComplete !== false) {
         playNotificationSound('success', settings.soundVolume ?? 80);
+      }
+      if (settings.nativeNotificationsEnabled !== false && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('✅ มรดกความสำเร็จ! งานเสร็จสิ้น', {
+            body: `งาน: "${oldTask?.title || ''}" ได้รับทำเครื่องหมายว่าเสร็จสมบูรณ์เรียบร้อย ยอดเยี่ยมมากครับ!`,
+            icon: settings.appLogoUrl || '/icon.png'
+          });
+        } catch (e) {
+          console.warn('Native notification blocked or failed:', e);
+        }
       }
     }
     const updatedTasks = tasks.map(t => t.id === id ? { ...t, ...updated } : t);
@@ -1111,6 +1196,16 @@ export default function App() {
     if (settings.soundEnabled !== false && settings.soundOnAdd !== false) {
       playNotificationSound('pop', settings.soundVolume ?? 80);
     }
+    if (settings.nativeNotificationsEnabled !== false && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('💰 บันทึกบัญชีรายจ่ายใหม่', {
+          body: `รายการ: "${created.name}"\nจำนวนเงิน: ${created.amount.toLocaleString('th-TH')} บาท [หมวดหมู่: ${created.cat || 'ทั่วไป'}]`,
+          icon: settings.appLogoUrl || '/icon.png'
+        });
+      } catch (e) {
+        console.warn('Native notification blocked or failed:', e);
+      }
+    }
   };
 
   const handleEditExpense = (id: string, updated: Partial<Expense>) => {
@@ -1118,6 +1213,16 @@ export default function App() {
     if (updated.paid === true && oldExp?.paid !== true) {
       if (settings.soundEnabled !== false && settings.soundOnComplete !== false) {
         playNotificationSound('success', settings.soundVolume ?? 80);
+      }
+      if (settings.nativeNotificationsEnabled !== false && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('💵 ชำระเงินค่าใช้จ่ายสำเร็จ', {
+            body: `รายการ: "${oldExp?.name || ''}" ได้รับการบันทึกสถานะว่าชำระแล้ว ยอดรวม ${oldExp?.amount.toLocaleString('th-TH')} บาท`,
+            icon: settings.appLogoUrl || '/icon.png'
+          });
+        } catch (e) {
+          console.warn('Native notification blocked or failed:', e);
+        }
       }
     }
     const updatedExps = expenses.map(e => e.id === id ? { ...e, ...updated } : e);
@@ -3242,6 +3347,98 @@ export default function App() {
                     <p className="text-[10px] text-slate-500 dark:text-slate-450 font-normal text-left leading-relaxed">
                       <strong>เกร็ดความรู้:</strong> หากกำหนดเวลาส่ง (Due Time) ของภารกิจมาถึงวันนี้ตามเป้าหมายของหน้าแรก ระบบจะยิงเสียงสัญญาณเร่งด่วน 🚨 และหน้าจอจะสไลด์ข้อความแจ้งเตือนสีโรสแดงด้านขวาล่างทันทีแบบ Real-time เพื่อพยุงความก้าวหน้าของคุณท่านให้บรรลุเป้าหมายสูงสุดได้อย่างสมบูรณ์แบบ
                     </p>
+                  </div>
+
+                  {/* Web Push Notification Board */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-850 text-left space-y-3">
+                    <h4 className="font-extrabold text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1.5 justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <span>📲</span>
+                        <span>ระบบแจ้งเตือนบนเบราว์เซอร์เครื่องนี้ (Web Notification Permissions)</span>
+                      </span>
+                      <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950/65 dark:text-indigo-300 px-1.5 py-0.5 rounded-md font-extrabold">รุ่นอัจฉริยะ</span>
+                    </h4>
+
+                    <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800/80 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200">สถานะการอนุญาตสื่อสารบนอุปกรณ์นี้</p>
+                          <p className="text-[10px] text-slate-400 font-normal">เบราว์เซอร์จะต้องได้รับอนุญาตสิทธิ์ (Permission) ก่อนจึงจะพุชหน้าต่างลอยได้</p>
+                        </div>
+
+                        <div>
+                          {browserPermission === 'granted' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/40">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                              <span>อนุญาตสิทธิ์สำเร็จ (Granted)</span>
+                            </span>
+                          ) : browserPermission === 'denied' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/40">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              <span>สิทธิ์ถูกบล็อก (Denied by Browser)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/40">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              <span>ยังไม่ได้เปิดสิทธิ์ (Default / Waiting)</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        {browserPermission !== 'granted' ? (
+                          <button
+                            type="button"
+                            onClick={handleRequestNotificationPermission}
+                            className={`w-full h-10 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+                              browserPermission === 'denied'
+                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300'
+                                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-100 dark:shadow-none'
+                            } focus:outline-none`}
+                          >
+                            <span>🔑</span>
+                            <span>{browserPermission === 'denied' ? 'รีเซ็ต/เปิดสิทธิ์บนแถบที่อยู่แว่นเบราว์เซอร์' : 'กดยืนยันสิทธิ์ขอแจ้งเตือนบนเครื่องนี้'}</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-850">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">เปิดพฤติกรรมแจ้งเตือนในระบบ</span>
+                            <button
+                              type="button"
+                              onClick={() => syncSettings({ ...settings, nativeNotificationsEnabled: settings.nativeNotificationsEnabled === false ? true : false })}
+                              className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+                                settings.nativeNotificationsEnabled !== false ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
+                              }`}
+                            >
+                              <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.nativeNotificationsEnabled !== false ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                            </button>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleTestNotification}
+                          disabled={browserPermission !== 'granted'}
+                          className="w-full h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 focus:outline-none"
+                        >
+                          <span>🧪</span>
+                          <span>ทดสอบยิงพุชข้อความลอย (Test Notification)</span>
+                        </button>
+                      </div>
+
+                      {browserPermission === 'denied' && (
+                        <p className="text-[10px] text-rose-500 bg-rose-50/50 dark:bg-rose-950/10 p-2 rounded-lg leading-relaxed text-left font-semibold">
+                          📌 <strong>วิธีแก้ไขสิทธิ์แจ้งเตือนถูกบล็อก:</strong> หากต้องการใช้การแจ้งเตือนพุช คุณต้องคลิกไอคอนรูปกุญแจหรือแม่กุญแจทางด้านซ้ายสุดของช่องพิมพ์ URL เว็บไซต์ในโปรแกรมเบราว์เซอร์นี้ แล้วปรับสถานะ "การแจ้งเตือน (Notifications)" ให้เป็น "อนุญาต (Allow)" เพื่อปลดล็อกในระดับความปลอดภัยเบราว์เซอร์ครับ
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-start gap-2 p-3 bg-rose-50/20 dark:bg-rose-950/10 rounded-xl border border-rose-100/10">
+                      <span className="text-xs">📢</span>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-450 font-normal text-left leading-relaxed">
+                        <strong>แนะนำสำหรับห้องนวัตกรรม AI Studio:</strong> การทำงานเป็นแอปพลิเคชันพรีวิวในหน้าจอนี้ผ่าน Sandbox Frame อาจมีนโยบายความคุ้มกันความปลอดภัยบล็อกหน้าต่างแจ้งเตือน หากทำรายการกดยืนยันแล้วไม่ได้การตอบสนอง แนะนำให้ทำตามวิธีสากลโดยคลิกปุ่ม <strong>"เปิดแท็บใหม่ (Open in a new tab)"</strong> ที่มุมขวาบนของพรีวิวนี้ เพื่อรันแอปเป็นแบบแยกหน้าต่างจริง แค่นี้เครื่องก็จะยินยอมให้สิทธิ์และค้างส่งพุชแจ้งเตือนได้เหมือนโปรแกรมนอกเลยครับ!
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

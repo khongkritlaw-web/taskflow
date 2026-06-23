@@ -74,4 +74,5 @@ export interface AppSettings {
   soundOnComplete?: boolean;
   soundOnAdd?: boolean;
   aiAssistantEnabled?: boolean;
+  nativeNotificationsEnabled?: boolean;
 }
