@@ -3274,6 +3274,7 @@ export default function App() {
               </div>
 
                             {/* Email Messaging integration panel */}
+              {sessionUser.userId === 'admin' && (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
                   <Mail className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
@@ -3487,8 +3488,10 @@ export default function App() {
 
                 </div>
               </div>
+              )}
 
               {/* PDF & Print Settings Panel */}
+              {sessionUser.userId === 'admin' && (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
                   <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-400 font-bold text-sm">🖨️</span>
@@ -3567,6 +3570,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Sound & Notification Settings Panel */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
@@ -3813,6 +3817,7 @@ export default function App() {
               </div>
 
               {/* Custom Menu Links integration panel */}
+              {sessionUser.userId === 'admin' && (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
                   <Link className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
@@ -4112,6 +4117,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              )}
 
             </div>
           )}
