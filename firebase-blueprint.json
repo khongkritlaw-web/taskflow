@@ -21,9 +21,40 @@
         "password": {
           "type": "string",
           "description": "Hashed or plain password of the user"
+        },
+        "isApproved": {
+          "type": "boolean",
+          "description": "Approval status of the account set by the system administrator"
         }
       },
       "required": ["userId", "email", "phone", "password"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Official broadcast announcements published by the system administrator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "author": { "type": "string" }
+      },
+      "required": ["id", "title", "content", "createdAt", "author"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Real-time communication message between users and the system administrator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string", "description": "The regular user's thread identity" },
+        "senderId": { "type": "string", "description": "The sender's unique ID/username" },
+        "senderName": { "type": "string", "description": "The sender's display nickname" },
+        "text": { "type": "string", "description": "Text content of the message" },
+        "createdAt": { "type": "string", "description": "ISO timestamp for sorting" }
+      },
+      "required": ["id", "userId", "senderId", "senderName", "text", "createdAt"]
     },
     "Task": {
       "title": "Task",
@@ -136,6 +167,14 @@
     "/users/{userId}/settings/app": {
       "schema": "AppSettings",
       "description": "Theme tuning and customized navigation preferences"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Official admin announcements broadcasted to everyone"
+    },
+    "/chats/{chatMessageId}": {
+      "schema": "ChatMessage",
+      "description": "Text messages sent/received in real-time between admin and users"
     }
   }
 }

@@ -319,7 +319,8 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           email: trimmedEmail,
           phone: trimmedPhone,
           password: regPass,
-          uid: uid
+          uid: uid,
+          isApproved: trimmedId === 'admin' ? true : false
         };
         // Save user to Firestore users collection using auth UID
         await setDoc(doc(db, 'users', uid), profileData);
@@ -346,7 +347,8 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           email: trimmedEmail,
           phone: trimmedPhone,
           password: regPass,
-          uid: uid
+          uid: uid,
+          isApproved: trimmedId === 'admin' ? true : false
         };
         // Save directly to Firestore users collection using username as ID
         await setDoc(userDocRef, profileData);

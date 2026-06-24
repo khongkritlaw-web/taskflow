@@ -52,6 +52,7 @@ export default function TaskModule({
   const { showAlert, showConfirm } = useDialog();
   const [searchQuery, setSearchQuery] = useState('');
   const [openDrawers, setOpenDrawers] = useState<Record<string, boolean>>({});
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   
   // Modals state
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -572,15 +573,104 @@ export default function TaskModule({
       {/* 2. Actions toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center dark:bg-slate-900 dark:border-slate-800">
         <div className="relative w-full sm:flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 animate-pulse" />
           <input
             type="text"
-            placeholder="ค้นหาชื่องาน รายละเอียด หรือกิจกรรมหลักงาน..."
+            placeholder="พิมพ์คำค้นหาเพื่อเด้งเปิดดูข้อมูลงานได้ทันที..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-accent text-sm text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+            className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-accent text-sm text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 font-extrabold"
             style={{ '--accent': accentColor } as React.CSSProperties}
           />
+          
+          {/* Live Search Instant Dropdown Results (เด้งรายการขึ้นมาทันที) */}
+          <AnimatePresence>
+            {searchQuery.trim().length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98, y: 5 }}
+                className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 overflow-hidden max-h-80 overflow-y-auto"
+              >
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-850 flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-500 tracking-wider">
+                    พบรายการที่ตรงกับคำค้นทั้งหมด {filteredTasks.length} รายการ
+                  </span>
+                  {filteredTasks.length > 0 && (
+                    <span className="text-[9px] font-black text-emerald-500">
+                      คลิกเพื่อเด้งเปิดงานหน้านี้ได้ทันที 🚀
+                    </span>
+                  )}
+                </div>
+                
+                {filteredTasks.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400 italic">
+                    ไม่พบข้อมูลงานที่ตรงกับคำค้นหา " {searchQuery} " 🔍
+                  </div>
+                ) : (
+                  <div className="p-1 px-1.5 flex flex-col gap-0.5">
+                    {filteredTasks.map(t => {
+                      const isDone = t.status === 'completed';
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            // Clear query, make drawer active, scroll and flash highlight!
+                            setSearchQuery('');
+                            setOpenDrawers(prev => ({ ...prev, [t.id]: true }));
+                            setHighlightedTaskId(t.id);
+                            
+                            // Delay slightly for render cycles to smooth scroll perfectly
+                            setTimeout(() => {
+                              const el = document.getElementById(`task-card-${t.id}`);
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }
+                            }, 120);
+
+                            // auto-clear highlight flash after 2.5 seconds
+                            setTimeout(() => {
+                              setHighlightedTaskId(null);
+                            }, 2500);
+                          }}
+                          className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all flex items-start gap-3 border border-transparent hover:border-slate-100 dark:hover:border-slate-800 group"
+                        >
+                          <span className="text-base flex-shrink-0 mt-0.5">
+                            {isDone ? '✅' : '📌'}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-accent transition-colors" style={{ '--accent': accentColor } as React.CSSProperties}>
+                              {t.title}
+                            </h5>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-md dark:bg-slate-850">
+                                {t.category}
+                              </span>
+                              {t.dueDate && (
+                                <span className="text-[9px] text-slate-400 font-medium">
+                                  กำหนดส่ง: {t.dueDate}
+                                </span>
+                              )}
+                              <span className={`text-[9px] font-extrabold ${isDone ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                {isDone ? 'เสร็จสิ้นแล้ว' : 'รอดำเนินการ'}
+                              </span>
+                            </div>
+                          </div>
+                          <span 
+                            className="text-[9px] font-bold px-2 py-1 rounded-lg border text-white transition-transform group-hover:scale-105" 
+                            style={{ backgroundColor: accentColor }}
+                          >
+                            เด้งดูหน้างาน 🚀
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         
         <div className="flex gap-2 w-full sm:w-auto">
@@ -1079,19 +1169,23 @@ export default function TaskModule({
     const isDone = t.status === 'completed';
     const isOverdue = t.dueDate && t.dueDate < todayStr && !isDone;
     const isToday = t.dueDate === todayStr && !isDone;
-    const isDrawerOpen = !!openDrawers[t.id];
+    const isDrawerOpen = !!openDrawers[t.id] || (searchQuery.trim().length > 0 && (t.title.toLowerCase().includes(searchQuery.toLowerCase()) || (t.desc || '').toLowerCase().includes(searchQuery.toLowerCase())));
     const daysPill = getDaysPillInfo(t.dueDate);
 
     return (
       <motion.div
         key={t.id}
+        id={`task-card-${t.id}`}
         layout
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, scale: 0.96 }}
         whileHover={{ y: -3, scale: 1.015 }}
         transition={{ type: "spring", stiffness: 180, damping: 15 }}
-        className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm transition-all hover:shadow-md dark:bg-slate-900 dark:border-slate-800"
+        className={`bg-white border rounded-xl overflow-hidden shadow-sm transition-all hover:shadow-md dark:bg-slate-900 dark:border-slate-800 text-left ${
+          t.id === highlightedTaskId ? 'ring-2 ring-offset-2 dark:ring-offset-slate-950 animate-pulse' : ''
+        }`}
+        style={t.id === highlightedTaskId ? { borderColor: accentColor, borderRadius: '12px', boxShadow: `0 0 20px ${accentColor}`, transform: 'scale(1.03)', zIndex: 10, '--tw-ring-color': accentColor } : {}}
       >
         
         {/* Main Header */}

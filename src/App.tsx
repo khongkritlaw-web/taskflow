@@ -35,7 +35,14 @@ import {
   ExternalLink,
   ArrowUp,
   ArrowDown,
-  User
+  User,
+  Shield,
+  Megaphone,
+  MessageSquare,
+  Check,
+  UserCheck,
+  UserX,
+  Edit
 } from 'lucide-react';
 import { Task, Expense, AppSettings } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
@@ -54,11 +61,16 @@ const padPass = (pass: string) => {
 
 // Modules
 import AuthScreen from './components/AuthScreen';
+import PendingApprovalView from './components/PendingApprovalView';
+import LockedUserView from './components/LockedUserView';
+import AdminPanel from './components/AdminPanel';
+import HeaderChatWidget from './components/HeaderChatWidget';
 import TaskModule from './components/TaskModule';
 import CalendarModule from './components/CalendarModule';
 import SettingsLockScreen from './components/SettingsLockScreen';
 import ExpenseModule from './components/ExpenseModule';
 import { PrintReportModal } from './components/PrintReportModal';
+import { EditProfileModal } from './components/EditProfileModal';
 
 const DEFAULT_CATEGORIES = ['💼 งานทั่วไป', '🏠 ส่วนตัว', '🛒 ช้อปปิ้ง', '🔥 เร่งด่วน'];
 
@@ -122,7 +134,17 @@ function isFrameRestricted(url: string | undefined): boolean {
 export default function App() {
   const { showAlert, showConfirm } = useDialog();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [sessionUser, setSessionUser] = useState({ userId: '', email: '', phone: '', password: '' });
+  const [sessionUser, setSessionUser] = useState({ 
+    userId: '', 
+    email: '', 
+    phone: '', 
+    password: '', 
+    displayName: '', 
+    avatarUrl: '',
+    isApproved: localStorage.getItem('user_approved') === 'true' || localStorage.getItem('sess_userId') === 'admin',
+    isLocked: localStorage.getItem('user_locked') === 'true'
+  });
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showNotificationFlyout, setShowNotificationFlyout] = useState(false);
   
@@ -219,6 +241,7 @@ export default function App() {
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [newLinkIcon, setNewLinkIcon] = useState('Link');
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
   const [linkHintVisible, setLinkHintVisible] = useState(false);
 
   // Manage visibility of iframe frame security guidelines banner (shows for 5 seconds when switching custom links)
@@ -352,7 +375,7 @@ export default function App() {
   const [editPassword, setEditPassword] = useState('');
 
   // DB Unsubscribe pointers for real-time Firestore sync
-  const dbUnsubscribersRef = useRef<{ settings?: () => void; tasks?: () => void; expenses?: () => void }>({});
+  const dbUnsubscribersRef = useRef<{ settings?: () => void; tasks?: () => void; expenses?: () => void; profile?: () => void }>({});
 
   const cleanupSubscriptions = () => {
     if (dbUnsubscribersRef.current.settings) {
@@ -366,6 +389,10 @@ export default function App() {
     if (dbUnsubscribersRef.current.expenses) {
       dbUnsubscribersRef.current.expenses();
       delete dbUnsubscribersRef.current.expenses;
+    }
+    if (dbUnsubscribersRef.current.profile) {
+      dbUnsubscribersRef.current.profile();
+      delete dbUnsubscribersRef.current.profile;
     }
   };
 
@@ -618,7 +645,47 @@ export default function App() {
     if (uid) {
       localStorage.setItem('sess_uid', uid);
     }
-    setSessionUser({ userId, email, phone, password: password || localStorage.getItem('user_password') || '000000' });
+    
+    let userIsApproved = userId === 'admin';
+    let userIsLocked = false;
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const udata = userDocSnap.data();
+        if (udata.isApproved !== undefined) {
+          userIsApproved = udata.isApproved;
+        }
+        if (udata.isLocked !== undefined) {
+          userIsLocked = udata.isLocked;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch approval/lock state from Firestore on login:', e);
+    }
+    localStorage.setItem('user_approved', userIsApproved ? 'true' : 'false');
+    localStorage.setItem('user_locked', userIsLocked ? 'true' : 'false');
+
+    const localSessProfileStr = localStorage.getItem(`profile_${userId}`);
+    let loadedDisplayName = '';
+    let loadedAvatarUrl = '';
+    if (localSessProfileStr) {
+      try {
+        const parsed = JSON.parse(localSessProfileStr);
+        loadedDisplayName = parsed.displayName || '';
+        loadedAvatarUrl = parsed.avatarUrl || '';
+      } catch (e) {}
+    }
+    setSessionUser({ 
+      userId, 
+      email, 
+      phone, 
+      password: password || localStorage.getItem('user_password') || '000000', 
+      displayName: loadedDisplayName, 
+      avatarUrl: loadedAvatarUrl, 
+      isApproved: userIsApproved,
+      isLocked: userIsLocked
+    });
     setIsLoggedIn(true);
 
     const defaultSet = {
@@ -764,6 +831,40 @@ export default function App() {
       const uid = targetUserId;
 
       try {
+        // 0. Fetch user profile from Firestore
+        const userDocRef = doc(db, 'users', targetUserId);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          if (active) {
+            setSessionUser(prev => {
+              const uApproved = userData.isApproved !== undefined ? userData.isApproved : (targetUserId === 'admin' ? true : false);
+              localStorage.setItem('user_approved', uApproved ? 'true' : 'false');
+              const uLocked = userData.isLocked !== undefined ? userData.isLocked : false;
+              localStorage.setItem('user_locked', uLocked ? 'true' : 'false');
+              const updated = {
+                ...prev,
+                displayName: userData.displayName || '',
+                avatarUrl: userData.avatarUrl || '',
+                email: userData.email || prev.email,
+                phone: userData.phone || prev.phone,
+                password: userData.password || prev.password,
+                isApproved: uApproved,
+                isLocked: uLocked
+              };
+              localStorage.setItem(`profile_${targetUserId}`, JSON.stringify(updated));
+              return updated;
+            });
+          }
+        } else {
+          const savedProfile = localStorage.getItem(`profile_${targetUserId}`);
+          if (savedProfile && active) {
+            try {
+              setSessionUser(prev => ({ ...prev, ...JSON.parse(savedProfile) }));
+            } catch (e) {}
+          }
+        }
+
         // 1. Fetch settings from Firestore
         const settingsRef = doc(db, 'users', uid, 'settings', 'app');
         const settingsSnap = await getDoc(settingsRef);
@@ -890,6 +991,32 @@ export default function App() {
           localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
         }, (error) => {
           console.error('Firestore real-time expenses sync error:', error);
+        });
+
+        dbUnsubscribersRef.current.profile = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists() && active) {
+            const userData = docSnap.data();
+            setSessionUser(prev => {
+              const uApproved = userData.isApproved !== undefined ? userData.isApproved : (targetUserId === 'admin' ? true : false);
+              localStorage.setItem('user_approved', uApproved ? 'true' : 'false');
+              const uLocked = userData.isLocked !== undefined ? userData.isLocked : false;
+              localStorage.setItem('user_locked', uLocked ? 'true' : 'false');
+              const updated = {
+                ...prev,
+                displayName: userData.displayName || '',
+                avatarUrl: userData.avatarUrl || '',
+                email: userData.email || prev.email,
+                phone: userData.phone || prev.phone,
+                password: userData.password || prev.password,
+                isApproved: uApproved,
+                isLocked: uLocked
+              };
+              localStorage.setItem(`profile_${targetUserId}`, JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }, (error) => {
+          console.error('Firestore real-time profile snapshot sync error:', error);
         });
 
         if (active) {
@@ -1348,15 +1475,52 @@ export default function App() {
       url = 'https://' + url;
     }
 
-    const newLink = {
-      id: '' + Date.now() + '_' + Math.floor(Math.random() * 999),
-      title,
-      url,
-      iconName: newLinkIcon
-    };
+    if (editingLinkId) {
+      // Edit mode
+      const updatedLinks = (settings.customMenuLinks || []).map(link => {
+        if (link.id === editingLinkId) {
+          return {
+            ...link,
+            title,
+            url,
+            iconName: newLinkIcon
+          };
+        }
+        return link;
+      });
+      syncSettings({ ...settings, customMenuLinks: updatedLinks });
+      setEditingLinkId(null);
+      await showAlert('แก้ไขลิงก์เมนูเชื่อมระบบเรียบร้อยแล้วค่ะ', 'สำเร็จ', 'success');
+    } else {
+      // Add mode
+      const newLink = {
+        id: '' + Date.now() + '_' + Math.floor(Math.random() * 999),
+        title,
+        url,
+        iconName: newLinkIcon
+      };
 
-    const updatedLinks = [...(settings.customMenuLinks || []), newLink];
-    syncSettings({ ...settings, customMenuLinks: updatedLinks });
+      const updatedLinks = [...(settings.customMenuLinks || []), newLink];
+      syncSettings({ ...settings, customMenuLinks: updatedLinks });
+    }
+
+    setNewLinkTitle('');
+    setNewLinkUrl('');
+    setNewLinkIcon('Link');
+  };
+
+  const handleEditMenuLinkStart = (id: string) => {
+    const link = (settings.customMenuLinks || []).find(l => l.id === id);
+    if (link) {
+      setEditingLinkId(id);
+      setNewLinkTitle(link.title);
+      setNewLinkUrl(link.url);
+      setNewLinkIcon(link.iconName || 'Link');
+    }
+  };
+
+  const handleCancelEditMenuLink = () => {
+    setEditingLinkId(null);
     setNewLinkTitle('');
     setNewLinkUrl('');
     setNewLinkIcon('Link');
@@ -1658,6 +1822,28 @@ export default function App() {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} accentColor={settings.colorAccent} />;
   }
 
+  if (sessionUser.isLocked === true && sessionUser.userId !== 'admin') {
+    return (
+      <LockedUserView 
+        sessionUser={sessionUser}
+        accentColor={settings.colorAccent}
+        darkMode={settings.darkMode}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  if (sessionUser.isApproved === false && sessionUser.userId !== 'admin') {
+    return (
+      <PendingApprovalView 
+        sessionUser={sessionUser}
+        accentColor={settings.colorAccent}
+        darkMode={settings.darkMode}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   return (
     <div
       className={`min-h-screen flex text-slate-800 transition-colors duration-200 ${settings.darkMode ? 'dark text-slate-200' : ''}`}
@@ -1800,6 +1986,21 @@ export default function App() {
             </div>
           )}
 
+          {sessionUser.userId === 'admin' && (
+            <button
+              onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }}
+              className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+                activeTab === 'admin'
+                  ? 'bg-slate-800 text-white border-l-[3px]'
+                  : 'hover:bg-slate-800'
+              }`}
+              style={activeTab === 'admin' ? { borderLeftColor: settings.colorAccent } : {}}
+            >
+              <Shield className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" />
+              {!sidebarCollapsed && <span>👑 แดชบอร์ดแอดมิน</span>}
+            </button>
+          )}
+
           <button
             onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
@@ -1817,26 +2018,37 @@ export default function App() {
         {/* Sidebar Footer account section */}
         <div className="p-2 border-t border-slate-800 flex-shrink-0 bg-slate-900/30">
           {/* User Profile visual badge */}
-          <div className={`p-2 rounded-xl mb-2 flex items-center gap-2.5 bg-slate-900/60 border border-slate-800/40 overflow-hidden ${sidebarCollapsed ? 'justify-center' : ''}`}>
+          <div 
+            onClick={() => setShowEditProfileModal(true)}
+            className={`p-2 rounded-xl mb-2 flex items-center gap-2.5 bg-slate-900/60 hover:bg-slate-850 cursor-pointer border border-slate-800/40 overflow-hidden active:scale-[0.98] transition-all ${sidebarCollapsed ? 'justify-center' : ''}`}
+            title="คลิกเพื่อแก้ไขข้อมูลส่วนตัว & รูปโปรไฟล์"
+          >
             <div 
-              className="w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs text-white select-none flex-shrink-0 shadow-inner"
-              style={{ backgroundColor: settings.colorAccent }}
-              title={sessionUser.userId}
+              className="w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs text-white select-none flex-shrink-0 shadow-inner overflow-hidden bg-slate-705 relative group"
+              style={!sessionUser.avatarUrl ? { backgroundColor: settings.colorAccent } : {}}
             >
-              {sessionUser.userId ? sessionUser.userId.charAt(0).toUpperCase() : 'U'}
+              {sessionUser.avatarUrl ? (
+                <img src={sessionUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover animate-fade-in" referrerPolicy="no-referrer" />
+              ) : (
+                <span>{sessionUser.displayName ? sessionUser.displayName.charAt(0).toUpperCase() : (sessionUser.userId ? sessionUser.userId.charAt(0).toUpperCase() : 'U')}</span>
+              )}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[8px] transition-opacity font-bold">
+                แก้ไข
+              </div>
             </div>
             {!sidebarCollapsed && (
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-black text-slate-100 truncate flex items-center gap-1" title={sessionUser.userId}>
+                <div className="text-[11px] font-black text-slate-100 truncate flex items-center gap-1">
                   <User className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                  <span className="truncate">{sessionUser.userId}</span>
+                  <span className="truncate">{sessionUser.displayName || sessionUser.userId}</span>
                 </div>
                 <div className="text-[9px] text-slate-500 font-medium truncate" title={sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}>
                   {sessionUser.email || sessionUser.phone || 'บัญชีระยะไกล'}
                 </div>
                 <div 
-                  className="flex items-center gap-1 mt-0.5 select-none leading-none cursor-pointer hover:opacity-85"
-                  onClick={async () => {
+                  className="flex items-center gap-1 mt-0.5 select-none leading-none cursor-pointer hover:opacity-80 inline-flex"
+                  onClick={async (e) => {
+                    e.stopPropagation();
                     if (!isCloudSynced) {
                       showAlert("ตรวจพบสถานะการทำงานในเครื่อง (Offline) ระบบกำลังเตรียมซิงก์ผลลัพธ์ในเครื่องทั้งหมดขึ้นเซิร์ฟเวอร์แบบแมนนวลให้ทันทีค่ะ...", "ประสานระบบสำรองข้อมูล", "info");
                       try {
@@ -1856,7 +2068,7 @@ export default function App() {
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
                   <span className={`text-[8px] font-extrabold ${isCloudSynced ? 'text-emerald-400' : 'text-amber-500'}`}>
-                    {isCloudSynced ? 'ซิงก์คลาวด์แล้ว (Online)' : 'จัดเก็บในเครื่อง (Offline) - คลิกซิงก์'}
+                    {isCloudSynced ? 'ซิงก์คลาวด์แล้ว' : 'เก็บในเครื่อง (คลิกซิงก์)'}
                   </span>
                 </div>
               </div>
@@ -1931,6 +2143,13 @@ export default function App() {
                <Clock className="w-3.5 h-3.5" style={{ color: settings.colorAccent }} />
                <span>{currentTime || '00:00:00'}</span>
              </div>
+
+             {/* Header Chat Widget */}
+             <HeaderChatWidget 
+               sessionUser={sessionUser}
+               accentColor={settings.colorAccent}
+               darkMode={settings.darkMode}
+             />
 
              {/* Admin multi-profile dropdown switch */}
              {sessionUser.userId === 'admin' && allUsersList.length > 0 && (
@@ -2122,24 +2341,32 @@ export default function App() {
             </div>
 
             {/* Header User Profile Badge */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-xl px-2.5 py-1">
+            <div 
+              onClick={() => setShowEditProfileModal(true)}
+              className="flex items-center gap-2 bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-xl px-2.5 py-1 hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer transition-all"
+              title="คลิกเพื่อแก้ไขข้อมูลส่วนตัว & รูปโปรไฟล์"
+            >
               <div 
-                className="w-7 h-7 rounded-full flex items-center justify-center font-extrabold text-xs text-white select-none shadow-sm flex-shrink-0"
-                style={{ backgroundColor: settings.colorAccent }}
-                title={sessionUser.userId}
+                className="w-7 h-7 rounded-full flex items-center justify-center font-extrabold text-xs text-white select-none shadow-sm flex-shrink-0 overflow-hidden bg-slate-700 relative group"
+                style={!sessionUser.avatarUrl ? { backgroundColor: settings.colorAccent } : {}}
               >
-                {sessionUser.userId ? sessionUser.userId.charAt(0).toUpperCase() : 'U'}
+                {sessionUser.avatarUrl ? (
+                  <img src={sessionUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover animate-fade-in" referrerPolicy="no-referrer" />
+                ) : (
+                  <span>{sessionUser.displayName ? sessionUser.displayName.charAt(0).toUpperCase() : (sessionUser.userId ? sessionUser.userId.charAt(0).toUpperCase() : 'U')}</span>
+                )}
               </div>
               <div className="hidden md:block text-left min-w-0 pr-1.5">
                 <span className="block text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 leading-tight">
-                  {sessionUser.userId}
+                  {sessionUser.displayName || sessionUser.userId}
                 </span>
                 <span className="block text-[9px] text-slate-400 font-medium leading-none truncate max-w-[100px]">
                   {sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}
                 </span>
                 <div 
                   className="flex items-center gap-1 mt-0.5 select-none leading-none cursor-pointer hover:opacity-85"
-                  onClick={async () => {
+                  onClick={async (e) => {
+                    e.stopPropagation();
                     if (!isCloudSynced) {
                       showAlert("ตรวจพบสถานะการทำงานในเครื่อง (Offline) ระบบกำลังเตรียมซิงก์ผลลัพธ์ในเครื่องทั้งหมดขึ้นเซิร์ฟเวอร์แบบแมนนวลให้ทันทีค่ะ...", "ประสานระบบสำรองข้อมูล", "info");
                       try {
@@ -2404,6 +2631,22 @@ export default function App() {
                   onEditExpense={handleEditExpense}
                   onDeleteExpense={handleDeleteExpense}
                   accentColor={settings.colorAccent}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'admin' && sessionUser.userId === 'admin' && (
+              <motion.div
+                key="admin"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+                className="w-full"
+              >
+                <AdminPanel
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
                 />
               </motion.div>
             )}
@@ -3589,14 +3832,31 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    {editingLinkId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEditMenuLink}
+                        className="h-10 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 font-bold text-xs rounded-lg transition-all"
+                      >
+                        ยกเลิกแก้ไข
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={handleAddMenuLink}
                       className="h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md hover:brightness-95 transition-all flex items-center justify-center gap-1.5"
                       style={{ backgroundColor: settings.colorAccent }}
                     >
-                      <Plus className="w-3.5 h-3.5" /> เพิ่มลิงก์เมนูเชื่อมระบบ
+                      {editingLinkId ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" /> บันทึกการแก้ไขลิงก์
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3.5 h-3.5" /> เพิ่มลิงก์เมนูเชื่อมระบบ
+                        </>
+                      )}
                     </button>
                   </div>
 
@@ -3665,6 +3925,18 @@ export default function App() {
                                 </button>
                                 <button
                                   type="button"
+                                  onClick={() => handleEditMenuLinkStart(link.id)}
+                                  className={`p-1.5 rounded-lg transition-all ${
+                                    editingLinkId === link.id
+                                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                                      : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700 dark:hover:bg-slate-800'
+                                  }`}
+                                  title="แก้ไขลิงก์"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => handleRemoveMenuLink(link.id)}
                                   className="p-1.5 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg transition-all dark:hover:bg-rose-950/40"
                                   title="ลบลิงก์"
@@ -3688,6 +3960,16 @@ export default function App() {
     </AnimatePresence>
         </main>
       </div>
+
+      <EditProfileModal
+        isOpen={showEditProfileModal}
+        onClose={() => setShowEditProfileModal(false)}
+        sessionUser={sessionUser}
+        onProfileUpdated={(updated) => {
+          setSessionUser(updated);
+        }}
+        accentColor={settings.colorAccent}
+      />
 
       <PrintReportModal
         isOpen={isPrintModalOpen}
