@@ -27,6 +27,8 @@ export interface CustomMenuLink {
   title: string;
   url: string;
   iconName?: string;
+  visibility?: 'all' | 'specific';
+  allowedUsers?: string[];
 }
 
 export interface AppSettings {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Layers,
@@ -44,7 +44,7 @@ import {
   UserX,
   Edit
 } from 'lucide-react';
-import { Task, Expense, AppSettings } from './types';
+import { Task, Expense, AppSettings, CustomMenuLink } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
 
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, onSnapshot } from 'firebase/firestore';
@@ -241,6 +241,9 @@ export default function App() {
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [newLinkIcon, setNewLinkIcon] = useState('Link');
+  const [newLinkVisibility, setNewLinkVisibility] = useState<'all' | 'specific'>('all');
+  const [newLinkAllowedUsers, setNewLinkAllowedUsers] = useState<string[]>([]);
+  const [adminCustomLinks, setAdminCustomLinks] = useState<CustomMenuLink[]>([]);
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
   const [linkHintVisible, setLinkHintVisible] = useState(false);
 
@@ -602,6 +605,45 @@ export default function App() {
     };
   }, [isLoggedIn, sessionUser.userId]);
 
+  // Subscribe to Admin Custom Menu Links to display to normal users
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setAdminCustomLinks([]);
+      return;
+    }
+
+    const adminSettingsRef = doc(db, 'users', 'admin', 'settings', 'app');
+    const unsubscribe = onSnapshot(adminSettingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const adminData = docSnap.data();
+        const links = adminData.customMenuLinks || [];
+        setAdminCustomLinks(links);
+      } else {
+        setAdminCustomLinks([]);
+      }
+    }, (err) => {
+      console.error('Failed to subscribe to admin settings:', err);
+    });
+
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
+  // Fetch all user profiles for custom links user assignment dropdown (for admin & everyone)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const usersCol = collection(db, 'users');
+    const unsubscribe = onSnapshot(usersCol, (snapshot) => {
+      const usersList: any[] = [];
+      snapshot.forEach((docRef) => {
+        usersList.push(docRef.data());
+      });
+      setAllUsersList(usersList);
+    }, (err) => {
+      console.error('Failed to fetch user profiles for custom link targeting:', err);
+    });
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
   // 1.1 Automatic Daily Email Auto-Send Evaluation
   useEffect(() => {
     if (!isLoggedIn || !dataLoaded) return;
@@ -886,7 +928,6 @@ export default function App() {
         // 2. Fetch tasks from Firestore
         const tasksCol = collection(db, 'users', uid, 'tasks');
         const tasksSnap = await getDocs(tasksCol);
-        const isExistingUser = settingsSnap.exists();
 
         if (!tasksSnap.empty) {
           const tasksList: Task[] = [];
@@ -895,28 +936,9 @@ export default function App() {
           });
           if (active) setTasks(tasksList);
           localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify(tasksList));
-        } else if (isExistingUser) {
+        } else {
           if (active) setTasks([]);
           localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify([]));
-        } else {
-          const savedTasks = localStorage.getItem(`tasks_${targetUserId}`);
-          let tasksList: Task[] = [];
-          if (savedTasks) {
-            try { tasksList = JSON.parse(savedTasks); } catch (e) {}
-          }
-          if (tasksList.length === 0) {
-            tasksList = [
-              { id: 't1', title: 'ประชุมวางแผนงบประมาณโครงการก่อสร้างใหม่', desc: 'สรุปงบประมาณไตรมาสที่ 3 และพิจารณาสัญญารับเหมาช่วง', category: '💼 งานทั่วไป', dueDate: getThailandTodayStr(), dueTime: '13:00', status: 'pending', userId: targetUserId, createdAt: new Date().toISOString() },
-              { id: 't2', title: 'ชำระค่าไฟและค่าน้ำสำนักงานใหญ่', desc: 'ยอดชำระตรวจสอบจากแดชบอร์ดค่าใช้จ่าย บิลรอบเดือนพฤษภาคม', category: '🔥 เร่งด่วน', dueDate: getThailandTodayStr(), dueTime: '17:00', status: 'pending', userId: targetUserId, createdAt: new Date().toISOString() },
-              { id: 't3', title: 'ทบทวนสไลด์นำเสนอพาร์ทเนอร์ชาวต่างชาติ', desc: 'เตรียมจุดเด่นผลิตภัณฑ์ใหม่ และนโยบายส่วนลด', category: '💼 งานทั่วไป', dueDate: getDaysFromNowStr(2), status: 'pending', userId: targetUserId, createdAt: new Date().toISOString() }
-            ];
-          }
-          if (active) setTasks(tasksList);
-          localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify(tasksList));
-          
-          for (const task of tasksList) {
-            await setDoc(doc(db, 'users', uid, 'tasks', task.id), task);
-          }
         }
 
         // 3. Fetch expenses from Firestore
@@ -930,28 +952,9 @@ export default function App() {
           });
           if (active) setExpenses(expensesList);
           localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
-        } else if (isExistingUser) {
+        } else {
           if (active) setExpenses([]);
           localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify([]));
-        } else {
-          const savedExpenses = localStorage.getItem(`expenses_${targetUserId}`);
-          let expensesList: Expense[] = [];
-          if (savedExpenses) {
-            try { expensesList = JSON.parse(savedExpenses); } catch (e) {}
-          }
-          if (expensesList.length === 0) {
-            expensesList = [
-              { id: 'e1', name: 'ค่าเช่าอาคารสำนักงานและโกดัง', amount: 45000, cat: '🏠 ที่พัก', date: getThailandTodayStr(), dueDate: getDaysFromNowStr(5), note: 'โอนชำระภายในวันที่ 5', paid: false, userId: targetUserId },
-              { id: 'e2', name: 'ค่าบริการคลาวด์และโฮสติ้งเซิร์ฟเวอร์', amount: 3500.50, cat: '💡 สาธารณูปโภค', date: getThailandTodayStr(), dueDate: getThailandTodayStr(), note: 'ตัดบัตรเครดิตอัตโนมัติ', paid: true, userId: targetUserId },
-              { id: 'e3', name: 'จัดซื้อเครื่องเขียนและอุปกรณ์สำนักงานส่วนกลาง', amount: 1200, cat: '🛒 ของใช้/อาหาร', date: getDaysFromNowStr(-1), dueDate: getDaysFromNowStr(2), note: 'เบิกจ่ายจาก Petty cash', paid: false, userId: targetUserId }
-            ];
-          }
-          if (active) setExpenses(expensesList);
-          localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
-
-          for (const exp of expensesList) {
-            await setDoc(doc(db, 'users', uid, 'expenses', exp.id), exp);
-          }
         }
 
         if (!active) return;
@@ -1483,7 +1486,9 @@ export default function App() {
             ...link,
             title,
             url,
-            iconName: newLinkIcon
+            iconName: newLinkIcon,
+            visibility: newLinkVisibility,
+            allowedUsers: newLinkVisibility === 'specific' ? newLinkAllowedUsers : []
           };
         }
         return link;
@@ -1497,7 +1502,9 @@ export default function App() {
         id: '' + Date.now() + '_' + Math.floor(Math.random() * 999),
         title,
         url,
-        iconName: newLinkIcon
+        iconName: newLinkIcon,
+        visibility: newLinkVisibility,
+        allowedUsers: newLinkVisibility === 'specific' ? newLinkAllowedUsers : []
       };
 
       const updatedLinks = [...(settings.customMenuLinks || []), newLink];
@@ -1507,6 +1514,8 @@ export default function App() {
     setNewLinkTitle('');
     setNewLinkUrl('');
     setNewLinkIcon('Link');
+    setNewLinkVisibility('all');
+    setNewLinkAllowedUsers([]);
   };
 
   const handleEditMenuLinkStart = (id: string) => {
@@ -1516,6 +1525,8 @@ export default function App() {
       setNewLinkTitle(link.title);
       setNewLinkUrl(link.url);
       setNewLinkIcon(link.iconName || 'Link');
+      setNewLinkVisibility(link.visibility || 'all');
+      setNewLinkAllowedUsers(link.allowedUsers || []);
     }
   };
 
@@ -1524,6 +1535,8 @@ export default function App() {
     setNewLinkTitle('');
     setNewLinkUrl('');
     setNewLinkIcon('Link');
+    setNewLinkVisibility('all');
+    setNewLinkAllowedUsers([]);
   };
 
   const handleRemoveMenuLink = async (id: string) => {
@@ -1818,6 +1831,34 @@ export default function App() {
 
   const notificationCount = notificationTasks.length + notificationExpenses.length;
 
+  // Filter custom links according to targeted user or all users
+  const visibleCustomLinks = useMemo(() => {
+    const currentUserId = sessionUser.userId;
+    if (!currentUserId) return [];
+
+    // Source links: if currentUserId is 'admin', they are configuring all links, so show all in admin's own settings.
+    // If not admin, they see links configured by the admin (received via adminCustomLinks).
+    const sourceLinks = currentUserId === 'admin' 
+      ? (settings.customMenuLinks || [])
+      : adminCustomLinks;
+
+    return sourceLinks.filter(link => {
+      // Admin always sees everything they created/edit
+      if (currentUserId === 'admin') return true;
+
+      // Default to 'all' if visibility is not defined
+      if (!link.visibility || link.visibility === 'all') {
+        return true;
+      }
+
+      if (link.visibility === 'specific') {
+        return link.allowedUsers && link.allowedUsers.includes(currentUserId);
+      }
+
+      return false;
+    });
+  }, [settings.customMenuLinks, adminCustomLinks, sessionUser.userId]);
+
   if (!isLoggedIn) {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} accentColor={settings.colorAccent} />;
   }
@@ -1960,7 +2001,7 @@ export default function App() {
           </button>
 
           {/* Inline custom menu links */}
-          {settings.customMenuLinks && settings.customMenuLinks.map((link) => {
+          {visibleCustomLinks.map((link) => {
             const IconComponent = getCustomLinkIconComponent(link.iconName || 'Link');
             return (
               <button
@@ -2429,7 +2470,7 @@ export default function App() {
         <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-16"}>
           {activeTab.startsWith('link_') && (() => {
             const linkId = activeTab.replace('link_', '');
-            const targetLink = settings.customMenuLinks?.find(l => l.id === linkId);
+            const targetLink = visibleCustomLinks?.find(l => l.id === linkId);
             if (!targetLink) {
               return (
                 <div className="p-8 text-center">
@@ -3832,6 +3873,114 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* กำหนดขอบเขตสิทธิ์การมองเห็นลิงก์นี้ */}
+                  <div className="space-y-3 p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-2xl">
+                    <div className="text-left">
+                      <label className="block text-slate-850 dark:text-slate-200 font-bold text-xs mb-1">
+                        🎯 กำหนดบัญชีผู้ที่สามารถเข้าถึง/แสดงเมนูลิงก์นี้
+                      </label>
+                      <p className="text-[10px] text-slate-450 font-normal">
+                        สามารถกำหนดให้ลิงก์นี้แสดงเฉพาะในหน้าเมนูนำทางของสมาชิกรายใดรายหนึ่ง หรือแสดงให้ทุกคนในระบบมองเห็นเหมือนกันทั้งหมด
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewLinkVisibility('all');
+                          setNewLinkAllowedUsers([]);
+                        }}
+                        className={`flex-1 h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                          newLinkVisibility === 'all'
+                            ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900 shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300'
+                        }`}
+                      >
+                        <span>🌍 แสดงให้บัญชีผู้ใช้ทุกคน (All Accounts)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewLinkVisibility('specific')}
+                        className={`flex-1 h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                          newLinkVisibility === 'specific'
+                            ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900 shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300'
+                        }`}
+                      >
+                        <span>👥 ระบุบัญชีผู้ใช้เจาะจง (Specific User Accounts)</span>
+                      </button>
+                    </div>
+
+                    {newLinkVisibility === 'specific' && (
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2 text-left">
+                          <div>
+                            <label className="block text-slate-600 dark:text-slate-400 font-bold text-xs">
+                              คลิกเลือกรายชื่อผู้ใช้งานที่อนุญาตให้แสดงเมนูนี้:
+                            </label>
+                            <p className="text-[10px] text-slate-400 font-normal mt-0.5">
+                              💡 บัญชีผู้ดูแลระบบ (admin) จะมองเห็นเมนูนี้ตลอดเวลาโดยอัตโนมัติ (ไม่ต้องเลือก)
+                            </p>
+                          </div>
+                          
+                          <div className="flex gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allNonAdminIds = allUsersList
+                                  .filter(u => u.userId !== 'admin')
+                                  .map(u => u.userId);
+                                setNewLinkAllowedUsers(allNonAdminIds);
+                              }}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md text-[10px] font-bold transition-all"
+                            >
+                              ✓ เลือกทุกคน
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNewLinkAllowedUsers([])}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md text-[10px] font-bold transition-all"
+                            >
+                              ✗ ล้างทั้งหมด
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {allUsersList.filter(u => u.userId !== 'admin').map((u) => {
+                            const isSelected = newLinkAllowedUsers.includes(u.userId);
+                            return (
+                              <button
+                                key={u.userId}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setNewLinkAllowedUsers(newLinkAllowedUsers.filter(id => id !== u.userId));
+                                  } else {
+                                    setNewLinkAllowedUsers([...newLinkAllowedUsers, u.userId]);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-full border text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                  isSelected
+                                    ? 'bg-indigo-500 border-indigo-500 text-white shadow-xs'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300'
+                                }`}
+                                style={isSelected ? { backgroundColor: settings.colorAccent, borderColor: settings.colorAccent } : {}}
+                              >
+                                <span>👤 {u.userId}</span>
+                                {isSelected && <span className="text-[10px]">✓</span>}
+                              </button>
+                            );
+                          })}
+                          {allUsersList.filter(u => u.userId !== 'admin').length === 0 && (
+                            <span className="text-[10.5px] text-slate-400 italic">ไม่พบประวัติผู้ใช้งานคนอื่นในฐานระบบขณะนี้</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-end gap-2">
                     {editingLinkId && (
                       <button
@@ -3878,9 +4027,20 @@ export default function App() {
                                 <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0 dark:bg-slate-900 dark:border-slate-800 shadow-xs">
                                   <LinkIconComp className="w-4 h-4" style={{ color: settings.colorAccent }} />
                                 </div>
-                                <div className="min-w-0">
-                                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{link.title}</h4>
-                                  <p className="text-[10px] text-slate-400 font-mono truncate max-w-sm">{link.url}</p>
+                                <div className="min-w-0 text-left">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{link.title}</h4>
+                                    <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-full ${
+                                      link.visibility === 'specific'
+                                        ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400'
+                                        : 'bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400'
+                                    }`}>
+                                      {link.visibility === 'specific' 
+                                        ? `👥 เฉพาะบัญชี: ${(link.allowedUsers || []).join(', ') || 'ไม่มีใครมองเห็น'}` 
+                                        : '🌍 ทุกคนมองเห็น'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 font-mono truncate max-w-sm mt-0.5">{link.url}</p>
                                 </div>
                               </div>
                               
