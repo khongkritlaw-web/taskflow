@@ -16,6 +16,7 @@ export interface Installment {
   dueDate: string;
   paid: boolean;
   paidDate?: string;
+  slipBase64?: string;
 }
 
 export interface Expense {
@@ -31,6 +32,7 @@ export interface Expense {
   isInstallment?: boolean;
   totalInstallments?: number;
   installments?: Installment[];
+  slipBase64?: string;
 }
 
 export interface CustomMenuLink {

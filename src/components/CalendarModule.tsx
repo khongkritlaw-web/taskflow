@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText, Printer, Coins } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText, Printer, Coins, Receipt, Upload, Eye, X, Image } from 'lucide-react';
 import { Task, Expense } from '../types';
 import { useDialog } from './CustomDialog';
 
@@ -38,6 +38,20 @@ export default function CalendarModule({
   const [printMonth, setPrintMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [printYear, setPrintYear] = useState(String(new Date().getFullYear()));
   const [printIncludeList, setPrintIncludeList] = useState(true);
+
+  // Payment Slip Upload Modal states
+  const [isPaySlipModalOpen, setIsPaySlipModalOpen] = useState(false);
+  const [paySlipExpense, setPaySlipExpense] = useState<Expense | null>(null);
+  const [paySlipInstallmentNo, setPaySlipInstallmentNo] = useState<number | null>(null);
+  const [paySlipBase64, setPaySlipBase64] = useState<string>('');
+  const [paySlipFileName, setPaySlipFileName] = useState<string>('');
+
+  // View Slip Modal states
+  const [isViewSlipModalOpen, setIsViewSlipModalOpen] = useState(false);
+  const [viewSlipTitle, setViewSlipTitle] = useState('');
+  const [viewSlipBase64, setViewSlipBase64] = useState('');
+  const [viewSlipAmount, setViewSlipAmount] = useState<number>(0);
+  const [viewSlipDate, setViewSlipDate] = useState('');
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -96,6 +110,7 @@ export default function CalendarModule({
       totalInstallments?: number;
       cat: string;
       dueDate: string;
+      slipBase64?: string;
     }> = [];
 
     expenses.forEach(e => {
@@ -111,7 +126,8 @@ export default function CalendarModule({
               installmentNo: inst.installmentNo,
               totalInstallments: e.totalInstallments,
               cat: e.cat,
-              dueDate: inst.dueDate
+              dueDate: inst.dueDate,
+              slipBase64: inst.slipBase64
             });
           }
         });
@@ -124,7 +140,8 @@ export default function CalendarModule({
             paid: e.paid,
             isInstallment: false,
             cat: e.cat,
-            dueDate: e.dueDate
+            dueDate: e.dueDate,
+            slipBase64: e.slipBase64
           });
         }
       }
@@ -134,32 +151,95 @@ export default function CalendarModule({
   };
 
   const handleToggleInstallmentPaid = (expenseId: string, installmentNo: number) => {
-    if (!expenses || !onEditExpense) return;
+    if (!expenses) return;
     const expense = expenses.find(e => e.id === expenseId);
-    if (!expense || !expense.installments) return;
-    
-    const updated = expense.installments.map(inst => {
-      if (inst.installmentNo === installmentNo) {
-        const nextPaid = !inst.paid;
-        return {
-          ...inst,
-          paid: nextPaid,
-          paidDate: nextPaid ? getThailandTodayStr() : undefined
-        };
-      }
-      return inst;
-    });
+    if (!expense) return;
 
-    const allPaid = updated.every(inst => inst.paid);
-    onEditExpense(expense.id, {
-      installments: updated,
-      paid: allPaid
-    });
+    const inst = expense.installments?.find(i => i.installmentNo === installmentNo);
+    if (inst?.paid) {
+      setViewSlipTitle(`${expense.name} (ผ่อนงวดที่ ${installmentNo}/${expense.totalInstallments})`);
+      setViewSlipBase64(inst.slipBase64 || '');
+      setViewSlipAmount(inst.amount);
+      setViewSlipDate(inst.dueDate);
+      setIsViewSlipModalOpen(true);
+      return;
+    }
+
+    setPaySlipExpense(expense);
+    setPaySlipInstallmentNo(installmentNo);
+    setPaySlipBase64('');
+    setPaySlipFileName('');
+    setIsPaySlipModalOpen(true);
   };
 
   const handleToggleRegularExpensePaid = (expenseId: string, currentPaid: boolean) => {
-    if (!onEditExpense) return;
-    onEditExpense(expenseId, { paid: !currentPaid });
+    if (!expenses) return;
+    const expense = expenses.find(e => e.id === expenseId);
+    if (!expense) return;
+
+    if (expense.paid) {
+      setViewSlipTitle(expense.name);
+      setViewSlipBase64(expense.slipBase64 || '');
+      setViewSlipAmount(expense.amount);
+      setViewSlipDate(expense.dueDate);
+      setIsViewSlipModalOpen(true);
+      return;
+    }
+
+    setPaySlipExpense(expense);
+    setPaySlipInstallmentNo(null);
+    setPaySlipBase64('');
+    setPaySlipFileName('');
+    setIsPaySlipModalOpen(true);
+  };
+
+  const handleSavePaymentWithSlip = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paySlipExpense || !onEditExpense) return;
+
+    const targetAmount = paySlipInstallmentNo !== null
+      ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.amount ?? paySlipExpense.amount)
+      : paySlipExpense.amount;
+
+    const isConfirmed = await showConfirm(
+      `คุณต้องการบันทึกการชำระเงินสำหรับ "${paySlipExpense.name}" ${
+        paySlipInstallmentNo ? `งวดที่ ${paySlipInstallmentNo}` : ''
+      } ยอดเงิน ฿${targetAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ใช่หรือไม่? (เมื่อกดยืนยันแล้วจะไม่สามารถแก้ไขสลิปหรือยกเลิกการจ่ายเงินได้)`,
+      'ยืนยันการบันทึกชำระเงิน',
+      'success'
+    );
+
+    if (!isConfirmed) return;
+
+    if (paySlipInstallmentNo !== null) {
+      const updated = paySlipExpense.installments?.map(inst => {
+        if (inst.installmentNo === paySlipInstallmentNo) {
+          return {
+            ...inst,
+            paid: true,
+            paidDate: getThailandTodayStr(),
+            slipBase64: paySlipBase64 || undefined
+          };
+        }
+        return inst;
+      });
+      const allPaid = updated?.every(inst => inst.paid) || false;
+      onEditExpense(paySlipExpense.id, {
+        installments: updated,
+        paid: allPaid
+      });
+    } else {
+      onEditExpense(paySlipExpense.id, {
+        paid: true,
+        slipBase64: paySlipBase64 || undefined
+      });
+    }
+
+    setIsPaySlipModalOpen(false);
+    setPaySlipExpense(null);
+    setPaySlipInstallmentNo(null);
+    setPaySlipBase64('');
+    setPaySlipFileName('');
   };
 
   // Static/Fallback Holidays
@@ -956,13 +1036,17 @@ export default function CalendarModule({
                                     handleToggleRegularExpensePaid(e.expenseId, e.paid);
                                   }
                                 }}
-                                className={`h-8 px-3 rounded-lg text-xs font-black transition-all ${
+                                className={`h-8 px-3 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
                                   e.paid
-                                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900'
+                                    ? 'bg-purple-50 hover:bg-purple-100 text-purple-750 border border-purple-200 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-900'
                                     : 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm'
                                 }`}
                               >
-                                {e.paid ? 'ชำระแล้ว ✓' : 'ทำชำระเงิน'}
+                                {e.paid ? (
+                                  <>
+                                    <Eye className="w-3.5 h-3.5" /> ดูสลิป
+                                  </>
+                                ) : 'ทำชำระเงิน'}
                               </button>
                             )}
                           </div>
@@ -983,6 +1067,225 @@ export default function CalendarModule({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Payment & Slip Upload Modal */}
+      {isPaySlipModalOpen && paySlipExpense && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in duration-150 text-left">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-purple-600" />
+                บันทึกการชำระเงิน / แนบสลิป
+              </h3>
+              <button
+                onClick={() => {
+                  setIsPaySlipModalOpen(false);
+                  setPaySlipExpense(null);
+                  setPaySlipInstallmentNo(null);
+                  setPaySlipBase64('');
+                  setPaySlipFileName('');
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePaymentWithSlip}>
+              <div className="p-5 space-y-4">
+                <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 dark:bg-purple-950/10 dark:border-purple-900/50 space-y-1">
+                  <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider dark:text-purple-400">
+                    {paySlipInstallmentNo ? `ค่างวดผ่อนรายเดือน (งวดที่ ${paySlipInstallmentNo}/${paySlipExpense.totalInstallments})` : 'รายการบิล/ค่าใช้จ่าย'}
+                  </span>
+                  <h4 className="font-extrabold text-sm text-slate-850 dark:text-slate-100">
+                    {paySlipExpense.name}
+                  </h4>
+                  <div className="text-sm font-black text-purple-700 dark:text-purple-400 pt-1">
+                    ยอดชำระ: ฿{(paySlipInstallmentNo 
+                      ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.amount ?? paySlipExpense.amount)
+                      : paySlipExpense.amount
+                    ).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-[10.5px] text-slate-400 font-mono mt-1">
+                    กำหนดชำระ: {paySlipInstallmentNo 
+                      ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.dueDate ?? paySlipExpense.dueDate)
+                      : paySlipExpense.dueDate
+                    }
+                  </div>
+                </div>
+
+                {/* Slip File Upload Field */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">
+                    แนบไฟล์ภาพหลักฐานการโอนเงิน (สลิป) <span className="text-rose-500">*</span>
+                  </label>
+                  
+                  <div className="relative border-2 border-dashed border-slate-250 dark:border-slate-850 rounded-xl hover:border-purple-400 dark:hover:border-purple-800 transition-all p-5 text-center bg-slate-50/50 dark:bg-slate-950/20">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      required
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setPaySlipBase64(reader.result as string);
+                            setPaySlipFileName(file.name);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    
+                    {paySlipBase64 ? (
+                      <div className="space-y-2 relative z-20">
+                        <div className="flex justify-center">
+                          <img
+                            src={paySlipBase64}
+                            alt="Slip preview"
+                            className="max-h-36 rounded-lg object-contain shadow-md border border-slate-200 dark:border-slate-800"
+                          />
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-500 truncate max-w-full px-4">
+                          📄 {paySlipFileName}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaySlipBase64('');
+                            setPaySlipFileName('');
+                          }}
+                          className="text-[10px] text-rose-500 hover:underline font-bold"
+                        >
+                          ลบรูปและเลือกใหม่
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pointer-events-none">
+                        <div className="w-10 h-10 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                          <Upload className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                            คลิกหรือลากวางไฟล์สลิปโอนเงินที่นี่
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            รองรับไฟล์รูปภาพ PNG, JPG, JPEG
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-[10.5px] text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-400">
+                  ⚠️ <strong>คำชี้แจงสำคัญ:</strong> เมื่อบันทึกการชำระเงินแล้ว จะไม่สามารถแก้ไขข้อมูลหรือยกเลิกสถานะได้ นอกจากลบรายการนี้ออกเท่านั้น โปรดตรวจสอบความถูกต้องของสลิปและยอดชำระก่อนกดยืนยัน
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPaySlipModalOpen(false);
+                    setPaySlipExpense(null);
+                    setPaySlipInstallmentNo(null);
+                    setPaySlipBase64('');
+                    setPaySlipFileName('');
+                  }}
+                  className="h-10 px-4 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={!paySlipBase64}
+                  className={`h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md transition-all flex items-center gap-1 ${
+                    !paySlipBase64 ? 'opacity-50 cursor-not-allowed bg-slate-400' : 'hover:opacity-95'
+                  }`}
+                  style={{ backgroundColor: paySlipBase64 ? accentColor : undefined }}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  บันทึกชำระเงิน
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Slip Modal */}
+      {isViewSlipModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in duration-150 text-left">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-emerald-600" />
+                หลักฐานการชำระเงิน (สลิปโอนเงิน)
+              </h3>
+              <button
+                onClick={() => {
+                  setIsViewSlipModalOpen(false);
+                  setViewSlipBase64('');
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="space-y-1 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider dark:text-emerald-400">
+                  ชำระเงินเสร็จสิ้น ✓
+                </p>
+                <h4 className="font-extrabold text-base text-slate-850 dark:text-slate-100">
+                  {viewSlipTitle}
+                </h4>
+                <div className="text-lg font-black text-emerald-700 dark:text-emerald-400">
+                  ยอดโอน: ฿{viewSlipAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium">
+                  กำหนดชำระดั้งเดิม: {viewSlipDate}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="block text-xs font-bold text-slate-500 dark:text-slate-450">ภาพสลิปหลักฐาน:</span>
+                {viewSlipBase64 ? (
+                  <div className="border border-slate-100 dark:border-slate-850 rounded-xl overflow-hidden shadow-sm bg-slate-50 p-2 flex justify-center">
+                    <img
+                      src={viewSlipBase64}
+                      alt="Payment Slip Evidence"
+                      referrerPolicy="no-referrer"
+                      className="max-h-96 w-auto object-contain rounded-lg shadow-md"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-xs italic text-slate-400 bg-slate-50 dark:bg-slate-950 rounded-xl border border-dashed border-slate-200">
+                    ไม่มีไฟล์รูปภาพสลิปแนบอยู่
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsViewSlipModalOpen(false);
+                  setViewSlipBase64('');
+                }}
+                className="h-10 px-5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+              >
+                ปิดหน้านี้
+              </button>
+            </div>
           </div>
         </div>
       )}

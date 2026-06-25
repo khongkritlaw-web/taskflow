@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer, ChevronDown, ChevronUp } from 'lucide-react';
+import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer, ChevronDown, ChevronUp, Upload, Eye, X, Image } from 'lucide-react';
 import { Expense, Installment } from '../types';
 import { useDialog } from './CustomDialog';
 
@@ -84,6 +84,20 @@ export default function ExpenseModule({
   const [totalInstallments, setTotalInstallments] = useState('12');
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
 
+  // Payment Slip Upload Modal states
+  const [isPaySlipModalOpen, setIsPaySlipModalOpen] = useState(false);
+  const [paySlipExpense, setPaySlipExpense] = useState<Expense | null>(null);
+  const [paySlipInstallmentNo, setPaySlipInstallmentNo] = useState<number | null>(null);
+  const [paySlipBase64, setPaySlipBase64] = useState<string>('');
+  const [paySlipFileName, setPaySlipFileName] = useState<string>('');
+
+  // View Slip Modal states
+  const [isViewSlipModalOpen, setIsViewSlipModalOpen] = useState(false);
+  const [viewSlipTitle, setViewSlipTitle] = useState('');
+  const [viewSlipBase64, setViewSlipBase64] = useState('');
+  const [viewSlipAmount, setViewSlipAmount] = useState<number>(0);
+  const [viewSlipDate, setViewSlipDate] = useState('');
+
   const expenseCategories = [
     '🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง',
     '💊 สุขภาพ', '📱 สื่อสาร', '🎓 การศึกษา', '🎉 บันเทิง', '📦 อื่นๆ'
@@ -120,8 +134,45 @@ export default function ExpenseModule({
     return Math.round(timeDiff / (1000 * 60 * 60 * 24));
   };
 
+  // Flatten installments into individual items for display
+  const allDisplayItems = React.useMemo(() => {
+    const list: (Expense & { 
+      isVirtualInstallment?: boolean; 
+      parentExpense?: Expense; 
+      installmentNo?: number;
+    })[] = [];
+    
+    expenses.forEach(e => {
+      if (e.isInstallment && e.installments && e.installments.length > 0) {
+        e.installments.forEach(inst => {
+          list.push({
+            id: `${e.id}-inst-${inst.installmentNo}`,
+            name: `${e.name} (ผ่อนงวดที่ ${inst.installmentNo}/${e.totalInstallments})`,
+            amount: inst.amount,
+            cat: e.cat,
+            date: inst.dueDate, // Use installment due date as the primary date for filtering and sorting
+            dueDate: inst.dueDate,
+            note: e.note,
+            paid: inst.paid,
+            userId: e.userId,
+            slipBase64: inst.slipBase64,
+            isInstallment: true,
+            isVirtualInstallment: true,
+            parentExpense: e,
+            installmentNo: inst.installmentNo,
+            totalInstallments: e.totalInstallments,
+          });
+        });
+      } else {
+        list.push(e);
+      }
+    });
+    
+    return list;
+  }, [expenses]);
+
   // Filter calculation
-  const filteredExpenses = expenses.filter(e => {
+  const filteredExpenses = allDisplayItems.filter(e => {
     if (filterYear && e.date.substring(0, 4) !== filterYear) return false;
     if (filterMonth && e.date.substring(5, 7) !== filterMonth) return false;
     return true;
@@ -244,47 +295,90 @@ export default function ExpenseModule({
   };
 
   const handleToggleInstallmentPaid = async (expense: Expense, installmentNo: number) => {
-    if (!expense.installments) return;
-    const updated = expense.installments.map(inst => {
-      if (inst.installmentNo === installmentNo) {
-        const nextPaid = !inst.paid;
-        return {
-          ...inst,
-          paid: nextPaid,
-          paidDate: nextPaid ? getThailandTodayStr() : undefined
-        };
-      }
-      return inst;
-    });
+    const inst = expense.installments?.find(i => i.installmentNo === installmentNo);
+    if (inst?.paid) {
+      setViewSlipTitle(`${expense.name} (ผ่อนงวดที่ ${installmentNo}/${expense.totalInstallments})`);
+      setViewSlipBase64(inst.slipBase64 || '');
+      setViewSlipAmount(inst.amount);
+      setViewSlipDate(inst.dueDate);
+      setIsViewSlipModalOpen(true);
+      return;
+    }
 
-    const allPaid = updated.every(inst => inst.paid);
-    onEditExpense(expense.id, {
-      installments: updated,
-      paid: allPaid
-    });
+    setPaySlipExpense(expense);
+    setPaySlipInstallmentNo(installmentNo);
+    setPaySlipBase64('');
+    setPaySlipFileName('');
+    setIsPaySlipModalOpen(true);
   };
 
   const handleMarkPaid = async (id: string, name: string) => {
     const expense = expenses.find(e => e.id === id);
+    if (!expense) return;
+
+    if (expense.paid) {
+      setViewSlipTitle(expense.name);
+      setViewSlipBase64(expense.slipBase64 || '');
+      setViewSlipAmount(expense.amount);
+      setViewSlipDate(expense.dueDate);
+      setIsViewSlipModalOpen(true);
+      return;
+    }
+
+    setPaySlipExpense(expense);
+    setPaySlipInstallmentNo(null);
+    setPaySlipBase64('');
+    setPaySlipFileName('');
+    setIsPaySlipModalOpen(true);
+  };
+
+  const handleSavePaymentWithSlip = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paySlipExpense) return;
+
+    const targetAmount = paySlipInstallmentNo !== null
+      ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.amount ?? paySlipExpense.amount)
+      : paySlipExpense.amount;
+
     const isConfirmed = await showConfirm(
-      expense?.isInstallment
-        ? `คุณต้องการทำเครื่องหมายว่าชำระครบทุกงวดเรียบร้อยแล้วสำหรับ "${name}" ใช่หรือไม่?`
-        : `คุณทำรายการชำระค่าใช้จ่าย/บิลรวมสำหรับ "${name}" เสร็จเรียบร้อยครบถ้วนแล้วใช่หรือไม่?`,
-      'ยืนยันการชำระเงิน',
+      `คุณต้องการบันทึกการชำระเงินสำหรับ "${paySlipExpense.name}" ${
+        paySlipInstallmentNo ? `งวดที่ ${paySlipInstallmentNo}` : ''
+      } ยอดเงิน ฿${targetAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ใช่หรือไม่? (เมื่อกดยืนยันแล้วจะไม่สามารถแก้ไขสลิปหรือยกเลิกการจ่ายเงินได้)`,
+      'ยืนยันการบันทึกชำระเงิน',
       'success'
     );
-    if (isConfirmed) {
-      if (expense?.isInstallment && expense.installments) {
-        const updated = expense.installments.map(inst => ({
-          ...inst,
-          paid: true,
-          paidDate: inst.paidDate || getThailandTodayStr()
-        }));
-        onEditExpense(id, { paid: true, installments: updated });
-      } else {
-        onEditExpense(id, { paid: true });
-      }
+
+    if (!isConfirmed) return;
+
+    if (paySlipInstallmentNo !== null) {
+      const updated = paySlipExpense.installments?.map(inst => {
+        if (inst.installmentNo === paySlipInstallmentNo) {
+          return {
+            ...inst,
+            paid: true,
+            paidDate: getThailandTodayStr(),
+            slipBase64: paySlipBase64 || undefined
+          };
+        }
+        return inst;
+      });
+      const allPaid = updated?.every(inst => inst.paid) || false;
+      onEditExpense(paySlipExpense.id, {
+        installments: updated,
+        paid: allPaid
+      });
+    } else {
+      onEditExpense(paySlipExpense.id, {
+        paid: true,
+        slipBase64: paySlipBase64 || undefined
+      });
     }
+
+    setIsPaySlipModalOpen(false);
+    setPaySlipExpense(null);
+    setPaySlipInstallmentNo(null);
+    setPaySlipBase64('');
+    setPaySlipFileName('');
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -453,6 +547,12 @@ export default function ExpenseModule({
               const daysLeft = getDaysUntilDue(e.dueDate);
               const customCatStyle = catColors[e.cat] || catColors['📦 อื่นๆ'];
               const paidCount = e.installments ? e.installments.filter(inst => inst.paid).length : 0;
+              const parentPaidCount = e.isVirtualInstallment && e.parentExpense?.installments 
+                ? e.parentExpense.installments.filter(inst => inst.paid).length 
+                : 0;
+              const isEditDisabled = e.isVirtualInstallment 
+                ? (e.parentExpense?.paid || parentPaidCount > 0)
+                : (e.paid || paidCount > 0);
 
               return (
                 <div
@@ -465,11 +565,15 @@ export default function ExpenseModule({
                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${customCatStyle}`}>
                           {e.cat}
                         </span>
-                        {e.isInstallment && (
+                        {e.isVirtualInstallment ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900">
+                            📦 ค่างวดผ่อนชำระ ({e.installmentNo}/{e.totalInstallments})
+                          </span>
+                        ) : e.isInstallment ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900">
                             📦 ผ่อนค่างวดรายเดือน
                           </span>
-                        )}
+                        ) : null}
                         {!e.paid && daysLeft !== null && (
                           <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
                             daysLeft < 0 
@@ -482,10 +586,10 @@ export default function ExpenseModule({
                           </span>
                         )}
                       </div>
-
+ 
                       <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         {e.name}
-                        {e.isInstallment && (
+                        {e.isInstallment && !e.isVirtualInstallment && (
                           <span className="text-[10px] font-bold text-slate-500 dark:text-slate-450">
                             (ชำระแล้ว {paidCount}/{e.totalInstallments} งวด)
                           </span>
@@ -498,38 +602,76 @@ export default function ExpenseModule({
                         {e.note && <span className="font-sans italic">({e.note})</span>}
                       </div>
                     </div>
-
+ 
                     <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto border-t border-slate-100 pt-3 sm:pt-0 sm:border-none">
                       <span className="text-sm font-black text-accent" style={{ color: accentColor }}>
                         ฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                        {e.isInstallment && <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-500"> / งวด</span>}
+                        {e.isInstallment && !e.isVirtualInstallment && <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-500"> / งวด</span>}
                       </span>
-
+ 
                       <div className="flex items-center gap-1.5">
                         {!e.paid ? (
                           <button
-                            onClick={() => handleMarkPaid(e.id, e.name)}
-                            title={e.isInstallment ? "ทำเครื่องหมายจ่ายครบทุกงวด" : "ทำเครื่องหมายจ่ายแล้ว"}
+                            onClick={() => {
+                              if (e.isVirtualInstallment && e.parentExpense && e.installmentNo !== undefined) {
+                                handleToggleInstallmentPaid(e.parentExpense, e.installmentNo);
+                              } else {
+                                handleMarkPaid(e.id, e.name);
+                              }
+                            }}
+                            title={e.isVirtualInstallment ? `บันทึกชำระเงินงวดที่ ${e.installmentNo}` : "ทำเครื่องหมายจ่ายแล้ว"}
                             className="w-8 h-8 border border-slate-200 hover:border-emerald-200 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg flex items-center justify-center transition-all dark:border-slate-800 dark:bg-slate-900"
                           >
                             <CheckCircle className="w-4 h-4" />
                           </button>
                         ) : (
-                          <span className="text-[9px] font-extrabold bg-emerald-150 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
-                            จ่ายแล้วครบถ้วน
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
+                              จ่ายแล้ว ✓
+                            </span>
+                            {e.slipBase64 && (
+                              <button
+                                onClick={() => {
+                                  setViewSlipTitle(e.name);
+                                  setViewSlipBase64(e.slipBase64 || '');
+                                  setViewSlipAmount(e.amount);
+                                  setViewSlipDate(e.dueDate);
+                                  setIsViewSlipModalOpen(true);
+                                }}
+                                className="h-6 px-2 bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold rounded-lg hover:bg-purple-100 transition-all flex items-center gap-1 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
+                              >
+                                <Eye className="w-3 h-3" /> ดูสลิป
+                              </button>
+                            )}
+                          </div>
                         )}
-
+ 
                         <button
-                          onClick={() => triggerEditModal(e)}
-                          className="w-8 h-8 border border-slate-200 text-slate-400 hover:text-accent rounded-lg flex items-center justify-center transition-all dark:border-slate-800 bg-slate-50 dark:bg-slate-950 dark:hover:text-slate-200"
+                          onClick={() => {
+                            if (e.isVirtualInstallment && e.parentExpense) {
+                              triggerEditModal(e.parentExpense);
+                            } else {
+                              triggerEditModal(e);
+                            }
+                          }}
+                          disabled={isEditDisabled}
+                          className={`w-8 h-8 border border-slate-200 text-slate-400 hover:text-accent rounded-lg flex items-center justify-center transition-all dark:border-slate-800 bg-slate-50 dark:bg-slate-950 dark:hover:text-slate-200 ${
+                            isEditDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                          }`}
                           style={{ '--accent': accentColor } as React.CSSProperties}
+                          title={isEditDisabled ? "ไม่สามารถแก้ไขรายการที่ชำระเงินแล้วได้ (ต้องลบออกแล้วบันทึกใหม่)" : "แก้ไขรายละเอียดค่าใช้จ่าย"}
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
-
+ 
                         <button
-                          onClick={() => handleDelete(e.id, e.name)}
+                          onClick={() => {
+                            if (e.isVirtualInstallment && e.parentExpense) {
+                              handleDelete(e.parentExpense.id, e.parentExpense.name);
+                            } else {
+                              handleDelete(e.id, e.name);
+                            }
+                          }}
                           className="w-8 h-8 border border-slate-200 text-slate-400 hover:text-rose-600 rounded-lg flex items-center justify-center transition-all dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -537,9 +679,64 @@ export default function ExpenseModule({
                       </div>
                     </div>
                   </div>
+ 
+                  {/* Expanded Installment Details for Virtual Installment */}
+                  {e.isVirtualInstallment && (
+                    <div className="flex flex-col gap-2 mt-1 pt-2 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+                      <div className="flex items-center justify-between text-left">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedExpenseId(expandedExpenseId === e.id ? null : e.id)}
+                          className="text-[11px] font-bold flex items-center gap-1 hover:opacity-80 transition-all"
+                          style={{ color: accentColor }}
+                        >
+                          {expandedExpenseId === e.id ? (
+                            <>
+                              <ChevronUp className="w-3.5 h-3.5" />
+                              <span>ซ่อนรายละเอียดแผนผ่อนชำระค่างวด</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-3.5 h-3.5" />
+                              <span>คลิกดูรายละเอียดสัญญาและแผนผ่อนชำระค่างวด</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {expandedExpenseId === e.id && (
+                        <div className="p-3 bg-slate-50 rounded-xl dark:bg-slate-950/40 border border-slate-150 dark:border-slate-850 space-y-2 mt-1 animate-in slide-in-from-top-1 duration-150 text-left">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase">ชื่อรายการสัญญาแม่:</span>
+                              <span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">{e.parentExpense?.name}</span>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase">งวดผ่อนชำระ:</span>
+                              <span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">งวดที่ {e.installmentNo} จากทั้งหมด {e.totalInstallments} งวด</span>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase">กำหนดวันครบดีลชำระ:</span>
+                              <span className="font-semibold text-xs text-slate-700 dark:text-slate-350 font-mono">{e.dueDate}</span>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase">ยอดเงินประจำงวด:</span>
+                              <span className="font-extrabold text-xs text-accent" style={{ color: accentColor }}>฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                          {e.note && (
+                            <div className="text-left border-t border-slate-200 dark:border-slate-800 pt-2">
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase">บันทึกเพิ่มเติมของบิล:</span>
+                              <p className="text-xs text-slate-650 dark:text-slate-400 italic font-sans">{e.note}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Expanded Installment Toggle */}
-                  {e.isInstallment && (
+                  {e.isInstallment && !e.isVirtualInstallment && (
                     <div className="flex items-center justify-between text-left">
                       <button
                         type="button"
@@ -563,7 +760,7 @@ export default function ExpenseModule({
                   )}
 
                   {/* Expanded Installment Table */}
-                  {e.isInstallment && expandedExpenseId === e.id && (
+                  {e.isInstallment && !e.isVirtualInstallment && expandedExpenseId === e.id && (
                     <div className="w-full mt-1 pt-3 border-t border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-top-1 duration-150">
                       <div className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                         📅 ตารางแผนการผ่อนชำระทีละเดือน (คลิกปุ่มเพื่อบันทึกชำระแต่ละงวดแยกกัน)
@@ -596,13 +793,17 @@ export default function ExpenseModule({
                             <button
                               type="button"
                               onClick={() => handleToggleInstallmentPaid(e, inst.installmentNo)}
-                              className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition-all ${
+                              className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
                                 inst.paid
-                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                  ? 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-900'
                                   : 'bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-350 dark:hover:bg-slate-950'
                               }`}
                             >
-                              {inst.paid ? 'ชำระแล้ว ✓' : 'ทำจ่าย'}
+                              {inst.paid ? (
+                                <>
+                                  <Eye className="w-3.5 h-3.5" /> ดูสลิป
+                                </>
+                              ) : 'ทำจ่าย'}
                             </button>
                           </div>
                         ))}
@@ -821,9 +1022,26 @@ export default function ExpenseModule({
                             จ่ายเงิน
                           </button>
                         ) : (
-                          <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full dark:bg-emerald-950/40 dark:text-emerald-400">
-                            ครบถ้วน
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full dark:bg-emerald-950/40 dark:text-emerald-400">
+                              ครบถ้วน
+                            </span>
+                            {item.slipBase64 && (
+                              <button
+                                onClick={() => {
+                                  setViewSlipTitle(item.name);
+                                  setViewSlipBase64(item.slipBase64 || '');
+                                  setViewSlipAmount(item.amount);
+                                  setViewSlipDate(item.dueDate);
+                                  setIsViewSlipModalOpen(true);
+                                  setActiveInspectorList(null);
+                                }}
+                                className="h-6 px-2 bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold rounded-lg hover:bg-purple-100 flex items-center gap-1 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
+                              >
+                                <Eye className="w-3 h-3" /> ดูสลิป
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -838,6 +1056,225 @@ export default function ExpenseModule({
                 className="h-10 px-5 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:dark:border-slate-800 dark:text-slate-200"
               >
                 ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment & Slip Upload Modal */}
+      {isPaySlipModalOpen && paySlipExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in duration-150 text-left">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-purple-600" />
+                บันทึกการชำระเงิน / แนบสลิป
+              </h3>
+              <button
+                onClick={() => {
+                  setIsPaySlipModalOpen(false);
+                  setPaySlipExpense(null);
+                  setPaySlipInstallmentNo(null);
+                  setPaySlipBase64('');
+                  setPaySlipFileName('');
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePaymentWithSlip}>
+              <div className="p-5 space-y-4">
+                <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 dark:bg-purple-950/10 dark:border-purple-900/50 space-y-1">
+                  <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider dark:text-purple-400">
+                    {paySlipInstallmentNo ? `ค่างวดผ่อนรายเดือน (งวดที่ ${paySlipInstallmentNo}/${paySlipExpense.totalInstallments})` : 'รายการบิล/ค่าใช้จ่าย'}
+                  </span>
+                  <h4 className="font-extrabold text-sm text-slate-850 dark:text-slate-100">
+                    {paySlipExpense.name}
+                  </h4>
+                  <div className="text-sm font-black text-purple-700 dark:text-purple-400 pt-1">
+                    ยอดชำระ: ฿{(paySlipInstallmentNo 
+                      ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.amount ?? paySlipExpense.amount)
+                      : paySlipExpense.amount
+                    ).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-[10.5px] text-slate-400 font-mono mt-1">
+                    กำหนดชำระ: {paySlipInstallmentNo 
+                      ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.dueDate ?? paySlipExpense.dueDate)
+                      : paySlipExpense.dueDate
+                    }
+                  </div>
+                </div>
+
+                {/* Slip File Upload Field */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">
+                    แนบไฟล์ภาพหลักฐานการโอนเงิน (สลิป) <span className="text-rose-500">*</span>
+                  </label>
+                  
+                  <div className="relative border-2 border-dashed border-slate-250 dark:border-slate-850 rounded-xl hover:border-purple-400 dark:hover:border-purple-800 transition-all p-5 text-center bg-slate-50/50 dark:bg-slate-950/20">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      required
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setPaySlipBase64(reader.result as string);
+                            setPaySlipFileName(file.name);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    
+                    {paySlipBase64 ? (
+                      <div className="space-y-2 relative z-20">
+                        <div className="flex justify-center">
+                          <img
+                            src={paySlipBase64}
+                            alt="Slip preview"
+                            className="max-h-36 rounded-lg object-contain shadow-md border border-slate-200 dark:border-slate-800"
+                          />
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-500 truncate max-w-full px-4">
+                          📄 {paySlipFileName}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaySlipBase64('');
+                            setPaySlipFileName('');
+                          }}
+                          className="text-[10px] text-rose-500 hover:underline font-bold"
+                        >
+                          ลบรูปและเลือกใหม่
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pointer-events-none">
+                        <div className="w-10 h-10 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                          <Upload className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                            คลิกหรือลากวางไฟล์สลิปโอนเงินที่นี่
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            รองรับไฟล์รูปภาพ PNG, JPG, JPEG
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-[10.5px] text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-400">
+                  ⚠️ <strong>คำชี้แจงสำคัญ:</strong> เมื่อบันทึกการชำระเงินแล้ว จะไม่สามารถแก้ไขข้อมูลหรือยกเลิกสถานะได้ นอกจากลบรายการนี้ออกเท่านั้น โปรดตรวจสอบความถูกต้องของสลิปและยอดชำระก่อนกดยืนยัน
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPaySlipModalOpen(false);
+                    setPaySlipExpense(null);
+                    setPaySlipInstallmentNo(null);
+                    setPaySlipBase64('');
+                    setPaySlipFileName('');
+                  }}
+                  className="h-10 px-4 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={!paySlipBase64}
+                  className={`h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md transition-all flex items-center gap-1 ${
+                    !paySlipBase64 ? 'opacity-50 cursor-not-allowed bg-slate-400' : 'hover:opacity-95'
+                  }`}
+                  style={{ backgroundColor: paySlipBase64 ? accentColor : undefined }}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  บันทึกชำระเงิน
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Slip Modal */}
+      {isViewSlipModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in duration-150 text-left">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-emerald-600" />
+                หลักฐานการชำระเงิน (สลิปโอนเงิน)
+              </h3>
+              <button
+                onClick={() => {
+                  setIsViewSlipModalOpen(false);
+                  setViewSlipBase64('');
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="space-y-1 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider dark:text-emerald-400">
+                  ชำระเงินเสร็จสิ้น ✓
+                </p>
+                <h4 className="font-extrabold text-base text-slate-850 dark:text-slate-100">
+                  {viewSlipTitle}
+                </h4>
+                <div className="text-lg font-black text-emerald-700 dark:text-emerald-400">
+                  ยอดโอน: ฿{viewSlipAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium">
+                  กำหนดชำระดั้งเดิม: {viewSlipDate}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="block text-xs font-bold text-slate-500 dark:text-slate-450">ภาพสลิปหลักฐาน:</span>
+                {viewSlipBase64 ? (
+                  <div className="border border-slate-100 dark:border-slate-850 rounded-xl overflow-hidden shadow-sm bg-slate-50 p-2 flex justify-center">
+                    <img
+                      src={viewSlipBase64}
+                      alt="Payment Slip Evidence"
+                      referrerPolicy="no-referrer"
+                      className="max-h-96 w-auto object-contain rounded-lg shadow-md"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-xs italic text-slate-400 bg-slate-50 dark:bg-slate-950 rounded-xl border border-dashed border-slate-200">
+                    ไม่มีไฟล์รูปภาพสลิปแนบอยู่
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsViewSlipModalOpen(false);
+                  setViewSlipBase64('');
+                }}
+                className="h-10 px-5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+              >
+                ปิดหน้านี้
               </button>
             </div>
           </div>
