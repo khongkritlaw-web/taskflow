@@ -97,6 +97,7 @@ export default function ExpenseModule({
   const [viewSlipBase64, setViewSlipBase64] = useState('');
   const [viewSlipAmount, setViewSlipAmount] = useState<number>(0);
   const [viewSlipDate, setViewSlipDate] = useState('');
+  const [viewSlipPaidDate, setViewSlipPaidDate] = useState('');
 
   const expenseCategories = [
     '🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง',
@@ -154,6 +155,7 @@ export default function ExpenseModule({
             dueDate: inst.dueDate,
             note: e.note,
             paid: inst.paid,
+            paidDate: inst.paidDate,
             userId: e.userId,
             slipBase64: inst.slipBase64,
             isInstallment: true,
@@ -301,6 +303,7 @@ export default function ExpenseModule({
       setViewSlipBase64(inst.slipBase64 || '');
       setViewSlipAmount(inst.amount);
       setViewSlipDate(inst.dueDate);
+      setViewSlipPaidDate(inst.paidDate || '');
       setIsViewSlipModalOpen(true);
       return;
     }
@@ -321,6 +324,7 @@ export default function ExpenseModule({
       setViewSlipBase64(expense.slipBase64 || '');
       setViewSlipAmount(expense.amount);
       setViewSlipDate(expense.dueDate);
+      setViewSlipPaidDate(expense.paidDate || '');
       setIsViewSlipModalOpen(true);
       return;
     }
@@ -365,11 +369,13 @@ export default function ExpenseModule({
       const allPaid = updated?.every(inst => inst.paid) || false;
       onEditExpense(paySlipExpense.id, {
         installments: updated,
-        paid: allPaid
+        paid: allPaid,
+        paidDate: allPaid ? getThailandTodayStr() : undefined
       });
     } else {
       onEditExpense(paySlipExpense.id, {
         paid: true,
+        paidDate: getThailandTodayStr(),
         slipBase64: paySlipBase64 || undefined
       });
     }
@@ -453,47 +459,47 @@ export default function ExpenseModule({
       </div>
 
       {/* Grid summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <div
           onClick={() => inspectStatList('today')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-sky-500"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ยอดรวมวันนี้</div>
-          <div className="text-xl font-black text-sky-600 dark:text-sky-450 truncate">
+          <div className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ยอดรวมวันนี้</div>
+          <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black text-sky-600 dark:text-sky-450 truncate">
             ฿{sumToday.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
           </div>
         </div>
 
         <div
           onClick={() => inspectStatList('month')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-500"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ยอดรวมทั้งหมดที่คัดเลือก</div>
-          <div className="text-xl font-black text-emerald-600 dark:text-emerald-450 truncate">
+          <div className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ยอดรวมทั้งหมดที่คัดเลือก</div>
+          <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black text-emerald-600 dark:text-emerald-450 truncate">
             ฿{sumMonth.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
           </div>
         </div>
 
         <div
           onClick={() => inspectStatList('soon')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-amber-500"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ใกล้ครบกำหนดชำระ</div>
-          <div className="text-xl font-black text-amber-600 dark:text-amber-400">
+          <div className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ใกล้ครบกำหนดชำระ</div>
+          <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black text-amber-600 dark:text-amber-400">
             {countSoon} รายการ
           </div>
         </div>
 
         <div
           onClick={() => inspectStatList('overdue')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:translate-y-[-2px] transition-all relative overflow-hidden dark:bg-slate-900 dark:border-slate-800"
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-rose-500"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ค้างชำระเกินกำหนด</div>
-          <div className="text-xl font-black text-rose-600 dark:text-rose-450">
+          <div className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">ค้างชำระเกินกำหนด</div>
+          <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black text-rose-600 dark:text-rose-450">
             {countOverdue} รายการ
           </div>
         </div>
@@ -559,7 +565,7 @@ export default function ExpenseModule({
                   key={e.id}
                   className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col gap-3 shadow-sm hover:shadow-md transition-all dark:bg-slate-900 dark:border-slate-800"
                 >
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
                     <div className="min-w-0 flex-1 space-y-1.5 text-left">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${customCatStyle}`}>
@@ -603,7 +609,7 @@ export default function ExpenseModule({
                       </div>
                     </div>
  
-                    <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto border-t border-slate-100 pt-3 sm:pt-0 sm:border-none">
+                    <div className="flex items-center justify-between md:justify-start gap-4 w-full md:w-auto border-t border-slate-100 pt-3 md:pt-0 md:border-none">
                       <span className="text-sm font-black text-accent" style={{ color: accentColor }}>
                         ฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                         {e.isInstallment && !e.isVirtualInstallment && <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-500"> / งวด</span>}
@@ -636,6 +642,7 @@ export default function ExpenseModule({
                                   setViewSlipBase64(e.slipBase64 || '');
                                   setViewSlipAmount(e.amount);
                                   setViewSlipDate(e.dueDate);
+                                  setViewSlipPaidDate(e.paidDate || '');
                                   setIsViewSlipModalOpen(true);
                                 }}
                                 className="h-6 px-2 bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold rounded-lg hover:bg-purple-100 transition-all flex items-center gap-1 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
@@ -997,16 +1004,16 @@ export default function ExpenseModule({
                   return (
                     <div
                       key={item.id}
-                      className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4 dark:bg-slate-950 dark:border-slate-800"
+                      className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left dark:bg-slate-950 dark:border-slate-800"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="font-bold text-xs text-slate-800 dark:text-slate-100">{item.name}</p>
-                        <p className="text-[10px] text-slate-455 mt-1 font-mono">
+                        <p className="text-[10px] text-slate-400 mt-1 font-mono">
                           วันที่บิล: {item.date} {item.dueDate ? `· กำหนดชำระ: ${item.dueDate}` : ''} · หมวด: {item.cat}
                         </p>
                       </div>
                       
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-none border-slate-100 dark:border-slate-800/60 pt-2 sm:pt-0">
                         <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
                           ฿{item.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                         </span>
@@ -1033,6 +1040,7 @@ export default function ExpenseModule({
                                   setViewSlipBase64(item.slipBase64 || '');
                                   setViewSlipAmount(item.amount);
                                   setViewSlipDate(item.dueDate);
+                                  setViewSlipPaidDate(item.paidDate || '');
                                   setIsViewSlipModalOpen(true);
                                   setActiveInspectorList(null);
                                 }}
@@ -1065,8 +1073,8 @@ export default function ExpenseModule({
       {/* Payment & Slip Upload Modal */}
       {isPaySlipModalOpen && paySlipExpense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in duration-150 text-left">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh] dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in duration-150 text-left">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800 flex-shrink-0">
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-purple-600" />
                 บันทึกการชำระเงิน / แนบสลิป
@@ -1085,8 +1093,8 @@ export default function ExpenseModule({
               </button>
             </div>
 
-            <form onSubmit={handleSavePaymentWithSlip}>
-              <div className="p-5 space-y-4">
+            <form onSubmit={handleSavePaymentWithSlip} className="flex-1 flex flex-col overflow-hidden">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
                 <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 dark:bg-purple-950/10 dark:border-purple-900/50 space-y-1">
                   <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider dark:text-purple-400">
                     {paySlipInstallmentNo ? `ค่างวดผ่อนรายเดือน (งวดที่ ${paySlipInstallmentNo}/${paySlipExpense.totalInstallments})` : 'รายการบิล/ค่าใช้จ่าย'}
@@ -1179,7 +1187,7 @@ export default function ExpenseModule({
                 </div>
               </div>
 
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -1244,6 +1252,11 @@ export default function ExpenseModule({
                 <div className="text-[11px] text-slate-500 font-medium">
                   กำหนดชำระดั้งเดิม: {viewSlipDate}
                 </div>
+                {viewSlipPaidDate && (
+                  <div className="text-[11px] text-emerald-600 font-bold">
+                    วันที่ทำรายการชำระจริง: {viewSlipPaidDate}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

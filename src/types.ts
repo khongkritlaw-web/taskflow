@@ -33,6 +33,7 @@ export interface Expense {
   totalInstallments?: number;
   installments?: Installment[];
   slipBase64?: string;
+  paidDate?: string;
 }
 
 export interface CustomMenuLink {
