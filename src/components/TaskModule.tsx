@@ -51,6 +51,7 @@ export default function TaskModule({
 }: TaskModuleProps) {
   const { showAlert, showConfirm } = useDialog();
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [openDrawers, setOpenDrawers] = useState<Record<string, boolean>>({});
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   
@@ -84,14 +85,18 @@ export default function TaskModule({
   const filteredTasks = tasks.filter(t => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = t.title.toLowerCase().includes(query) || (t.desc || '').toLowerCase().includes(query);
-    return matchesSearch;
+    if (!matchesSearch) return false;
+    if (filterCategory && t.category !== filterCategory) return false;
+    return true;
   });
 
-  const countToday = tasks.filter(t => t.dueDate === todayStr && t.status !== 'completed').length;
-  const countPending = tasks.filter(t => t.status !== 'completed').length;
-  const countCompleted = tasks.filter(t => t.status === 'completed').length;
+  const tasksFilteredByCat = filterCategory ? tasks.filter(t => t.category === filterCategory) : tasks;
+
+  const countToday = tasksFilteredByCat.filter(t => t.dueDate === todayStr && t.status !== 'completed').length;
+  const countPending = tasksFilteredByCat.filter(t => t.status !== 'completed').length;
+  const countCompleted = tasksFilteredByCat.filter(t => t.status === 'completed').length;
   
-  const countOverdue = tasks.filter(t => {
+  const countOverdue = tasksFilteredByCat.filter(t => {
     return t.dueDate && t.dueDate < todayStr && t.status !== 'completed';
   }).length;
 
@@ -571,8 +576,8 @@ export default function TaskModule({
       </div>
 
       {/* 2. Actions toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center dark:bg-slate-900 dark:border-slate-800">
-        <div className="relative w-full sm:flex-1">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center dark:bg-slate-900 dark:border-slate-800">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 animate-pulse" />
           <input
             type="text"
@@ -672,8 +677,24 @@ export default function TaskModule({
             )}
           </AnimatePresence>
         </div>
+
+        {/* Category Filter Select */}
+        <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800/60">
+          <span className="text-xs font-black text-slate-450 whitespace-nowrap">หมวดหมู่:</span>
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="h-11 px-3 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350 min-w-[140px] flex-1 md:flex-none"
+            style={{ '--accent': accentColor } as React.CSSProperties}
+          >
+            <option value="">ทั้งหมด</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
         
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800/60">
           <button
             onClick={triggerPdfExport}
             className="flex-1 sm:flex-none h-11 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"

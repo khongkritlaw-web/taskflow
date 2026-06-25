@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer, ChevronDown, ChevronUp, Upload, Eye, X, Image } from 'lucide-react';
+import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer, ChevronDown, ChevronUp, Upload, Eye, X, Image, History, Search } from 'lucide-react';
 import { Expense, Installment } from '../types';
 import { useDialog } from './CustomDialog';
 
@@ -65,6 +65,8 @@ export default function ExpenseModule({
   const [filterYear, setFilterYear] = useState<string>(() => {
     return String(new Date().getFullYear());
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
 
   const [activeInspectorList, setActiveInspectorList] = useState<Expense[] | null>(null);
   const [inspectorTitle, setInspectorTitle] = useState('');
@@ -98,6 +100,13 @@ export default function ExpenseModule({
   const [viewSlipAmount, setViewSlipAmount] = useState<number>(0);
   const [viewSlipDate, setViewSlipDate] = useState('');
   const [viewSlipPaidDate, setViewSlipPaidDate] = useState('');
+
+  // Payment History Modal states
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historyCategory, setHistoryCategory] = useState('');
+  const [historyMonth, setHistoryMonth] = useState('');
+  const [historyYear, setHistoryYear] = useState('');
 
   const expenseCategories = [
     '🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง',
@@ -177,8 +186,35 @@ export default function ExpenseModule({
   const filteredExpenses = allDisplayItems.filter(e => {
     if (filterYear && e.date.substring(0, 4) !== filterYear) return false;
     if (filterMonth && e.date.substring(5, 7) !== filterMonth) return false;
+    if (filterCategory && e.cat !== filterCategory) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const nameMatch = e.name.toLowerCase().includes(q);
+      const noteMatch = e.note?.toLowerCase().includes(q) || false;
+      if (!nameMatch && !noteMatch) return false;
+    }
     return true;
   });
+
+  // Filtered History calculation
+  const filteredHistoryItems = React.useMemo(() => {
+    return allDisplayItems
+      .filter(e => e.paid)
+      .filter(e => {
+        if (historySearchQuery) {
+          const q = historySearchQuery.toLowerCase();
+          const nameMatch = e.name.toLowerCase().includes(q);
+          const noteMatch = e.note?.toLowerCase().includes(q) || false;
+          if (!nameMatch && !noteMatch) return false;
+        }
+        if (historyCategory && e.cat !== historyCategory) return false;
+        
+        const dateToUse = e.paidDate || e.date;
+        if (historyYear && dateToUse.substring(0, 4) !== historyYear) return false;
+        if (historyMonth && dateToUse.substring(5, 7) !== historyMonth) return false;
+        return true;
+      });
+  }, [allDisplayItems, historySearchQuery, historyCategory, historyMonth, historyYear]);
 
   // KPI aggregates
   let sumToday = 0;
@@ -398,9 +434,151 @@ export default function ExpenseModule({
     }
   };
 
+  const handleRevertPayment = async (item: Expense & { isVirtualInstallment?: boolean; parentExpense?: Expense; installmentNo?: number }) => {
+    const isConfirmed = await showConfirm(
+      `คุณแน่ใจว่าต้องการยกเลิกสถานะการชำระเงินของรายการ "${item.name}" และเปลี่ยนกลับเป็น "ค้างชำระ" ใช่หรือไม่?`,
+      'ยืนยันการยกเลิกการชำระเงิน',
+      'warning'
+    );
+    if (!isConfirmed) return;
+
+    if (item.isVirtualInstallment && item.parentExpense && item.installmentNo !== undefined) {
+      const parent = item.parentExpense;
+      const updatedInstallments = parent.installments?.map(inst => {
+        if (inst.installmentNo === item.installmentNo) {
+          return { ...inst, paid: false, paidDate: undefined, slipBase64: undefined };
+        }
+        return inst;
+      }) || [];
+      
+      onEditExpense(parent.id, {
+        installments: updatedInstallments,
+        paid: false,
+        paidDate: undefined
+      });
+    } else {
+      onEditExpense(item.id, {
+        paid: false,
+        paidDate: undefined,
+        slipBase64: undefined
+      });
+    }
+    showAlert('ยกเลิกสถานะการชำระเงินเรียบร้อยแล้ว', 'สำเร็จ');
+  };
+
+  const handleRevertAllFilteredHistory = async (filteredHistory: typeof allDisplayItems) => {
+    if (filteredHistory.length === 0) return;
+    const isConfirmed = await showConfirm(
+      `คุณแน่ใจว่าต้องการยกเลิกสถานะการชำระเงินของรายการทั้งหมดที่กำลังกรองอยู่ (${filteredHistory.length} รายการ) กลับเป็น "ค้างชำระ" ใช่หรือไม่?`,
+      'ยืนยันยกเลิกการชำระเงินทั้งหมด',
+      'warning'
+    );
+    if (!isConfirmed) return;
+
+    // We group by parent expense so we edit each parent expense once!
+    const editsToMake: Record<string, Partial<Expense>> = {};
+    
+    filteredHistory.forEach(item => {
+      if (item.isVirtualInstallment && item.parentExpense && item.installmentNo !== undefined) {
+        const parentId = item.parentExpense.id;
+        const parentExpenseInDb = expenses.find(e => e.id === parentId);
+        if (!parentExpenseInDb) return;
+        
+        const currentInstallments = editsToMake[parentId]?.installments || parentExpenseInDb.installments || [];
+        const updatedInsts = currentInstallments.map(inst => {
+          if (inst.installmentNo === item.installmentNo) {
+            return { ...inst, paid: false, paidDate: undefined, slipBase64: undefined };
+          }
+          return inst;
+        });
+        
+        editsToMake[parentId] = {
+          ...editsToMake[parentId],
+          installments: updatedInsts,
+          paid: false,
+          paidDate: undefined
+        };
+      } else {
+        editsToMake[item.id] = {
+          paid: false,
+          paidDate: undefined,
+          slipBase64: undefined
+        };
+      }
+    });
+
+    // Execute all edits
+    for (const [id, updated] of Object.entries(editsToMake)) {
+      onEditExpense(id, updated);
+    }
+    
+    showAlert('ยกเลิกสถานะการชำระเงินของรายการทั้งหมดที่กรองอยู่สำเร็จ', 'สำเร็จ');
+  };
+
+  const handleDeleteAllFilteredHistory = async (filteredHistory: typeof allDisplayItems) => {
+    if (filteredHistory.length === 0) return;
+    const isConfirmed = await showConfirm(
+      `คุณแน่ใจว่าต้องการลบรายการบัญชีค่าใช้จ่ายทั้งหมดที่กำลังกรองอยู่ (${filteredHistory.length} รายการ) ออกจากระบบอย่างถาวรใช่หรือไม่?\n*คำเตือน: หากลบค่างวดผ่อนชำระ จะเป็นการลบรายการแม่และแผนผ่อนงวดทั้งหมดออกไป`,
+      'ยืนยันการลบรายการทั้งหมดถาวร',
+      'danger'
+    );
+    if (!isConfirmed) return;
+
+    const idsToDelete = new Set<string>();
+    filteredHistory.forEach(item => {
+      if (item.isVirtualInstallment && item.parentExpense) {
+        idsToDelete.add(item.parentExpense.id);
+      } else {
+        idsToDelete.add(item.id);
+      }
+    });
+
+    idsToDelete.forEach(id => {
+      onDeleteExpense(id);
+    });
+
+    showAlert('ลบรายการทั้งหมดที่กรองอยู่เสร็จสิ้น', 'สำเร็จ');
+  };
+
+  const handleDeleteHistoryItem = async (item: Expense & { isVirtualInstallment?: boolean; parentExpense?: Expense; installmentNo?: number }) => {
+    const isConfirmed = await showConfirm(
+      `คุณแน่ใจว่าต้องการลบรายการ "${item.name}" ออกจากระบบถาวรใช่หรือไม่?${item.isVirtualInstallment ? '\n*คำเตือน: จะเป็นการลบรายการแม่และแผนผ่อนชำระงวดอื่นทั้งหมดด้วย' : ''}`,
+      'ยืนยันการลบ',
+      'danger'
+    );
+    if (!isConfirmed) return;
+
+    if (item.isVirtualInstallment && item.parentExpense) {
+      onDeleteExpense(item.parentExpense.id);
+    } else {
+      onDeleteExpense(item.id);
+    }
+    showAlert('ลบรายการสำเร็จแล้ว', 'สำเร็จ');
+  };
+
+  const highlightText = (text: string, search: string) => {
+    if (!search) return <span>{text}</span>;
+    const parts = text.split(new RegExp(`(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === search.toLowerCase() ? (
+            <mark key={i} className="bg-yellow-200 text-slate-900 rounded-[2px] px-0.5 font-extrabold dark:bg-yellow-500/45 dark:text-yellow-100">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </span>
+    );
+  };
+
   const clearFilters = () => {
     setFilterMonth('');
     setFilterYear('');
+    setFilterCategory('');
+    setSearchQuery('');
   };
 
   // Inspect specific card clicks
@@ -436,7 +614,16 @@ export default function ExpenseModule({
           <Coins className="w-5 h-5 text-accent" style={{ color: accentColor }} />
           คำนวณและติดตามประวัติค่าใช้จ่าย
         </span>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="flex-1 sm:flex-none h-10 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
+          >
+            <History className="w-4 h-4 text-emerald-600" />
+            ประวัติการชำระเงินทั้งหมด
+          </button>
+
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('open-print-modal', { detail: { initialTab: 'expenses' } }))}
@@ -506,37 +693,80 @@ export default function ExpenseModule({
       </div>
 
       {/* Filters options toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-3 items-center dark:bg-slate-900 dark:border-slate-800">
-        <span className="text-xs font-bold text-slate-450">กรองรอบบิลประเมิน:</span>
-        
-        <select
-          value={filterMonth}
-          onChange={(e) => setFilterMonth(e.target.value)}
-          className="h-9 px-3 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
-        >
-          <option value="">ทุกเดือน</option>
-          {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => (
-            <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
-          ))}
-        </select>
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3.5 dark:bg-slate-900 dark:border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 w-full">
+          {/* Left Block: Search and Category */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input with visual search button */}
+            <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="ค้นหารายการ..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-9 pl-9 pr-14 border border-slate-200 bg-slate-50/50 rounded-xl text-xs font-semibold text-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500/30 focus:border-purple-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
+              />
+              <button
+                type="button"
+                className="absolute right-1 top-1 bottom-1 px-3 bg-purple-600 text-white rounded-lg text-[10px] font-extrabold hover:bg-purple-700 active:scale-95 transition-all flex items-center justify-center shadow-sm"
+              >
+                ค้นหา
+              </button>
+            </div>
 
-        <select
-          value={filterYear}
-          onChange={(e) => setFilterYear(e.target.value)}
-          className="h-9 px-3 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
-        >
-          <option value="">ทุกปี</option>
-          {Array.from({ length: 2057 - 2020 + 1 }, (_, k) => 2020 + k).map(y => (
-            <option key={y} value={String(y)}>{y + 543} (พ.ศ.)</option>
-          ))}
-        </select>
+            {/* Category Select Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 shrink-0">หมวดหมู่:</span>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="h-9 px-3 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350 min-w-[120px]"
+              >
+                <option value="">ทั้งหมด</option>
+                {expenseCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-        <button
-          onClick={clearFilters}
-          className="h-9 px-4 border border-slate-200 text-xs font-bold text-slate-500 rounded-xl hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-950"
-        >
-          แสดงรายการทั้งหมด
-        </button>
+          {/* Right Block: Month and Year and Clear Button */}
+          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+            <span className="text-[11px] font-bold text-slate-400">รอบบิล:</span>
+            
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="h-9 px-3 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
+            >
+              <option value="">ทุกเดือน</option>
+              {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => (
+                <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="h-9 px-3 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
+            >
+              <option value="">ทุกปี</option>
+              {Array.from({ length: 2057 - 2020 + 1 }, (_, k) => 2020 + k).map(y => (
+                <option key={y} value={String(y)}>{y + 543} (พ.ศ.)</option>
+              ))}
+            </select>
+
+            {(filterMonth || filterYear || filterCategory || searchQuery) && (
+              <button
+                onClick={clearFilters}
+                className="h-9 px-3.5 border border-rose-200 text-xs font-extrabold text-rose-600 rounded-xl hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950 transition-all"
+              >
+                ล้างตัวกรอง
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Result lists */}
@@ -560,10 +790,19 @@ export default function ExpenseModule({
                 ? (e.parentExpense?.paid || parentPaidCount > 0)
                 : (e.paid || paidCount > 0);
 
+              const isSearchMatched = searchQuery && (
+                e.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                (e.note?.toLowerCase().includes(searchQuery.toLowerCase()) || false)
+              );
+
               return (
                 <div
                   key={e.id}
-                  className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col gap-3 shadow-sm hover:shadow-md transition-all dark:bg-slate-900 dark:border-slate-800"
+                  className={`border p-4 rounded-xl flex flex-col gap-3 shadow-sm hover:shadow-md transition-all dark:bg-slate-900 ${
+                    isSearchMatched 
+                      ? 'bg-purple-50/20 border-purple-500 ring-2 ring-purple-500/20 shadow-purple-100 dark:border-purple-800 dark:ring-purple-900/40 scale-[1.01] animate-pulse duration-1000' 
+                      : 'bg-white border-slate-200 dark:border-slate-800'
+                  }`}
                 >
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
                     <div className="min-w-0 flex-1 space-y-1.5 text-left">
@@ -594,7 +833,7 @@ export default function ExpenseModule({
                       </div>
  
                       <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        {e.name}
+                        {highlightText(e.name, searchQuery)}
                         {e.isInstallment && !e.isVirtualInstallment && (
                           <span className="text-[10px] font-bold text-slate-500 dark:text-slate-450">
                             (ชำระแล้ว {paidCount}/{e.totalInstallments} งวด)
@@ -605,7 +844,7 @@ export default function ExpenseModule({
                       <div className="flex gap-4 text-[10.5px] text-slate-400 font-mono flex-wrap">
                         <span>วันที่บันทึก: {e.date}</span>
                         {e.dueDate && <span>กำหนดชำระ: {e.dueDate}</span>}
-                        {e.note && <span className="font-sans italic">({e.note})</span>}
+                        {e.note && <span className="font-sans italic">({highlightText(e.note, searchQuery)})</span>}
                       </div>
                     </div>
  
@@ -1290,6 +1529,248 @@ export default function ExpenseModule({
                 ปิดหน้านี้
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment History Modal */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-3xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] dark:bg-slate-900 dark:border-slate-800 animate-in zoom-in duration-150 text-left">
+            
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800 flex-shrink-0">
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <History className="w-5 h-5 text-emerald-600" />
+                  ประวัติการชำระเงินทั้งหมด
+                </h3>
+                <p className="text-[10px] sm:text-xs text-slate-400 mt-1">
+                  รายการค่าใช้จ่ายและงวดผ่อนชำระที่บันทึกชำระเงินสำเร็จแล้ว
+                </p>
+              </div>
+              <button
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content & Filters */}
+            <div className="p-5 border-b border-slate-100 bg-slate-50/50 dark:bg-slate-950/10 dark:border-slate-800/80 flex-shrink-0 space-y-4">
+              {/* Responsive Filters Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อรายการ..."
+                    value={historySearchQuery}
+                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    className="w-full h-9 pl-9 pr-3 border border-slate-200 bg-white rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
+                  />
+                </div>
+
+                {/* Category */}
+                <select
+                  value={historyCategory}
+                  onChange={(e) => setHistoryCategory(e.target.value)}
+                  className="h-9 px-3 border border-slate-200 bg-white rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
+                >
+                  <option value="">ทุกหมวดหมู่</option>
+                  {expenseCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+
+                {/* Month */}
+                <select
+                  value={historyMonth}
+                  onChange={(e) => setHistoryMonth(e.target.value)}
+                  className="h-9 px-3 border border-slate-200 bg-white rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
+                >
+                  <option value="">ทุกเดือน</option>
+                  {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => (
+                    <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                  ))}
+                </select>
+
+                {/* Year */}
+                <select
+                  value={historyYear}
+                  onChange={(e) => setHistoryYear(e.target.value)}
+                  className="h-9 px-3 border border-slate-200 bg-white rounded-xl text-xs font-semibold text-slate-600 focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-350"
+                >
+                  <option value="">ทุกปี</option>
+                  {Array.from({ length: 2057 - 2020 + 1 }, (_, k) => 2020 + k).map(y => (
+                    <option key={y} value={String(y)}>{y + 543} (พ.ศ.)</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Action Toolbar Inside Modal */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <div className="text-xs space-y-1">
+                  <span className="font-bold text-slate-500 dark:text-slate-400">
+                    แสดงผลลัพธ์: <span className="text-slate-800 dark:text-slate-200 font-extrabold">{filteredHistoryItems.length} รายการ</span>
+                  </span>
+                  <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                    ยอดรวมชำระแล้ว: ฿{filteredHistoryItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {(historySearchQuery || historyCategory || historyMonth || historyYear) && (
+                    <button
+                      onClick={() => {
+                        setHistorySearchQuery('');
+                        setHistoryCategory('');
+                        setHistoryMonth('');
+                        setHistoryYear('');
+                      }}
+                      className="h-8 px-3 border border-slate-200 text-[11px] font-bold text-slate-500 rounded-lg hover:bg-white bg-transparent dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-950 transition-all"
+                    >
+                      ล้างตัวกรอง
+                    </button>
+                  )}
+
+                  {filteredHistoryItems.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => handleRevertAllFilteredHistory(filteredHistoryItems)}
+                        className="h-8 px-3 border border-amber-200 hover:bg-amber-50 text-amber-600 rounded-lg text-[11px] font-extrabold transition-all dark:border-amber-900/50 dark:hover:bg-amber-950/20"
+                      >
+                        ยกเลิกการจ่ายทั้งหมดที่กรอง
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAllFilteredHistory(filteredHistoryItems)}
+                        className="h-8 px-3 border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-[11px] font-extrabold transition-all dark:border-rose-900/50 dark:hover:bg-rose-950/20"
+                      >
+                        ลบทั้งหมดที่กรองถาวร
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {filteredHistoryItems.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400 italic">
+                  ไม่พบประวัติการชำระเงินที่ตรงตามเงื่อนไขการค้นหา/ตัวกรอง 🍵
+                </div>
+              ) : (
+                filteredHistoryItems
+                  .slice()
+                  .sort((a, b) => {
+                    const dateA = a.paidDate || a.date;
+                    const dateB = b.paidDate || b.date;
+                    return dateB.localeCompare(dateA);
+                  })
+                  .map(item => {
+                    const customCatStyle = catColors[item.cat] || catColors['📦 อื่นๆ'];
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-left dark:bg-slate-950 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-all"
+                      >
+                        {/* Info Block */}
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[9.5px] font-extrabold px-2 py-0.5 rounded-full border ${customCatStyle}`}>
+                              {item.cat}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              กำหนดเดิม: {item.dueDate || item.date}
+                            </span>
+                            {item.paidDate && (
+                              <span className="text-[10px] text-emerald-600 font-extrabold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-900/30">
+                                จ่ายเมื่อ: {item.paidDate}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <p className="font-extrabold text-sm text-slate-850 dark:text-slate-100">
+                            {item.name}
+                          </p>
+                          
+                          {item.note && (
+                            <p className="text-[11px] text-slate-500 italic max-w-full truncate">
+                              บันทึก: {item.note}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Cost & Action Block */}
+                        <div className="flex flex-wrap items-center justify-between md:justify-end gap-4 border-t md:border-t-0 border-slate-100 pt-3 md:pt-0 dark:border-slate-800/60 w-full md:w-auto">
+                          {/* Amount */}
+                          <div className="text-right">
+                            <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                              ฿{item.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-1.5">
+                            {item.slipBase64 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setViewSlipTitle(item.name);
+                                  setViewSlipBase64(item.slipBase64 || '');
+                                  setViewSlipAmount(item.amount);
+                                  setViewSlipDate(item.dueDate || item.date);
+                                  setViewSlipPaidDate(item.paidDate || '');
+                                  setIsViewSlipModalOpen(true);
+                                }}
+                                className="h-8 px-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200/50 rounded-lg text-slate-600 text-[10.5px] font-bold flex items-center gap-1 transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-750"
+                                title="ดูสลิป"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                สลิป
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleRevertPayment(item)}
+                              className="h-8 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/50 rounded-lg text-[10.5px] font-bold flex items-center gap-1 transition-all dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                              title="ยกเลิกสถานะชำระเงิน กลับเป็นค้างจ่าย"
+                            >
+                              ยกเลิกจ่าย
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteHistoryItem(item)}
+                              className="h-8 w-8 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/50 rounded-lg flex items-center justify-center transition-all dark:bg-rose-950/20 dark:border-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                              title="ลบรายการถาวร"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end dark:bg-slate-950 dark:border-slate-800 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="h-10 px-5 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+              >
+                ปิดหน้าต่างประวัติ
+              </button>
+            </div>
+
           </div>
         </div>
       )}

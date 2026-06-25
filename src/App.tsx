@@ -2149,7 +2149,7 @@ export default function App() {
             style={activeTab === 'tasks' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <CheckSquare className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>รายการบอร์ดคณะงาน</span>}
+            {!sidebarCollapsed && <span>รายการงานทั้งหมด</span>}
           </button>
 
           <button
@@ -2162,7 +2162,7 @@ export default function App() {
             style={activeTab === 'calendar' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <CalendarIcon className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>แผนผังปฏิทินกิจการ</span>}
+            {!sidebarCollapsed && <span>ปฏิทินงาน/ค่าใช้จ่าย</span>}
           </button>
 
           <button
