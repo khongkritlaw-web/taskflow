@@ -44,7 +44,7 @@ import {
   UserX,
   Edit
 } from 'lucide-react';
-import { Task, Expense, AppSettings, CustomMenuLink } from './types';
+import { Task, Expense, AppSettings, CustomMenuLink, Announcement } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
 
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, onSnapshot } from 'firebase/firestore';
@@ -246,6 +246,17 @@ export default function App() {
   const [adminCustomLinks, setAdminCustomLinks] = useState<CustomMenuLink[]>([]);
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
   const [linkHintVisible, setLinkHintVisible] = useState(false);
+
+  // Announcement states
+  const [adminAnnouncements, setAdminAnnouncements] = useState<Announcement[]>([]);
+  const [newAnnounceTitle, setNewAnnounceTitle] = useState('');
+  const [newAnnounceContent, setNewAnnounceContent] = useState('');
+  const [newAnnounceImage, setNewAnnounceImage] = useState('');
+  const [newAnnounceVisibility, setNewAnnounceVisibility] = useState<'all' | 'specific'>('all');
+  const [newAnnounceAllowedUsers, setNewAnnounceAllowedUsers] = useState<string[]>([]);
+  const [editingAnnounceId, setEditingAnnounceId] = useState<string | null>(null);
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
+  const [showAnnounceModalId, setShowAnnounceModalId] = useState<string | null>(null);
 
   // Manage visibility of iframe frame security guidelines banner (shows for 5 seconds when switching custom links)
   useEffect(() => {
@@ -605,10 +616,11 @@ export default function App() {
     };
   }, [isLoggedIn, sessionUser.userId]);
 
-  // Subscribe to Admin Custom Menu Links to display to normal users
+  // Subscribe to Admin Custom Menu Links & Announcements to display to normal users
   useEffect(() => {
     if (!isLoggedIn) {
       setAdminCustomLinks([]);
+      setAdminAnnouncements([]);
       return;
     }
 
@@ -618,8 +630,11 @@ export default function App() {
         const adminData = docSnap.data();
         const links = adminData.customMenuLinks || [];
         setAdminCustomLinks(links);
+        const announcements = adminData.announcements || [];
+        setAdminAnnouncements(announcements);
       } else {
         setAdminCustomLinks([]);
+        setAdminAnnouncements([]);
       }
     }, (err) => {
       console.error('Failed to subscribe to admin settings:', err);
@@ -627,6 +642,20 @@ export default function App() {
 
     return () => unsubscribe();
   }, [isLoggedIn]);
+
+  // Load dismissed announcements on login/load
+  useEffect(() => {
+    if (sessionUser.userId) {
+      const saved = localStorage.getItem(`dismissed_announcements_${sessionUser.userId}`);
+      if (saved) {
+        try {
+          setDismissedAnnouncements(JSON.parse(saved));
+        } catch (e) {}
+      } else {
+        setDismissedAnnouncements([]);
+      }
+    }
+  }, [sessionUser.userId]);
 
   // Fetch all user profiles for custom links user assignment dropdown (for admin & everyone)
   useEffect(() => {
@@ -1572,6 +1601,116 @@ export default function App() {
     syncSettings({ ...settings, customMenuLinks: links });
   };
 
+  // Announcement Helpers
+  const handleSaveAnnouncement = async () => {
+    const title = newAnnounceTitle.trim();
+    const content = newAnnounceContent.trim();
+    let imageUrl = newAnnounceImage.trim();
+
+    if (!title || !content) {
+      await showAlert('กรุณากรอกหัวข้อและเนื้อหาประกาศที่ต้องการสื่อสารให้ครบถ้วน', 'ข้อมูลไม่ครบ', 'warning');
+      return;
+    }
+
+    const currentAnnouncements = settings.announcements || [];
+
+    if (editingAnnounceId) {
+      // Edit mode
+      const updated = currentAnnouncements.map(ann => {
+        if (ann.id === editingAnnounceId) {
+          return {
+            ...ann,
+            title,
+            content,
+            imageUrl: imageUrl || undefined,
+            visibility: newAnnounceVisibility,
+            allowedUsers: newAnnounceVisibility === 'specific' ? newAnnounceAllowedUsers : [],
+            isActive: ann.isActive
+          };
+        }
+        return ann;
+      });
+      await syncSettings({ ...settings, announcements: updated });
+      setEditingAnnounceId(null);
+      await showAlert('แก้ไขประกาศข่าวสารเรียบร้อยแล้วค่ะ', 'สำเร็จ', 'success');
+    } else {
+      // Add mode
+      const newAnn: Announcement = {
+        id: 'ann_' + Date.now() + '_' + Math.floor(Math.random() * 999),
+        title,
+        content,
+        imageUrl: imageUrl || undefined,
+        visibility: newAnnounceVisibility,
+        allowedUsers: newAnnounceVisibility === 'specific' ? newAnnounceAllowedUsers : [],
+        createdAt: new Date().toISOString(),
+        isActive: true
+      };
+      const updated = [...currentAnnouncements, newAnn];
+      await syncSettings({ ...settings, announcements: updated });
+      await showAlert('เพิ่มประกาศข่าวสารใหม่เรียบร้อยแล้วค่ะ', 'สำเร็จ', 'success');
+    }
+
+    setNewAnnounceTitle('');
+    setNewAnnounceContent('');
+    setNewAnnounceImage('');
+    setNewAnnounceVisibility('all');
+    setNewAnnounceAllowedUsers([]);
+  };
+
+  const handleEditAnnounceStart = (id: string) => {
+    const currentAnnouncements = settings.announcements || [];
+    const ann = currentAnnouncements.find(a => a.id === id);
+    if (ann) {
+      setEditingAnnounceId(id);
+      setNewAnnounceTitle(ann.title);
+      setNewAnnounceContent(ann.content);
+      setNewAnnounceImage(ann.imageUrl || '');
+      setNewAnnounceVisibility(ann.visibility || 'all');
+      setNewAnnounceAllowedUsers(ann.allowedUsers || []);
+    }
+  };
+
+  const handleToggleAnnounceActive = async (id: string) => {
+    const currentAnnouncements = settings.announcements || [];
+    const updated = currentAnnouncements.map(ann => {
+      if (ann.id === id) {
+        return { ...ann, isActive: !ann.isActive };
+      }
+      return ann;
+    });
+    await syncSettings({ ...settings, announcements: updated });
+  };
+
+  const handleCancelEditAnnounce = () => {
+    setEditingAnnounceId(null);
+    setNewAnnounceTitle('');
+    setNewAnnounceContent('');
+    setNewAnnounceImage('');
+    setNewAnnounceVisibility('all');
+    setNewAnnounceAllowedUsers([]);
+  };
+
+  const handleRemoveAnnouncement = async (id: string) => {
+    const isConfirmed = await showConfirm(
+      'คุณต้องการลบประกาศข่าวสารสำคัญนี้ออกจากระบบแบบถาวรใช่หรือไม่?',
+      'ยืนยันการลบประกาศ',
+      'danger'
+    );
+    if (isConfirmed) {
+      const currentAnnouncements = settings.announcements || [];
+      const updated = currentAnnouncements.filter(ann => ann.id !== id);
+      await syncSettings({ ...settings, announcements: updated });
+    }
+  };
+
+  const handleDismissAnnouncement = (id: string) => {
+    const updated = [...dismissedAnnouncements, id];
+    setDismissedAnnouncements(updated);
+    if (sessionUser.userId) {
+      localStorage.setItem(`dismissed_announcements_${sessionUser.userId}`, JSON.stringify(updated));
+    }
+  };
+
   // 6. Harmonious Color Tuning Engine
   const applyThemePreset = (presetId: string) => {
     const preset = THEME_PRESETS.find(p => p.id === presetId);
@@ -1858,6 +1997,45 @@ export default function App() {
       return false;
     });
   }, [settings.customMenuLinks, adminCustomLinks, sessionUser.userId]);
+
+  // Filter announcements according to targeted user or all users
+  const visibleAnnouncements = useMemo(() => {
+    const currentUserId = sessionUser.userId;
+    if (!currentUserId) return [];
+
+    const sourceAnnouncements = currentUserId === 'admin'
+      ? (settings.announcements || [])
+      : adminAnnouncements;
+
+    return sourceAnnouncements.filter(ann => {
+      // Must be active
+      if (!ann.isActive) return false;
+
+      // Admin always sees all active announcements
+      if (currentUserId === 'admin') return true;
+
+      if (!ann.visibility || ann.visibility === 'all') {
+        return true;
+      }
+
+      if (ann.visibility === 'specific') {
+        return ann.allowedUsers && ann.allowedUsers.includes(currentUserId);
+      }
+
+      return false;
+    });
+  }, [settings.announcements, adminAnnouncements, sessionUser.userId]);
+
+  // Auto show announcement modal for any visible active announcement that has not been dismissed
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const pendingModal = visibleAnnouncements.find(ann => !dismissedAnnouncements.includes(ann.id));
+    if (pendingModal) {
+      setShowAnnounceModalId(pendingModal.id);
+    } else {
+      setShowAnnounceModalId(null);
+    }
+  }, [visibleAnnouncements, dismissedAnnouncements, isLoggedIn]);
 
   if (!isLoggedIn) {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} accentColor={settings.colorAccent} />;
@@ -2608,6 +2786,77 @@ export default function App() {
               >
                 หมุนกลับสู่บัญชีตนเอง
               </button>
+            </div>
+          )}
+
+          {/* Active Announcements Notice Section */}
+          {visibleAnnouncements.some(ann => !dismissedAnnouncements.includes(ann.id)) && (
+            <div className="mb-6 space-y-4 animate-fade-in">
+              {visibleAnnouncements
+                .filter(ann => !dismissedAnnouncements.includes(ann.id))
+                .map(ann => (
+                  <div
+                    key={ann.id}
+                    className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-rose-100 dark:border-rose-950/40 shadow-sm relative overflow-hidden flex flex-col md:flex-row gap-5 transition-all hover:shadow-md"
+                  >
+                    {/* Visual accent bar */}
+                    <div className="absolute top-0 left-0 w-1.5 h-full" style={{ backgroundColor: settings.colorAccent }} />
+                    
+                    {/* Announcement Image if exists */}
+                    {ann.imageUrl && (
+                      <div className="w-full md:w-48 h-32 md:h-28 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-slate-800 relative border border-slate-100 dark:border-slate-800">
+                        <img
+                          src={ann.imageUrl}
+                          alt={ann.title}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="flex-1 space-y-2 text-left">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-rose-650 bg-rose-50/80 dark:text-rose-400 dark:bg-rose-950/30 flex items-center gap-1">
+                          <Megaphone className="w-3 h-3 animate-bounce" /> ประกาศสำคัญ
+                        </span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                          {new Date(ann.createdAt).toLocaleDateString('th-TH', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })} น.
+                        </span>
+                      </div>
+                      
+                      <h4 className="text-base font-black text-slate-800 dark:text-slate-100 leading-snug">
+                        {ann.title}
+                      </h4>
+                      
+                      <p className="text-sm text-slate-600 dark:text-slate-350 leading-relaxed whitespace-pre-wrap">
+                        {ann.content}
+                      </p>
+                      
+                      <div className="pt-2 flex items-center justify-between flex-wrap gap-2">
+                        <button
+                          onClick={() => setShowAnnounceModalId(ann.id)}
+                          className="text-xs font-bold hover:underline flex items-center gap-1.5"
+                          style={{ color: settings.colorAccent }}
+                        >
+                          👁️ ขยายดูรูปแบบเต็มหน้าจอ
+                        </button>
+
+                        <button
+                          onClick={() => handleDismissAnnouncement(ann.id)}
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-all"
+                        >
+                          รับทราบและปิดประกาศนี้
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
 
@@ -4126,6 +4375,115 @@ export default function App() {
     </AnimatePresence>
         </main>
       </div>
+
+      {/* Announcement Fullscreen Modal Popup */}
+      <AnimatePresence>
+        {showAnnounceModalId && (() => {
+          const ann = visibleAnnouncements.find(a => a.id === showAnnounceModalId);
+          if (!ann) return null;
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden relative flex flex-col max-h-[85vh]"
+              >
+                {/* Header with Background Pattern */}
+                <div className="p-6 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 flex items-center justify-center font-bold text-lg">
+                      📢
+                    </span>
+                    <div className="text-left">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-500 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full inline-block">
+                        ข่าวสารสำคัญล่าสุด
+                      </span>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        เผยแพร่เมื่อ: {new Date(ann.createdAt).toLocaleDateString('th-TH', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })} น.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowAnnounceModalId(null)}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-400 hover:text-slate-700 transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Body Content */}
+                <div className="p-6 overflow-y-auto space-y-4">
+                  {ann.imageUrl && (
+                    <div className="w-full h-48 sm:h-64 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-800 relative">
+                      <img
+                        src={ann.imageUrl}
+                        alt={ann.title}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-3 text-left">
+                    <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 leading-snug">
+                      {ann.title}
+                    </h3>
+                    
+                    <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3" />
+                    
+                    <p className="text-sm text-slate-650 dark:text-slate-350 leading-relaxed whitespace-pre-wrap font-medium">
+                      {ann.content}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="p-5 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
+                  <div className="text-[11px] text-slate-400 font-medium">
+                    {dismissedAnnouncements.includes(ann.id) ? (
+                      <span className="text-emerald-500 font-bold">✓ คุณเคยรับทราบประกาศนี้แล้ว</span>
+                    ) : (
+                      <span>โปรดกดรับทราบเพื่อบันทึกและปิดการแสดงผล</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {!dismissedAnnouncements.includes(ann.id) && (
+                      <button
+                        onClick={() => {
+                          handleDismissAnnouncement(ann.id);
+                          setShowAnnounceModalId(null);
+                        }}
+                        className="px-5 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" /> รับทราบข่าวสาร
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowAnnounceModalId(null)}
+                      className="px-4 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 font-bold text-xs rounded-xl transition-all"
+                    >
+                      ปิดหน้าต่าง
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       <EditProfileModal
         isOpen={showEditProfileModal}

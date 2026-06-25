@@ -10,6 +10,14 @@ export interface Task {
   createdAt: string;
 }
 
+export interface Installment {
+  installmentNo: number;
+  amount: number;
+  dueDate: string;
+  paid: boolean;
+  paidDate?: string;
+}
+
 export interface Expense {
   id: string;
   name: string;
@@ -20,6 +28,9 @@ export interface Expense {
   note?: string;
   paid: boolean;
   userId: string;
+  isInstallment?: boolean;
+  totalInstallments?: number;
+  installments?: Installment[];
 }
 
 export interface CustomMenuLink {
@@ -29,6 +40,17 @@ export interface CustomMenuLink {
   iconName?: string;
   visibility?: 'all' | 'specific';
   allowedUsers?: string[];
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  visibility: 'all' | 'specific';
+  allowedUsers?: string[];
+  createdAt: string;
+  isActive: boolean;
 }
 
 export interface AppSettings {
@@ -77,4 +99,5 @@ export interface AppSettings {
   soundOnAdd?: boolean;
   aiAssistantEnabled?: boolean;
   nativeNotificationsEnabled?: boolean;
+  announcements?: Announcement[];
 }

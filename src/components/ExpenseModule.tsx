@@ -1,7 +1,47 @@
 import React, { useState } from 'react';
-import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer } from 'lucide-react';
-import { Expense } from '../types';
+import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer, ChevronDown, ChevronUp } from 'lucide-react';
+import { Expense, Installment } from '../types';
 import { useDialog } from './CustomDialog';
+
+const addMonthsSafely = (startDateStr: string, monthsToAdd: number): string => {
+  if (!startDateStr) return '';
+  const parts = startDateStr.split('-');
+  if (parts.length !== 3) return startDateStr;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  
+  let targetMonth0Based = (month - 1) + monthsToAdd;
+  let targetYear = year + Math.floor(targetMonth0Based / 12);
+  targetMonth0Based = targetMonth0Based % 12;
+  if (targetMonth0Based < 0) {
+    targetMonth0Based += 12;
+    targetYear -= 1;
+  }
+  
+  const maxDays = new Date(targetYear, targetMonth0Based + 1, 0).getDate();
+  const targetDay = Math.min(day, maxDays);
+  
+  const yyyy = targetYear;
+  const mm = String(targetMonth0Based + 1).padStart(2, '0');
+  const dd = String(targetDay).padStart(2, '0');
+  
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const generateInstallments = (startDate: string, total: number, amount: number): Installment[] => {
+  const list: Installment[] = [];
+  for (let i = 1; i <= total; i++) {
+    const dueDate = addMonthsSafely(startDate, i - 1);
+    list.push({
+      installmentNo: i,
+      amount: amount,
+      dueDate: dueDate,
+      paid: false
+    });
+  }
+  return list;
+};
 
 interface ExpenseModuleProps {
   expenses: Expense[];
@@ -38,6 +78,11 @@ export default function ExpenseModule({
   const [expDate, setExpDate] = useState('');
   const [expDueDate, setExpDueDate] = useState('');
   const [expNote, setExpNote] = useState('');
+
+  // Installment states
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [totalInstallments, setTotalInstallments] = useState('12');
+  const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
 
   const expenseCategories = [
     '🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง',
@@ -110,6 +155,8 @@ export default function ExpenseModule({
     setExpDate(todayStr);
     setExpDueDate('');
     setExpNote('');
+    setIsInstallment(false);
+    setTotalInstallments('12');
     setIsModalOpen(true);
   };
 
@@ -121,6 +168,8 @@ export default function ExpenseModule({
     setExpDate(e.date);
     setExpDueDate(e.dueDate || '');
     setExpNote(e.note || '');
+    setIsInstallment(e.isInstallment || false);
+    setTotalInstallments(String(e.totalInstallments || '12'));
     setIsModalOpen(true);
   };
 
@@ -136,16 +185,47 @@ export default function ExpenseModule({
       return;
     }
 
+    const parsedTotalInstallments = parseInt(totalInstallments);
+    if (isInstallment && (isNaN(parsedTotalInstallments) || parsedTotalInstallments <= 0)) {
+      await showAlert('กรุณาระบุจำนวนงวดผ่อนชำระที่ถูกต้องตั้งแต่ 1 งวดขึ้นไป', 'ระบุจำนวนงวด', 'warning');
+      return;
+    }
+
+    if (isInstallment && !expDueDate) {
+      await showAlert('กรุณาระบุวันเริ่มชำระงวดแรก (วันครบกำหนด) เพื่อให้ระบบสามารถสร้างวันชำระเงินของแต่ละเดือนได้โดยอัตโนมัติค่ะ', 'ระบุวันครบกำหนดงวดแรก', 'warning');
+      return;
+    }
+
     if (editId) {
+      const existing = expenses.find(item => item.id === editId);
+      let updatedInstallments = existing?.installments;
+      
+      if (isInstallment && (!existing?.isInstallment || existing.totalInstallments !== parsedTotalInstallments || existing.amount !== parsedAmt || existing.dueDate !== expDueDate)) {
+        updatedInstallments = generateInstallments(expDueDate, parsedTotalInstallments, parsedAmt);
+      } else if (!isInstallment) {
+        updatedInstallments = undefined;
+      }
+
+      const allPaid = isInstallment ? (updatedInstallments?.every(inst => inst.paid) || false) : (existing?.paid || false);
+
       onEditExpense(editId, {
         name: expName,
         amount: parsedAmt,
         cat: expCategory,
         date: expDate,
         dueDate: expDueDate,
-        note: expNote
+        note: expNote,
+        isInstallment,
+        totalInstallments: isInstallment ? parsedTotalInstallments : undefined,
+        installments: updatedInstallments,
+        paid: allPaid
       });
     } else {
+      let generatedInst = undefined;
+      if (isInstallment) {
+        generatedInst = generateInstallments(expDueDate, parsedTotalInstallments, parsedAmt);
+      }
+
       onAddExpense({
         name: expName,
         amount: parsedAmt,
@@ -154,20 +234,56 @@ export default function ExpenseModule({
         dueDate: expDueDate,
         note: expNote,
         paid: false,
-        userId: 'session'
+        userId: 'session',
+        isInstallment,
+        totalInstallments: isInstallment ? parsedTotalInstallments : undefined,
+        installments: generatedInst
       });
     }
     setIsModalOpen(false);
   };
 
+  const handleToggleInstallmentPaid = async (expense: Expense, installmentNo: number) => {
+    if (!expense.installments) return;
+    const updated = expense.installments.map(inst => {
+      if (inst.installmentNo === installmentNo) {
+        const nextPaid = !inst.paid;
+        return {
+          ...inst,
+          paid: nextPaid,
+          paidDate: nextPaid ? getThailandTodayStr() : undefined
+        };
+      }
+      return inst;
+    });
+
+    const allPaid = updated.every(inst => inst.paid);
+    onEditExpense(expense.id, {
+      installments: updated,
+      paid: allPaid
+    });
+  };
+
   const handleMarkPaid = async (id: string, name: string) => {
+    const expense = expenses.find(e => e.id === id);
     const isConfirmed = await showConfirm(
-      `คุณทำรายการชำระค่าใช้จ่าย/บิลรวมสำหรับ "${name}" เสร็จเรียบร้อยครบถ้วนแล้วใช่หรือไม่?`,
+      expense?.isInstallment
+        ? `คุณต้องการทำเครื่องหมายว่าชำระครบทุกงวดเรียบร้อยแล้วสำหรับ "${name}" ใช่หรือไม่?`
+        : `คุณทำรายการชำระค่าใช้จ่าย/บิลรวมสำหรับ "${name}" เสร็จเรียบร้อยครบถ้วนแล้วใช่หรือไม่?`,
       'ยืนยันการชำระเงิน',
       'success'
     );
     if (isConfirmed) {
-      onEditExpense(id, { paid: true });
+      if (expense?.isInstallment && expense.installments) {
+        const updated = expense.installments.map(inst => ({
+          ...inst,
+          paid: true,
+          paidDate: inst.paidDate || getThailandTodayStr()
+        }));
+        onEditExpense(id, { paid: true, installments: updated });
+      } else {
+        onEditExpense(id, { paid: true });
+      }
     }
   };
 
@@ -336,75 +452,163 @@ export default function ExpenseModule({
             .map(e => {
               const daysLeft = getDaysUntilDue(e.dueDate);
               const customCatStyle = catColors[e.cat] || catColors['📦 อื่นๆ'];
+              const paidCount = e.installments ? e.installments.filter(inst => inst.paid).length : 0;
 
               return (
                 <div
                   key={e.id}
-                  className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-all dark:bg-slate-900 dark:border-slate-800"
+                  className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col gap-3 shadow-sm hover:shadow-md transition-all dark:bg-slate-900 dark:border-slate-800"
                 >
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${customCatStyle}`}>
-                        {e.cat}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full">
+                    <div className="min-w-0 flex-1 space-y-1.5 text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${customCatStyle}`}>
+                          {e.cat}
+                        </span>
+                        {e.isInstallment && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900">
+                            📦 ผ่อนค่างวดรายเดือน
+                          </span>
+                        )}
+                        {!e.paid && daysLeft !== null && (
+                          <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
+                            daysLeft < 0 
+                              ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                              : daysLeft <= 3 
+                                ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
+                            {daysLeft < 0 ? `เลยกำหนดชำระ ${Math.abs(daysLeft)} วัน` : daysLeft === 0 ? 'ครบกำหนดวันวันนี้!' : `เหลืออีก ${daysLeft} วัน`}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        {e.name}
+                        {e.isInstallment && (
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-450">
+                            (ชำระแล้ว {paidCount}/{e.totalInstallments} งวด)
+                          </span>
+                        )}
+                      </p>
+                      
+                      <div className="flex gap-4 text-[10.5px] text-slate-400 font-mono flex-wrap">
+                        <span>วันที่บันทึก: {e.date}</span>
+                        {e.dueDate && <span>กำหนดชำระ: {e.dueDate}</span>}
+                        {e.note && <span className="font-sans italic">({e.note})</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto border-t border-slate-100 pt-3 sm:pt-0 sm:border-none">
+                      <span className="text-sm font-black text-accent" style={{ color: accentColor }}>
+                        ฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                        {e.isInstallment && <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-500"> / งวด</span>}
                       </span>
-                      {!e.paid && daysLeft !== null && (
-                        <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
-                          daysLeft < 0 
-                            ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                            : daysLeft <= 3 
-                              ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        }`}>
-                          {daysLeft < 0 ? `เลยกำหนดชำระ ${Math.abs(daysLeft)} วัน` : daysLeft === 0 ? 'ครบกำหนดวันวันนี้!' : `เหลืออีก ${daysLeft} วัน`}
-                        </span>
-                      )}
-                    </div>
 
-                    <p className="font-bold text-xs text-slate-800 dark:text-slate-100">{e.name}</p>
-                    
-                    <div className="flex gap-4 text-[10.5px] text-slate-400 font-mono">
-                      <span>วันที่บิล: {e.date}</span>
-                      {e.dueDate && <span>กำหนดชำระ: {e.dueDate}</span>}
-                      {e.note && <span className="font-sans italic">({e.note})</span>}
-                    </div>
-                  </div>
+                      <div className="flex items-center gap-1.5">
+                        {!e.paid ? (
+                          <button
+                            onClick={() => handleMarkPaid(e.id, e.name)}
+                            title={e.isInstallment ? "ทำเครื่องหมายจ่ายครบทุกงวด" : "ทำเครื่องหมายจ่ายแล้ว"}
+                            className="w-8 h-8 border border-slate-200 hover:border-emerald-200 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg flex items-center justify-center transition-all dark:border-slate-800 dark:bg-slate-900"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <span className="text-[9px] font-extrabold bg-emerald-150 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
+                            จ่ายแล้วครบถ้วน
+                          </span>
+                        )}
 
-                  <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto border-t border-slate-100 pt-3 sm:pt-0 sm:border-none">
-                    <span className="text-sm font-black text-accent" style={{ color: accentColor }}>
-                      ฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                    </span>
-
-                    <div className="flex items-center gap-1.5">
-                      {!e.paid ? (
                         <button
-                          onClick={() => handleMarkPaid(e.id, e.name)}
-                          title="ทำเครื่องหมายจ่ายแล้ว"
-                          className="w-8 h-8 border border-slate-200 hover:border-emerald-200 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg flex items-center justify-center transition-all dark:border-slate-800 dark:bg-slate-900"
+                          onClick={() => triggerEditModal(e)}
+                          className="w-8 h-8 border border-slate-200 text-slate-400 hover:text-accent rounded-lg flex items-center justify-center transition-all dark:border-slate-800 bg-slate-50 dark:bg-slate-950 dark:hover:text-slate-200"
+                          style={{ '--accent': accentColor } as React.CSSProperties}
                         >
-                          <CheckCircle className="w-4 h-4" />
+                          <Edit3 className="w-3.5 h-3.5" />
                         </button>
-                      ) : (
-                        <span className="text-[9px] font-extrabold bg-emerald-150 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
-                          จ่ายแล้ว
-                        </span>
-                      )}
 
-                      <button
-                        onClick={() => triggerEditModal(e)}
-                        className="w-8 h-8 border border-slate-200 text-slate-400 hover:text-accent rounded-lg flex items-center justify-center transition-all dark:border-slate-800 bg-slate-50 dark:bg-slate-950 dark:hover:text-slate-200"
-                        style={{ '--accent': accentColor } as React.CSSProperties}
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => handleDelete(e.id, e.name)}
-                        className="w-8 h-8 border border-slate-200 text-slate-400 hover:text-rose-600 rounded-lg flex items-center justify-center transition-all dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          onClick={() => handleDelete(e.id, e.name)}
+                          className="w-8 h-8 border border-slate-200 text-slate-400 hover:text-rose-600 rounded-lg flex items-center justify-center transition-all dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Expanded Installment Toggle */}
+                  {e.isInstallment && (
+                    <div className="flex items-center justify-between text-left">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedExpenseId(expandedExpenseId === e.id ? null : e.id)}
+                        className="text-[11px] font-bold flex items-center gap-1 hover:opacity-80 transition-all"
+                        style={{ color: accentColor }}
+                      >
+                        {expandedExpenseId === e.id ? (
+                          <>
+                            <ChevronUp className="w-3.5 h-3.5" />
+                            <span>ซ่อนรายละเอียดแผนการผ่อนชำระค่างวด</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-3.5 h-3.5" />
+                            <span>คลิกดูและจัดการตารางการจ่ายเงินค่างวดรายเดือน ({paidCount}/{e.totalInstallments} งวด)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Expanded Installment Table */}
+                  {e.isInstallment && expandedExpenseId === e.id && (
+                    <div className="w-full mt-1 pt-3 border-t border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-top-1 duration-150">
+                      <div className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                        📅 ตารางแผนการผ่อนชำระทีละเดือน (คลิกปุ่มเพื่อบันทึกชำระแต่ละงวดแยกกัน)
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                        {e.installments?.map(inst => (
+                          <div
+                            key={inst.installmentNo}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                              inst.paid
+                                ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-950/40'
+                                : 'bg-slate-50/70 dark:bg-slate-950/25 border-slate-150 dark:border-slate-800'
+                            }`}
+                          >
+                            <div className="min-w-0 text-left">
+                              <div className="flex items-center gap-1">
+                                <span className="font-extrabold text-[10px] text-slate-500">งวดที่ {inst.installmentNo}/{e.totalInstallments}</span>
+                                {inst.paid && (
+                                  <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.2 rounded-full dark:text-emerald-400 dark:bg-emerald-950/60">จ่ายแล้ว</span>
+                                )}
+                              </div>
+                              <p className="font-extrabold text-xs text-slate-800 dark:text-slate-100 mt-0.5">
+                                ฿{inst.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                              </p>
+                              <span className="text-[9.5px] text-slate-400 font-mono block mt-0.5">
+                                กำหนด: {inst.dueDate}
+                              </span>
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={() => handleToggleInstallmentPaid(e, inst.installmentNo)}
+                              className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition-all ${
+                                inst.paid
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                  : 'bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-350 dark:hover:bg-slate-950'
+                              }`}
+                            >
+                              {inst.paid ? 'ชำระแล้ว ✓' : 'ทำจ่าย'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -445,7 +649,9 @@ export default function ExpenseModule({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">จำนวนเงินเงินยอด (บาท) *</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">
+                    {isInstallment ? 'จำนวนเงินต่องวด (บาท) *' : 'จำนวนเงินเงินยอด (บาท) *'}
+                  </label>
                   <input
                     type="number"
                     required
@@ -475,7 +681,9 @@ export default function ExpenseModule({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">กำหนดชำระด่วน / วันครบกำหนด</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">
+                  {isInstallment ? 'เริ่มชำระงวดแรกวันที่ (วันครบกำหนดงวดที่ 1) *' : 'กำหนดชำระด่วน / วันครบกำหนด'}
+                </label>
                 <input
                   type="date"
                   value={expDueDate}
@@ -484,6 +692,46 @@ export default function ExpenseModule({
                   style={{ '--accent': accentColor } as React.CSSProperties}
                 />
               </div>
+
+              {/* Checkbox option for installment */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-150 dark:border-slate-800 flex items-center justify-between">
+                <div className="text-left">
+                  <span className="block text-xs font-bold text-slate-700 dark:text-slate-350">💰 บันทึกรายการนี้เป็นค่างวดผ่อนชำระ</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">ระบบจะช่วยประมวลผลและสร้างตารางค่างวดรายเดือนให้ทันที</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isInstallment}
+                  onChange={(e) => setIsInstallment(e.target.checked)}
+                  className="w-4.5 h-4.5 text-accent focus:ring-accent border-slate-300 rounded dark:bg-slate-900 dark:border-slate-850"
+                  style={{ '--accent': accentColor } as React.CSSProperties}
+                />
+              </div>
+
+              {isInstallment && (
+                <div className="grid grid-cols-2 gap-4 p-3.5 bg-violet-50/20 dark:bg-violet-950/10 border border-violet-100 dark:border-violet-950/30 rounded-xl animate-in slide-in-from-top-1 duration-150">
+                  <div className="text-left">
+                    <label className="block text-xs font-bold text-slate-600 mb-1 dark:text-slate-450">จำนวนงวดผ่อนชำระทั้งหมด *</label>
+                    <input
+                      type="number"
+                      required={isInstallment}
+                      min="1"
+                      max="120"
+                      value={totalInstallments}
+                      onChange={(e) => setTotalInstallments(e.target.value)}
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                      style={{ '--accent': accentColor } as React.CSSProperties}
+                    />
+                  </div>
+                  
+                  <div className="text-left">
+                    <label className="block text-xs font-bold text-slate-600 mb-1 dark:text-slate-450">ยอดผ่อนรวม (โดยประมาณ)</label>
+                    <div className="h-11 px-3 flex items-center bg-slate-100/60 border border-slate-200 rounded-lg text-xs text-slate-500 font-bold font-mono dark:bg-slate-950/40 dark:border-slate-800 dark:text-slate-400">
+                      ฿{((parseFloat(expAmount) || 0) * (parseInt(totalInstallments) || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">รายละเอียดบันทึกความจำสั้น</label>
