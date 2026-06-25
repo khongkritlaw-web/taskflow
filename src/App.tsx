@@ -2891,6 +2891,7 @@ export default function App() {
               >
                 <CalendarModule
                   tasks={tasks}
+                  expenses={expenses}
                   holidays={customHolidays}
                   onAddTaskOnDate={(dt) => {
                     setActiveTab('tasks');
@@ -2902,6 +2903,7 @@ export default function App() {
                   }}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
+                  onEditExpense={handleEditExpense}
                   accentColor={settings.colorAccent}
                 />
               </motion.div>

@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText, Printer } from 'lucide-react';
-import { Task } from '../types';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, CheckCircle, Clock, FileText, Printer, Coins } from 'lucide-react';
+import { Task, Expense } from '../types';
 import { useDialog } from './CustomDialog';
 
 interface CalendarModuleProps {
   tasks: Task[];
+  expenses?: Expense[];
   holidays: Record<string, string>;
   onAddTaskOnDate: (date: string) => void;
   onEditTask: (id: string, updated: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
+  onEditExpense?: (id: string, updated: Partial<Expense>) => void;
   accentColor: string;
 }
 
 export default function CalendarModule({
   tasks,
+  expenses = [],
   holidays,
   onAddTaskOnDate,
   onEditTask,
   onDeleteTask,
+  onEditExpense,
   accentColor
 }: CalendarModuleProps) {
   const { showAlert, showConfirm } = useDialog();
@@ -80,6 +84,84 @@ export default function CalendarModule({
 
   const todayStr = getThailandTodayStr();
 
+  const getExpensesForDate = (dateStr: string) => {
+    if (!expenses) return [];
+    const list: Array<{
+      expenseId: string;
+      parentName: string;
+      amount: number;
+      paid: boolean;
+      isInstallment: boolean;
+      installmentNo?: number;
+      totalInstallments?: number;
+      cat: string;
+      dueDate: string;
+    }> = [];
+
+    expenses.forEach(e => {
+      if (e.isInstallment && e.installments) {
+        e.installments.forEach(inst => {
+          if (inst.dueDate === dateStr) {
+            list.push({
+              expenseId: e.id,
+              parentName: e.name,
+              amount: inst.amount,
+              paid: inst.paid,
+              isInstallment: true,
+              installmentNo: inst.installmentNo,
+              totalInstallments: e.totalInstallments,
+              cat: e.cat,
+              dueDate: inst.dueDate
+            });
+          }
+        });
+      } else {
+        if (e.dueDate === dateStr) {
+          list.push({
+            expenseId: e.id,
+            parentName: e.name,
+            amount: e.amount,
+            paid: e.paid,
+            isInstallment: false,
+            cat: e.cat,
+            dueDate: e.dueDate
+          });
+        }
+      }
+    });
+
+    return list;
+  };
+
+  const handleToggleInstallmentPaid = (expenseId: string, installmentNo: number) => {
+    if (!expenses || !onEditExpense) return;
+    const expense = expenses.find(e => e.id === expenseId);
+    if (!expense || !expense.installments) return;
+    
+    const updated = expense.installments.map(inst => {
+      if (inst.installmentNo === installmentNo) {
+        const nextPaid = !inst.paid;
+        return {
+          ...inst,
+          paid: nextPaid,
+          paidDate: nextPaid ? getThailandTodayStr() : undefined
+        };
+      }
+      return inst;
+    });
+
+    const allPaid = updated.every(inst => inst.paid);
+    onEditExpense(expense.id, {
+      installments: updated,
+      paid: allPaid
+    });
+  };
+
+  const handleToggleRegularExpensePaid = (expenseId: string, currentPaid: boolean) => {
+    if (!onEditExpense) return;
+    onEditExpense(expenseId, { paid: !currentPaid });
+  };
+
   // Static/Fallback Holidays
   const fixedHolidaysPattern: Record<string, string> = {
     '01-01': 'วันขึ้นปีใหม่',
@@ -118,11 +200,11 @@ export default function CalendarModule({
     const firstDayIdx = new Date(targetYearNum, targetMonthNum - 1, 1).getDay();
     const totalDaysInMonth = new Date(targetYearNum, targetMonthNum, 0).getDate();
     
-    const printCells: Array<{ day: number | null; dateStr: string; tasks: Task[]; holiday: string }> = [];
+    const printCells: Array<{ day: number | null; dateStr: string; tasks: Task[]; expenses: ReturnType<typeof getExpensesForDate>; holiday: string }> = [];
     
     // Empty prefix cells
     for (let i = 0; i < firstDayIdx; i++) {
-      printCells.push({ day: null, dateStr: '', tasks: [], holiday: '' });
+      printCells.push({ day: null, dateStr: '', tasks: [], expenses: [], holiday: '' });
     }
     
     // Real days
@@ -131,12 +213,13 @@ export default function CalendarModule({
       const shortKey = `${String(targetMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const hName = holidays[dStr] || fixedHolidaysPattern[shortKey] || '';
       const dayTasks = tasks.filter(t => t.dueDate === dStr);
-      printCells.push({ day: d, dateStr: dStr, tasks: dayTasks, holiday: hName });
+      const dayExps = getExpensesForDate(dStr);
+      printCells.push({ day: d, dateStr: dStr, tasks: dayTasks, expenses: dayExps, holiday: hName });
     }
     
     // Empty suffix cells to snap perfectly to 7-columns layout
     while (printCells.length % 7 !== 0) {
-      printCells.push({ day: null, dateStr: '', tasks: [], holiday: '' });
+      printCells.push({ day: null, dateStr: '', tasks: [], expenses: [], holiday: '' });
     }
     
     // Group cells into weeks
@@ -249,6 +332,25 @@ export default function CalendarModule({
             color: #047857;
             text-decoration: line-through;
           }
+          .expense-strip {
+            background-color: #f5f3ff;
+            border-left: 2.5px solid #8b5cf6;
+            padding: 1px 3px;
+            margin-bottom: 2px;
+            border-radius: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 8px;
+            color: #5b21b6;
+            font-weight: bold;
+          }
+          .expense-strip.completed {
+            border-left-color: #10b981;
+            background-color: #f0fdf4;
+            color: #047857;
+            text-decoration: line-through;
+          }
           /* Tabular schedule */
           .sub-title {
             font-size: 13px;
@@ -336,15 +438,27 @@ export default function CalendarModule({
                       <span class="day-number">${cell.day}</span>
                       ${cell.holiday ? `<span class="holiday-tag" title="${cell.holiday}">🎉 ${cell.holiday}</span>` : ''}
                       
-                      ${cell.tasks.slice(0, 3).map(t => `
+                      ${cell.tasks.slice(0, 2).map(t => `
                         <div class="task-strip ${t.status === 'completed' ? 'completed' : ''}" title="${t.title}">
                           ${t.dueTime ? t.dueTime : ''} ${t.title}
                         </div>
                       `).join('')}
                       
-                      ${cell.tasks.length > 3 ? `
-                        <div style="font-size: 7.5px; color:#64748b; font-weight:bold; padding-left: 3px;">
-                          และงานอื่นอีก +${cell.tasks.length - 3} รายการ...
+                      ${cell.tasks.length > 2 ? `
+                        <div style="font-size: 7.5px; color:#64748b; font-weight:bold; padding-left: 3px; margin-bottom: 2px;">
+                          และงานอื่น +${cell.tasks.length - 2} รายการ...
+                        </div>
+                      ` : ''}
+
+                      ${cell.expenses.slice(0, 2).map(e => `
+                        <div class="expense-strip ${e.paid ? 'completed' : ''}" title="${e.parentName}${e.isInstallment ? ` (งวดที่ ${e.installmentNo}/${e.totalInstallments})` : ''}">
+                          💰 ฿${e.amount.toLocaleString('th-TH')} ${e.parentName}
+                        </div>
+                      `).join('')}
+
+                      ${cell.expenses.length > 2 ? `
+                        <div style="font-size: 7.5px; color:#8b5cf6; font-weight:bold; padding-left: 3px;">
+                          และค่างวดอีก +${cell.expenses.length - 2} บิล...
                         </div>
                       ` : ''}
                     </td>
@@ -385,6 +499,78 @@ export default function CalendarModule({
                   </td>
                 </tr>
               `).join('')}
+            </tbody>
+          </table>
+
+          <div class="sub-title">💰 บัญชีรายชื่อบิลและค่างวดผ่อนชำระสะสมในรอบเดือนนี้ (Monthly Bills & Installments)</div>
+          <table class="sched-table">
+            <thead>
+              <tr>
+                <th style="width: 8%; text-align: center;">ลำดับ</th>
+                <th style="width: 15%;">วันที่กำหนดชำระ</th>
+                <th style="width: 45%;">รายการบิล / ค่างวดผ่อนชำระ</th>
+                <th style="width: 17%;">จำนวนเงิน</th>
+                <th style="width: 15%;">สถานะการชำระเงิน</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(() => {
+                const scheduledExps: Array<{ parentName: string; amount: number; paid: boolean; dueDate: string; isInstallment: boolean; installmentNo?: number; totalInstallments?: number; }> = [];
+                expenses.forEach(e => {
+                  if (e.isInstallment && e.installments) {
+                    e.installments.forEach(inst => {
+                      if (inst.dueDate && inst.dueDate.substring(0, 7) === `${printYear}-${printMonth}`) {
+                        scheduledExps.push({
+                          parentName: e.name,
+                          amount: inst.amount,
+                          paid: inst.paid,
+                          dueDate: inst.dueDate,
+                          isInstallment: true,
+                          installmentNo: inst.installmentNo,
+                          totalInstallments: e.totalInstallments
+                        });
+                      }
+                    });
+                  } else {
+                    if (e.dueDate && e.dueDate.substring(0, 7) === `${printYear}-${printMonth}`) {
+                      scheduledExps.push({
+                        parentName: e.name,
+                        amount: e.amount,
+                        paid: e.paid,
+                        dueDate: e.dueDate,
+                        isInstallment: false
+                      });
+                    }
+                  }
+                });
+
+                scheduledExps.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+                if (scheduledExps.length === 0) {
+                  return `
+                    <tr>
+                      <td colspan="5" style="text-align: center; padding: 25px; color:#64748b;">
+                        <i>- เดือนนี้ไม่มีรายการบิลค่าใช้จ่ายหรือค่างวดสะสม -</i>
+                      </td>
+                    </tr>
+                  `;
+                }
+
+                return scheduledExps.map((e, index) => `
+                  <tr>
+                    <td style="text-align: center; font-weight: bold;">${index + 1}</td>
+                    <td>${e.dueDate.split('-').reverse().join('/')}</td>
+                    <td>
+                      <strong>${e.parentName}</strong>
+                      ${e.isInstallment ? `<br/><span style="font-size:9px;color:#8b5cf6;font-weight:600;">(ค่างวดผ่อนชำระ งวดที่ ${e.installmentNo}/${e.totalInstallments})</span>` : ''}
+                    </td>
+                    <td style="font-family: monospace; font-weight: bold; color: #1e293b;">฿${e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td style="font-weight: 600; color: ${e.paid ? '#047857' : '#b45309'}">
+                      ${e.paid ? '✅ ชำระเรียบร้อยแล้ว' : '⏳ รอการชำระเงิน'}
+                    </td>
+                  </tr>
+                `).join('');
+              })()}
             </tbody>
           </table>
         ` : ''}
@@ -457,6 +643,7 @@ export default function CalendarModule({
     }
   };
 
+  const dayExpenses = selectedDayStr ? getExpensesForDate(selectedDayStr) : [];
   const cells: React.ReactNode[] = [];
 
   // Empty cells leading up to 1st of month
@@ -477,6 +664,10 @@ export default function CalendarModule({
 
     const pendingCount = dayTasks.filter(t => t.status !== 'completed').length;
     const completedCount = dayTasks.filter(t => t.status === 'completed').length;
+
+    const dayExpenses = getExpensesForDate(dStr);
+    const pendingExpensesCount = dayExpenses.filter(e => !e.paid).length;
+    const paidExpensesCount = dayExpenses.filter(e => e.paid).length;
 
     cells.push(
       <div
@@ -515,6 +706,18 @@ export default function CalendarModule({
             <div className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
               เสร็จ ({completedCount})
+            </div>
+          )}
+          {pendingExpensesCount > 0 && (
+            <div className="text-[9px] font-extrabold bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded flex items-center gap-1 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900" title={`มีรายจ่าย/ค่างวดที่ต้องชำระ ${pendingExpensesCount} รายการ`}>
+              <span className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-pulse"></span>
+              ค่างวด ({pendingExpensesCount})
+            </div>
+          )}
+          {paidExpensesCount > 0 && (
+            <div className="text-[9px] font-extrabold bg-teal-50 text-teal-700 border border-teal-200 px-1.5 py-0.5 rounded flex items-center gap-1 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900" title={`ชำระค่างวดแล้ว ${paidExpensesCount} รายการ`}>
+              <span className="w-1.5 h-1.5 bg-teal-500 rounded-full"></span>
+              จ่ายแล้ว ({paidExpensesCount})
             </div>
           )}
         </div>
@@ -698,6 +901,77 @@ export default function CalendarModule({
                   })}
                 </div>
               )}
+
+              {/* รายการชำระเงิน / ค่างวดผ่อนจ่ายรายเดือน */}
+              <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">รายการชำระเงิน / ค่างวดผ่อนในวัน</span>
+                </div>
+
+                {dayExpenses.length === 0 ? (
+                  <div className="text-center py-6 text-slate-400 text-xs italic bg-white border border-dashed border-slate-200 rounded-xl dark:bg-slate-900 dark:border-slate-800">
+                    ไม่มีรายการบิลหรือค่างวดที่ครบกำหนดชำระในวันนี้
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {dayExpenses.map(e => {
+                      return (
+                        <div
+                          key={e.expenseId + (e.isInstallment ? `_inst_${e.installmentNo}` : '_reg')}
+                          className={`p-4 bg-white border rounded-xl shadow-sm flex items-center justify-between gap-4 dark:bg-slate-900 dark:border-slate-800 border-l-[3px] ${
+                            e.paid 
+                              ? 'border-emerald-500 border-r-slate-200 border-y-slate-200' 
+                              : 'border-violet-500 border-r-slate-200 border-y-slate-200'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1 text-left">
+                            <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
+                              <span>{e.parentName}</span>
+                              {e.isInstallment && (
+                                <span className="text-[9.5px] font-extrabold px-1.5 py-0.2 bg-violet-50 text-violet-700 rounded-md dark:bg-violet-950/40 dark:text-violet-300">
+                                  ผ่อนงวดที่ {e.installmentNo}/{e.totalInstallments}
+                                </span>
+                              )}
+                            </p>
+                            <div className="font-mono text-[10.5px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold" style={{ color: accentColor }}>
+                                ฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                              </span>
+                              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded dark:bg-slate-950 dark:text-slate-400 text-[9px]">{e.cat}</span>
+                              {e.paid ? (
+                                <span className="text-emerald-600 font-bold text-[9px]">✓ ชำระแล้ว</span>
+                              ) : (
+                                <span className="text-rose-500 font-bold text-[9px]">⏳ ค้างชำระ</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {onEditExpense && (
+                              <button
+                                onClick={() => {
+                                  if (e.isInstallment && e.installmentNo !== undefined) {
+                                    handleToggleInstallmentPaid(e.expenseId, e.installmentNo);
+                                  } else {
+                                    handleToggleRegularExpensePaid(e.expenseId, e.paid);
+                                  }
+                                }}
+                                className={`h-8 px-3 rounded-lg text-xs font-black transition-all ${
+                                  e.paid
+                                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900'
+                                    : 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm'
+                                }`}
+                              >
+                                {e.paid ? 'ชำระแล้ว ✓' : 'ทำชำระเงิน'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end dark:bg-slate-950 dark:border-slate-800">

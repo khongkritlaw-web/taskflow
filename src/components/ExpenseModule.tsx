@@ -618,8 +618,8 @@ export default function ExpenseModule({
       {/* Add / Edit Expense popup bill */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <form onSubmit={handleSubmit} className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800 font-bold dark:text-slate-100 text-sm">
+          <form onSubmit={handleSubmit} className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800 font-bold dark:text-slate-100 text-sm flex-shrink-0">
               <span className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-accent" style={{ color: accentColor }} />
                 {editId ? 'แก้ไขรายการบิลค่าใช้จ่าย' : 'เพิ่มรายการบิลค่าใช้จ่ายใหม่'}
@@ -633,7 +633,7 @@ export default function ExpenseModule({
               </button>
             </div>
 
-            <div className="p-5 space-y-4 text-sm text-slate-700">
+            <div className="p-5 space-y-4 text-sm text-slate-700 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">ชื่อบิลชำระยอด/รายการ *</label>
                 <input
@@ -746,7 +746,7 @@ export default function ExpenseModule({
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
