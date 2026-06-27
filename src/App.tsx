@@ -73,6 +73,7 @@ import { PrintReportModal } from './components/PrintReportModal';
 import { EditProfileModal } from './components/EditProfileModal';
 
 const DEFAULT_CATEGORIES = ['💼 งานทั่วไป', '🏠 ส่วนตัว', '🛒 ช้อปปิ้ง', '🔥 เร่งด่วน'];
+const DEFAULT_EXPENSE_CATEGORIES = ['🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง', '💊 สุขภาพ', '📱 สื่อสาร', '🎓 การศึกษา', '🎉 บันเทิง', '📦 อื่นๆ'];
 
 const CUSTOM_LINK_ICONS = [
   { name: 'Link', label: 'ลิงก์ทั่วไป', component: Link },
@@ -159,6 +160,7 @@ export default function App() {
     customBgUrl: '',
     darkMode: false,
     categories: DEFAULT_CATEGORIES,
+    expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
     emailRecipient: '',
     emailNotificationEnabled: true,
     emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
@@ -237,12 +239,12 @@ export default function App() {
   
   // Custom theme settings helpers
   const [harmoniousMode, setHarmoniousMode] = useState(true);
-  const [newCatInput, setNewCatInput] = useState('');
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [newLinkIcon, setNewLinkIcon] = useState('Link');
   const [newLinkVisibility, setNewLinkVisibility] = useState<'all' | 'specific'>('all');
   const [newLinkAllowedUsers, setNewLinkAllowedUsers] = useState<string[]>([]);
+  const [newLinkOpenDirectly, setNewLinkOpenDirectly] = useState(false);
   const [adminCustomLinks, setAdminCustomLinks] = useState<CustomMenuLink[]>([]);
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
   const [linkHintVisible, setLinkHintVisible] = useState(false);
@@ -767,6 +769,7 @@ export default function App() {
       customBgUrl: '',
       darkMode: false,
       categories: DEFAULT_CATEGORIES,
+      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
       emailRecipient: email || '',
       emailNotificationEnabled: true,
       emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
@@ -861,6 +864,7 @@ export default function App() {
       customBgUrl: '',
       darkMode: false,
       categories: DEFAULT_CATEGORIES,
+      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
       emailRecipient: sessionUser.email || '',
       emailNotificationEnabled: true,
       emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
@@ -1346,6 +1350,11 @@ export default function App() {
     syncTasks(filtered);
   };
 
+  const handleDeleteTasks = (ids: string[]) => {
+    const filtered = tasks.filter(t => !ids.includes(t.id));
+    syncTasks(filtered);
+  };
+
   const handleDeleteAllCompleted = () => {
     const filtered = tasks.filter(t => t.status !== 'completed');
     syncTasks(filtered);
@@ -1470,28 +1479,21 @@ export default function App() {
   };
 
   // 5. Settings Tab Handlers
-  const handleAddNewCategory = async () => {
-    const cat = newCatInput.trim();
-    if (!cat) return;
-    if (settings.categories.includes(cat)) {
-      await showAlert('หมวดหมู่กิจกรรมนี้มีอยู่แล้วในระบบ', 'ไม่สำเร็จ', 'warning');
-      return;
-    }
-    const updatedCats = [...settings.categories, cat];
+  const handleAddCategoryOnTheFly = (cat: string) => {
+    const trimmed = cat.trim();
+    if (!trimmed) return;
+    if (settings.categories.includes(trimmed)) return;
+    const updatedCats = [...settings.categories, trimmed];
     syncSettings({ ...settings, categories: updatedCats });
-    setNewCatInput('');
   };
 
-  const handleRemoveCategory = async (index: number) => {
-    const isConfirmed = await showConfirm(
-      'คุณต้องการนำหมวดหมู่นี้ออกจากตัวกรองกิจกรรมใช่หรือไม่?',
-      'ลบหมวดหมู่',
-      'danger'
-    );
-    if (isConfirmed) {
-      const updatedCats = settings.categories.filter((_, idx) => idx !== index);
-      syncSettings({ ...settings, categories: updatedCats });
-    }
+  const handleAddExpenseCategoryOnTheFly = (cat: string) => {
+    const trimmed = cat.trim();
+    if (!trimmed) return;
+    const currentExpenseCats = settings.expenseCategories || DEFAULT_EXPENSE_CATEGORIES;
+    if (currentExpenseCats.includes(trimmed)) return;
+    const updatedCats = [...currentExpenseCats, trimmed];
+    syncSettings({ ...settings, expenseCategories: updatedCats });
   };
 
   const handleAddMenuLink = async () => {
@@ -1517,7 +1519,8 @@ export default function App() {
             url,
             iconName: newLinkIcon,
             visibility: newLinkVisibility,
-            allowedUsers: newLinkVisibility === 'specific' ? newLinkAllowedUsers : []
+            allowedUsers: newLinkVisibility === 'specific' ? newLinkAllowedUsers : [],
+            openDirectly: newLinkOpenDirectly
           };
         }
         return link;
@@ -1533,7 +1536,8 @@ export default function App() {
         url,
         iconName: newLinkIcon,
         visibility: newLinkVisibility,
-        allowedUsers: newLinkVisibility === 'specific' ? newLinkAllowedUsers : []
+        allowedUsers: newLinkVisibility === 'specific' ? newLinkAllowedUsers : [],
+        openDirectly: newLinkOpenDirectly
       };
 
       const updatedLinks = [...(settings.customMenuLinks || []), newLink];
@@ -1545,6 +1549,7 @@ export default function App() {
     setNewLinkIcon('Link');
     setNewLinkVisibility('all');
     setNewLinkAllowedUsers([]);
+    setNewLinkOpenDirectly(false);
   };
 
   const handleEditMenuLinkStart = (id: string) => {
@@ -1556,6 +1561,7 @@ export default function App() {
       setNewLinkIcon(link.iconName || 'Link');
       setNewLinkVisibility(link.visibility || 'all');
       setNewLinkAllowedUsers(link.allowedUsers || []);
+      setNewLinkOpenDirectly(!!link.openDirectly);
     }
   };
 
@@ -1566,6 +1572,7 @@ export default function App() {
     setNewLinkIcon('Link');
     setNewLinkVisibility('all');
     setNewLinkAllowedUsers([]);
+    setNewLinkOpenDirectly(false);
   };
 
   const handleRemoveMenuLink = async (id: string) => {
@@ -2184,7 +2191,14 @@ export default function App() {
             return (
               <button
                 key={link.id}
-                onClick={() => { setActiveTab(`link_${link.id}`); setMobileMenuOpen(false); }}
+                onClick={() => { 
+                  setActiveTab(`link_${link.id}`); 
+                  setMobileMenuOpen(false); 
+                  if (link.openDirectly || isFrameRestricted(link.url)) {
+                    const fullUrl = link.url.match(/^[a-zA-Z]+:\/\//) ? link.url : 'https://' + link.url;
+                    window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                  }
+                }}
                 className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
                   activeTab === `link_${link.id}`
                     ? 'bg-slate-800 text-white border-l-[3px]'
@@ -2280,8 +2294,7 @@ export default function App() {
                       } catch (e: any) {
                         showAlert("ไม่สามารถเชื่อมต่อประสานระบบแมนนวลได้ในขณะนี้: " + (e.message || String(e)), "ผิดพลาด", "error");
                       }
-                    } else {
-                      showAlert("ระบบคลาวด์ Cloud Firestore ทำงานได้สมบูรณ์ ปกติ และเชื่อมต่อเรียลไทม์เรียบร้อยแล้วค่ะ! ทุกข้อมูลอัปเดตเรียลไทม์แล้ว", "เชื่อมต่อคลาวด์สมบูรณ์", "success");
+                    } else {                      showAlert("ระบบคลาวด์ Cloud Firestore ทำงานได้สมบูรณ์ ปกติ และเชื่อมต่อเรียลไทม์เรียบร้อยแล้วค่ะ! ทุกข้อมูลอัปเดตเรียลไทม์แล้ว", "เชื่อมต่อคลาวด์สมบูรณ์", "success");
                     }
                   }}
                 >
@@ -2342,61 +2355,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            {/* Connection Status Badge */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-extrabold shadow-sm transition-all duration-300 ${
-              isOnline 
-                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/60 dark:text-emerald-400' 
-                : 'bg-amber-50/80 border-amber-200 text-amber-850 dark:bg-amber-950/20 dark:border-amber-900/60 dark:text-amber-400 animate-pulse'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500' : 'bg-amber-500 animate-ping'}`} />
-              <span className="hidden xs:inline">
-                {isOnline ? 'เชื่อมต่อคลาวด์' : 'เซฟในเครื่องปลอดภัย'}
-              </span>
-              <span className="inline xs:hidden">
-                {isOnline ? 'คลาวด์' : 'ออฟไลน์'}
-              </span>
-            </div>
-
-            {/* Clock Widget */}
-             <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 font-mono text-[10.5px] font-bold text-slate-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400">
-               <Clock className="w-3.5 h-3.5" style={{ color: settings.colorAccent }} />
-               <span>{currentTime || '00:00:00'}</span>
-             </div>
-
-             {/* Header Chat Widget */}
-             <HeaderChatWidget 
-               sessionUser={sessionUser}
-               accentColor={settings.colorAccent}
-               darkMode={settings.darkMode}
-             />
-
-             {/* Admin multi-profile dropdown switch */}
-             {sessionUser.userId === 'admin' && allUsersList.length > 0 && (
-               <div className="flex items-center gap-1.5 bg-indigo-50/90 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-900/40 rounded-full px-3 py-1 font-sans text-[11px] font-bold text-indigo-800 dark:text-indigo-400">
-                 <User className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-pulse" />
-                 <span className="hidden select-none sm:inline">สลับดูหลังบ้านโปรไฟล์:</span>
-                 <select
-                   value={currentViewUid}
-                   onChange={(e) => {
-                     const selectedUid = e.target.value;
-                     const selectedUser = allUsersList.find(u => u.uid === selectedUid);
-                     if (selectedUser) {
-                       setCurrentViewUid(selectedUser.uid);
-                       setCurrentViewUserId(selectedUser.userId);
-                     }
-                   }}
-                   className="bg-transparent border-none text-[11px] font-black focus:ring-0 cursor-pointer text-indigo-700 dark:text-indigo-300 py-0 pl-1 pr-5"
-                 >
-                   {allUsersList.map((usr) => (
-                     <option key={usr.uid} value={usr.uid} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
-                       {usr.userId === 'admin' ? 'แอดมิน (ตัวเอง)' : usr.userId}
-                     </option>
-                   ))}
-                 </select>
-               </div>
-             )}
-
-             {/* Notification center */}
+            {/* Notification center */}
             <div className="relative">
               <button
                 onClick={() => setShowNotificationFlyout(!showNotificationFlyout)}
@@ -2411,7 +2370,6 @@ export default function App() {
                 )}
               </button>
 
-              {/* Dropdown list */}
               {showNotificationFlyout && (
                 <>
                   {/* Backdrop overlay to close when clicking outside */}
@@ -2434,101 +2392,60 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Scrollable list content */}
-                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-50 dark:divide-slate-800/50">
+                    {/* Content area */}
+                    <div className="max-h-80 overflow-y-auto p-4 space-y-3 dark:bg-slate-900">
                       {notificationCount === 0 ? (
-                        <div className="p-8 text-center text-xs text-slate-400 font-medium space-y-2">
-                          <CheckSquare className="w-8 h-8 mx-auto text-slate-300" />
-                          <p>คุ้มครองเรียบร้อย! ไม่มีรายการแจ้งเตือนที่หลังชนฝาขณะนี้</p>
+                        <div className="p-8 text-center text-slate-400 dark:text-slate-550 text-xs">
+                          ✨ ไม่มีรายการแจ้งเตือนค้างจัดทำค่ะ
                         </div>
                       ) : (
-                        <>
-                          {/* 1. Pending Tasks */}
-                          {notificationTasks.map(task => (
-                            <div key={task.id} className="p-3.5 flex items-start gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-950/20 group transition-all">
-                              <button
-                                onClick={() => {
-                                  handleEditTask(task.id, { status: 'completed' });
-                                }}
-                                className="w-5 h-5 flex-shrink-0 mt-0.5 border-2 border-slate-300 rounded hover:border-emerald-500 hover:bg-emerald-50 flex items-center justify-center transition-all dark:border-slate-700 dark:hover:bg-emerald-950"
-                                title="ทำเครื่องหมายเสร็จสิ้น"
-                              >
-                                <span className="text-transparent group-hover:text-emerald-500 text-[10px] font-black">✓</span>
-                              </button>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-md dark:bg-slate-800 dark:text-slate-400">
-                                    {task.category}
-                                  </span>
-                                  {task.dueDate === todayStr ? (
-                                    <span className="text-[9px] font-extrabold text-amber-600">⚡ กำหนดวันนี้</span>
-                                  ) : (
-                                    <span className="text-[9px] font-extrabold text-rose-500">🚨 เลยกำหนด</span>
-                                  )}
-                                </div>
-                                <h4 className="text-xs font-bold text-slate-850 dark:text-slate-200 mt-1 truncate">
-                                  {task.title}
-                                </h4>
-                                <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">
-                                  กำหนด: {task.dueDate} {task.dueTime || ''}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* 2. Expenses matching criteria */}
-                          {notificationExpenses.map(exp => {
-                            const isBillToday = exp.date === todayStr;
-                            const isDueToday = exp.dueDate === todayStr;
-                            const isOverdue = exp.dueDate < todayStr;
-                            return (
-                              <div key={exp.id} className="p-3.5 flex items-start gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-950/20 group transition-all">
-                                <button
+                        <div className="space-y-3">
+                          {/* List Tasks */}
+                          {notificationTasks.length > 0 && (
+                            <div className="space-y-2 text-left">
+                              <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">📋 ภารกิจเร่งด่วน/ค้างทำ ({notificationTasks.length})</span>
+                              {notificationTasks.map(t => (
+                                <div 
+                                  key={t.id} 
                                   onClick={() => {
-                                    handleEditExpense(exp.id, { paid: true });
+                                    setActiveTab('tasks');
+                                    setShowNotificationFlyout(false);
                                   }}
-                                  className="w-5 h-5 flex-shrink-0 mt-0.5 border-2 border-slate-300 rounded-full hover:border-emerald-500 hover:bg-emerald-50 flex items-center justify-center transition-all dark:border-slate-700 dark:hover:bg-emerald-950"
-                                  title="ทำเครื่องหมายชำระแล้ว"
+                                  className="p-3 bg-rose-500/5 dark:bg-rose-950/20 hover:bg-rose-500/10 dark:hover:bg-rose-950/40 rounded-xl border border-rose-500/10 dark:border-rose-900/40 cursor-pointer transition-all flex flex-col gap-1"
                                 >
-                                  <span className="text-transparent group-hover:text-emerald-500 text-[10px] font-black">✓</span>
-                                </button>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-teal-50 text-teal-700 rounded-md dark:bg-teal-950/30 dark:text-teal-400">
-                                      {exp.cat}
-                                    </span>
-                                    {isOverdue && (
-                                      <span className="text-[9px] font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 animate-pulse dark:bg-rose-950/30 dark:border-rose-900">
-                                        🚨 เลยกำหนดชำระ
-                                      </span>
-                                    )}
-                                    {isDueToday && (
-                                      <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 dark:bg-amber-950/30 dark:border-amber-900">
-                                        ⚡ ต้องชำระวันนี้
-                                      </span>
-                                    )}
-                                    {isBillToday && !isDueToday && !isOverdue && (
-                                      <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900">
-                                        📝 บิลออกวันนี้
-                                      </span>
-                                    )}
-                                  </div>
-                                  <h4 className="text-xs font-bold text-slate-850 dark:text-slate-200 mt-1 truncate">
-                                    {exp.name}
-                                  </h4>
-                                  <div className="flex items-center justify-between mt-1 text-[10px]">
-                                    <span className="font-extrabold text-rose-600 dark:text-rose-450 font-mono">
-                                      ยอด: {Number(exp.amount).toLocaleString('th-TH')} บาท
-                                    </span>
-                                    <span className="text-slate-400 font-semibold">
-                                      ครบกำหนด: {exp.dueDate}
-                                    </span>
+                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">{t.title}</span>
+                                  <div className="flex justify-between items-center text-[9px] text-slate-400 mt-1">
+                                    <span>หมวด: {t.category}</span>
+                                    <span className="text-rose-600 font-bold dark:text-rose-400">กำหนด: {t.dueDate}</span>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* List Expenses */}
+                          {notificationExpenses.length > 0 && (
+                            <div className="space-y-2 text-left">
+                              <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block">💰 บิลที่ถึงกำหนดชำระ ({notificationExpenses.length})</span>
+                              {notificationExpenses.map(e => (
+                                <div 
+                                  key={e.id} 
+                                  onClick={() => {
+                                    setActiveTab('expenses');
+                                    setShowNotificationFlyout(false);
+                                  }}
+                                  className="p-3 bg-amber-500/5 dark:bg-amber-950/20 hover:bg-amber-500/10 dark:hover:bg-amber-950/40 rounded-xl border border-amber-500/10 dark:border-amber-900/40 cursor-pointer transition-all flex flex-col gap-1"
+                                >
+                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">{e.title}</span>
+                                  <div className="flex justify-between items-center text-[9px] mt-1">
+                                    <span className="text-slate-400">ยอดชำระ: <strong className="text-amber-600 dark:text-amber-400">{e.amount.toLocaleString()} ฿</strong></span>
+                                    <span className="text-amber-600 font-bold dark:text-amber-400">ครบกำหนด: {e.dueDate}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -2557,6 +2474,27 @@ export default function App() {
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Connection Status Badge */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-extrabold shadow-sm transition-all duration-300 ${
+              isOnline 
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/60 dark:text-emerald-400' 
+                : 'bg-amber-50/80 border-amber-200 text-amber-850 dark:bg-amber-950/20 dark:border-amber-900/60 dark:text-amber-400 animate-pulse'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500' : 'bg-amber-500 animate-ping'}`} />
+              <span className="hidden xs:inline">
+                {isOnline ? 'เชื่อมต่อคลาวด์' : 'เซฟในเครื่องปลอดภัย'}
+              </span>
+              <span className="inline xs:hidden">
+                {isOnline ? 'คลาวด์' : 'ออฟไลน์'}
+              </span>
+            </div>
+
+            {/* Clock Widget */}
+            <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 font-mono text-[10.5px] font-bold text-slate-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400">
+              <Clock className="w-3.5 h-3.5 animate-pulse text-slate-400" />
+              <span>{currentTime || '00:00:00'} น.</span>
             </div>
 
             {/* Header User Profile Badge */}
@@ -2630,20 +2568,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* Small floating restore / expand trigger when header is collapsed */}
-        {headerCollapsed && (
-          <div className="sticky top-0 z-50 h-0 w-full flex justify-center">
-            <button
-              onClick={() => handleSetHeaderCollapsed(false)}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-b-2xl shadow-xl text-[10.5px] font-extrabold hover:brightness-110 active:scale-95 transition-all border border-t-0 border-slate-700/50"
-              title="แสดงแถบเมนูหลักด้านบน"
-            >
-              <ArrowDown className="w-3.5 h-3.5 animate-bounce" style={{ color: settings.colorAccent }} />
-              <span>แสดงแถบเมนูหลัก (TaskFlow Space Executive Pro)</span>
-            </button>
-          </div>
-        )}
-
         {/* PRIMARY WINDOW CONTENT VIEW */}
         <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-16"}>
           {activeTab.startsWith('link_') && (() => {
@@ -2661,8 +2585,18 @@ export default function App() {
                 className="flex flex-col w-full h-full overflow-hidden"
                 id="custom-link-viewport"
               >
-                <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 gap-2 flex-shrink-0">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 gap-3 flex-shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <button
+                      onClick={() => {
+                        setActiveTab('tasks');
+                      }}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600 text-[10px] font-black rounded-lg shadow-sm flex items-center gap-1.5 flex-shrink-0 transition-all hover:scale-105 active:scale-95"
+                      title="ย้อนกลับมาหน้าแดชบอร์ดหลักของระบบ"
+                    >
+                      🏠 กลับหน้าหลักระบบ
+                    </button>
+                    <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 flex-shrink-0" />
                     <Link className="w-4 h-4 flex-shrink-0" style={{ color: settings.colorAccent }} />
                     <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{targetLink.title}</span>
                     <span className="text-[10px] font-mono text-slate-400 truncate max-w-[150px] sm:max-w-xs">{targetLink.url}</span>
@@ -2749,15 +2683,65 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950">
-                  <iframe 
-                    id="link-iframe"
-                    src={targetLink.url} 
-                    className="w-full h-full border-0 bg-white dark:bg-slate-900" 
-                    title={targetLink.title}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                    referrerPolicy="no-referrer"
-                  />
+                <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+                  {(isFrameRestricted(targetLink.url) || targetLink.openDirectly) ? (
+                    <div className="w-full max-w-xl p-8 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl shadow-xl text-center space-y-6 animate-in fade-in duration-350">
+                      <div className="w-20 h-20 rounded-full bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center mx-auto text-amber-500 text-3xl shadow-sm">
+                        🚀
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
+                          {targetLink.title}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-450 leading-relaxed max-w-md mx-auto">
+                          {targetLink.openDirectly ? (
+                            <span>ลิงก์นี้ถูกกำหนดให้ <strong>"เปิดในแท็บใหม่เสมอ"</strong> เพื่อการใช้งานที่รวดเร็ว ปลอดภัย และแสดงผลได้สมบูรณ์แบบ 100%</span>
+                          ) : (
+                            <span>เว็บไซต์นี้มีนโยบายความปลอดภัยสูง (X-Frame-Options) ที่จำกัดการแสดงผลแบบฝังตัวในเฟรม จึงต้องเปิดใช้งานภายนอกเฟรม</span>
+                          )}
+                        </p>
+                        <div className="p-2.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl max-w-md mx-auto font-mono text-[10px] text-slate-400 truncate">
+                          {targetLink.url}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                        <button
+                          onClick={() => {
+                            const fullUrl = targetLink.url.match(/^[a-zA-Z]+:\/\//) ? targetLink.url : 'https://' + targetLink.url;
+                            window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="w-full sm:w-auto h-11 px-6 text-white font-black text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          style={{ backgroundColor: settings.colorAccent }}
+                        >
+                          🌐 เปิดเข้าใช้งานหน้าเว็บหลัก
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setActiveTab('tasks');
+                          }}
+                          className="w-full sm:w-auto h-11 px-6 border border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950/40 text-slate-600 dark:text-slate-350 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                        >
+                          🏠 ย้อนกลับบอร์ดงานหลัก
+                        </button>
+                      </div>
+                      
+                      <p className="text-[10px] text-slate-400">
+                        * ปลอดภัยและรักษาสถานะบัญชีการเข้าสู่ระบบของคุณท่านได้อย่างครบถ้วนสมบูรณ์
+                      </p>
+                    </div>
+                  ) : (
+                    <iframe 
+                      id="link-iframe"
+                      src={targetLink.url} 
+                      className="w-full h-full border-0 bg-white dark:bg-slate-900" 
+                      title={targetLink.title}
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
                 </div>
               </div>
             );
@@ -2874,9 +2858,11 @@ export default function App() {
                   onAddTask={handleAddTask}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
+                  onDeleteTasks={handleDeleteTasks}
                   onDeleteAllCompleted={handleDeleteAllCompleted}
                   categories={settings.categories}
                   accentColor={settings.colorAccent}
+                  onAddCategory={handleAddCategoryOnTheFly}
                 />
               </motion.div>
             )}
@@ -2923,6 +2909,8 @@ export default function App() {
                   onEditExpense={handleEditExpense}
                   onDeleteExpense={handleDeleteExpense}
                   accentColor={settings.colorAccent}
+                  expenseCategories={settings.expenseCategories || DEFAULT_EXPENSE_CATEGORIES}
+                  onAddExpenseCategory={handleAddExpenseCategoryOnTheFly}
                 />
               </motion.div>
             )}
@@ -2939,6 +2927,8 @@ export default function App() {
                 <AdminPanel
                   accentColor={settings.colorAccent}
                   darkMode={settings.darkMode}
+                  categories={settings.categories}
+                  onAddCategory={handleAddCategoryOnTheFly}
                 />
               </motion.div>
             )}
@@ -3477,52 +3467,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Tag Categories list manager */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
-                  <Folder className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
-                  การจัดการหมวดหมู่งานคัดกรอง
-                </h3>
 
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="ป้อนชื่อกิจกรรมใหม่..."
-                      value={newCatInput}
-                      onChange={(e) => setNewCatInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddNewCategory(); }}
-                      className="flex-1 h-11 px-3 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                      style={{ '--accent': settings.colorAccent } as React.CSSProperties}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddNewCategory}
-                      className="h-11 px-5 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center hover:opacity-90 active:scale-95 flex-shrink-0"
-                      style={{ backgroundColor: settings.colorAccent }}
-                    >
-                      เพิ่มหมวดหมู่
-                    </button>
-                  </div>
-
-                  <div className="border border-slate-100 rounded-xl p-3 flex flex-col gap-1.5 max-h-40 overflow-y-auto bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
-                    {settings.categories.map((c, idx) => (
-                      <div key={idx} className="bg-white p-2 border border-slate-200 rounded-lg flex items-center justify-between shadow-xs dark:bg-slate-900 dark:border-slate-800 text-xs">
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{c}</span>
-                        {settings.categories.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveCategory(idx)}
-                            className="p-1 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-md transition-all dark:hover:bg-slate-950"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
                             {/* Email Messaging integration panel */}
               {sessionUser.userId === 'admin' && (
@@ -4129,6 +4074,29 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* กำหนดรูปแบบการเปิดลิงก์ */}
+                  <div className="p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4">
+                    <div className="text-left flex-1">
+                      <label className="block text-slate-850 dark:text-slate-200 font-bold text-xs mb-1">
+                        🚀 บังคับเปิดในหน้าต่างใหม่และแสดงหน้าทางเลือก (Bypass Iframe Embed)
+                      </label>
+                      <p className="text-[10px] text-slate-450 font-normal">
+                        แนะนำเปิดโหมดนี้สำหรับเว็บไซต์ที่มีระบบความปลอดภัยปฏิเสธแสดงผลในเฟรม (เช่น Google, Facebook, Line, หรือเว็บภายนอกทั่วไป) เพื่ออำนวยความสะดวกในการเปิดในแท็บใหม่และมีปุ่มย้อนกลับมาที่เว็บบอร์ดหลักได้ทันที
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNewLinkOpenDirectly(!newLinkOpenDirectly)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ${
+                        newLinkOpenDirectly ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        newLinkOpenDirectly ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+
                   {/* กำหนดขอบเขตสิทธิ์การมองเห็นลิงก์นี้ */}
                   <div className="space-y-3 p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-2xl">
                     <div className="text-left">
@@ -4295,6 +4263,11 @@ export default function App() {
                                         ? `👥 เฉพาะบัญชี: ${(link.allowedUsers || []).join(', ') || 'ไม่มีใครมองเห็น'}` 
                                         : '🌍 ทุกคนมองเห็น'}
                                     </span>
+                                    {link.openDirectly && (
+                                      <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">
+                                        🚀 เปิดแท็บใหม่ (Bypass)
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-[10px] text-slate-400 font-mono truncate max-w-sm mt-0.5">{link.url}</p>
                                 </div>

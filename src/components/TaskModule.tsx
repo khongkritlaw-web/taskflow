@@ -15,9 +15,18 @@ import {
   Folder,
   Calendar,
   AlignLeft,
-  ChevronsRight
+  ChevronsRight,
+  History,
+  UploadCloud,
+  File,
+  Image as ImageIcon,
+  Eye,
+  CheckSquare,
+  Square,
+  Filter,
+  Paperclip
 } from 'lucide-react';
-import { Task } from '../types';
+import { Task, TaskAttachment } from '../types';
 import { useDialog } from './CustomDialog';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -35,9 +44,11 @@ interface TaskModuleProps {
   onAddTask: (task: Omit<Task, 'id' | 'createdAt'>) => void;
   onEditTask: (id: string, updated: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
+  onDeleteTasks?: (ids: string[]) => void;
   onDeleteAllCompleted: () => void;
   categories: string[];
   accentColor: string;
+  onAddCategory?: (category: string) => void;
 }
 
 export default function TaskModule({
@@ -45,15 +56,21 @@ export default function TaskModule({
   onAddTask,
   onEditTask,
   onDeleteTask,
+  onDeleteTasks,
   onDeleteAllCompleted,
   categories,
-  accentColor
+  accentColor,
+  onAddCategory
 }: TaskModuleProps) {
   const { showAlert, showConfirm } = useDialog();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [openDrawers, setOpenDrawers] = useState<Record<string, boolean>>({});
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+  
+  // Custom categories creation on-the-fly
+  const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
+  const [customCategoryName, setCustomCategoryName] = useState('');
   
   // Modals state
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -65,6 +82,32 @@ export default function TaskModule({
   const [taskCategory, setTaskCategory] = useState(categories[0] || '💼 งานทั่วไป');
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskDueTime, setTaskDueTime] = useState('');
+
+  // Recurring Task Fields
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringDays, setRecurringDays] = useState<string[]>([]);
+  const [recurringType, setRecurringType] = useState<'weekly' | 'daily'>('weekly');
+  const [repeatWeeks, setRepeatWeeks] = useState('4');
+  const [repeatDaysCount, setRepeatDaysCount] = useState('7');
+
+  // Creation Task Attachments
+  const [taskAttachments, setTaskAttachments] = useState<TaskAttachment[]>([]);
+
+  // Completion Form Modal States
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [completingTask, setCompletingTask] = useState<Task | null>(null);
+  const [completionAttachments, setCompletionAttachments] = useState<TaskAttachment[]>([]);
+  const [completionNotes, setCompletionNotes] = useState('');
+
+  // Completed Task History Modal States
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([]);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historyFilterCategory, setHistoryFilterCategory] = useState('');
+  const [historyFilterDate, setHistoryFilterDate] = useState('');
+
+  // Viewer Modal State
+  const [viewingAttachment, setViewingAttachment] = useState<TaskAttachment | null>(null);
 
   // General Filter Popup modal state
   const [activeFilterPopup, setActiveFilterPopup] = useState<'all' | 'pending' | 'completed' | 'overdue' | null>(null);
@@ -112,6 +155,12 @@ export default function TaskModule({
     setTaskCategory(categories[0] || '💼 งานทั่วไป');
     setTaskDueDate(overrideDate || todayStr);
     setTaskDueTime('');
+    setIsRecurring(false);
+    setRecurringDays([]);
+    setRecurringType('weekly');
+    setRepeatWeeks('4');
+    setRepeatDaysCount('7');
+    setTaskAttachments([]);
     setIsTaskModalOpen(true);
   };
 
@@ -122,7 +171,56 @@ export default function TaskModule({
     setTaskCategory(task.category);
     setTaskDueDate(task.dueDate);
     setTaskDueTime(task.dueTime || '');
+    setIsRecurring(!!task.isRecurring);
+    setRecurringDays(task.recurringDays || []);
+    setRecurringType('weekly');
+    setRepeatWeeks('4');
+    setRepeatDaysCount('7');
+    setTaskAttachments(task.attachments || []);
     setIsTaskModalOpen(true);
+  };
+
+  const getDatesForDaysOfWeek = (startDateStr: string, selectedDays: string[], weeksCount: number): string[] => {
+    const dates: string[] = [];
+    const start = new Date(startDateStr);
+    const dayNameToIndex: Record<string, number> = {
+      'อาทิตย์': 0, 'จันทร์': 1, 'อังคาร': 2, 'พุธ': 3, 'พฤหัสบดี': 4, 'ศุกร์': 5, 'เสาร์': 6,
+      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6
+    };
+    
+    const dayIndexes = selectedDays.map(d => dayNameToIndex[d]).filter(idx => idx !== undefined);
+    if (dayIndexes.length === 0) return [startDateStr];
+
+    for (let w = 0; w < weeksCount; w++) {
+      for (const dayIdx of dayIndexes) {
+        const d = new Date(start);
+        const startDay = start.getDay();
+        const diff = (dayIdx - startDay) + (w * 7);
+        d.setDate(start.getDate() + diff);
+        
+        if (d >= start) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          dates.push(`${yyyy}-${mm}-${dd}`);
+        }
+      }
+    }
+    return Array.from(new Set(dates)).sort();
+  };
+
+  const getDatesForDaily = (startDateStr: string, daysCount: number): string[] => {
+    const dates: string[] = [];
+    const start = new Date(startDateStr);
+    for (let i = 0; i < daysCount; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      dates.push(`${yyyy}-${mm}-${dd}`);
+    }
+    return dates;
   };
 
   const submitTaskForm = async (e: React.FormEvent) => {
@@ -138,31 +236,68 @@ export default function TaskModule({
         desc: taskDesc,
         category: taskCategory,
         dueDate: taskDueDate,
-        dueTime: taskDueTime
+        dueTime: taskDueTime,
+        attachments: taskAttachments,
+        isRecurring,
+        recurringDays: isRecurring ? recurringDays : undefined
       });
     } else {
-      onAddTask({
-        title: taskTitle,
-        desc: taskDesc,
-        category: taskCategory,
-        dueDate: taskDueDate,
-        dueTime: taskDueTime,
-        status: 'pending',
-        userId: 'session'
-      });
+      if (isRecurring) {
+        let datesToCreate: string[] = [];
+        if (recurringType === 'weekly') {
+          if (recurringDays.length === 0) {
+            await showAlert('กรุณาเลือกวันในสัปดาห์ที่ต้องการให้โปรแกรมทำซ้ำอย่างน้อย 1 วัน', 'กรุณาเลือกวันทำซ้ำ', 'warning');
+            return;
+          }
+          datesToCreate = getDatesForDaysOfWeek(taskDueDate, recurringDays, parseInt(repeatWeeks) || 4);
+        } else {
+          datesToCreate = getDatesForDaily(taskDueDate, parseInt(repeatDaysCount) || 7);
+        }
+
+        if (datesToCreate.length === 0) {
+          datesToCreate = [taskDueDate];
+        }
+
+        // Loop add recurring tasks
+        for (const d of datesToCreate) {
+          onAddTask({
+            title: taskTitle,
+            desc: taskDesc,
+            category: taskCategory,
+            dueDate: d,
+            dueTime: taskDueTime,
+            status: 'pending',
+            userId: 'session',
+            attachments: taskAttachments,
+            isRecurring: true,
+            recurringDays: recurringType === 'weekly' ? recurringDays : undefined
+          });
+        }
+        await showAlert(`บันทึกแผนงานซ้ำเสร็จสิ้น! ระบบเพิ่มงานซ้ำให้ทั้งหมด ${datesToCreate.length} ครั้งตามกำหนดเรียบร้อยแล้ว`, 'บันทึกงานซ้ำสำเร็จ', 'success');
+      } else {
+        onAddTask({
+          title: taskTitle,
+          desc: taskDesc,
+          category: taskCategory,
+          dueDate: taskDueDate,
+          dueTime: taskDueTime,
+          status: 'pending',
+          userId: 'session',
+          attachments: taskAttachments
+        });
+      }
     }
 
     setIsTaskModalOpen(false);
   };
 
-  const handleQuickComplete = async (id: string, title: string) => {
-    const isConfirmed = await showConfirm(
-      `คุณทำเสร็จสิ้นภารกิจ "${title}" เรียบร้อยแล้วใช่หรือไม่?`,
-      'เสร็จสิ้นภารกิจ',
-      'success'
-    );
-    if (isConfirmed) {
-      onEditTask(id, { status: 'completed' });
+  const handleQuickComplete = (id: string, title: string) => {
+    const targetTask = tasks.find(t => t.id === id);
+    if (targetTask) {
+      setCompletingTask(targetTask);
+      setCompletionAttachments([]);
+      setCompletionNotes('');
+      setIsCompleteModalOpen(true);
     }
   };
 
@@ -696,6 +831,14 @@ export default function TaskModule({
         
         <div className="flex gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800/60">
           <button
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="flex-1 sm:flex-none h-11 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+          >
+            <History className="w-4 h-4 text-emerald-500" />
+            ประวัติงานเสร็จสิ้น
+          </button>
+
+          <button
             onClick={triggerPdfExport}
             className="flex-1 sm:flex-none h-11 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
           >
@@ -848,17 +991,64 @@ export default function TaskModule({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">หมวดหมู่รายงาน</label>
-                  <select
-                    value={taskCategory}
-                    onChange={(e) => setTaskCategory(e.target.value)}
-                    className="w-full h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                    style={{ '--accent': accentColor } as React.CSSProperties}
-                  >
-                    {categories.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">หมวดหมู่รายงาน</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingCustomCategory(!isAddingCustomCategory)}
+                      className="text-[10px] font-bold hover:underline flex items-center gap-0.5"
+                      style={{ color: accentColor }}
+                    >
+                      {isAddingCustomCategory ? '❌ ยกเลิก' : '➕ เพิ่มหมวดหมู่'}
+                    </button>
+                  </div>
+                  
+                  {isAddingCustomCategory ? (
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="ชื่อหมวดหมู่ใหม่..."
+                        value={customCategoryName}
+                        onChange={(e) => setCustomCategoryName(e.target.value)}
+                        className="flex-1 h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                        style={{ '--accent': accentColor } as React.CSSProperties}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const name = customCategoryName.trim();
+                          if (!name) return;
+                          if (categories.includes(name)) {
+                            showAlert('หมวดหมู่นี้มีอยู่แล้ว', 'มีอยู่แล้ว', 'warning');
+                            setTaskCategory(name);
+                            setIsAddingCustomCategory(false);
+                            setCustomCategoryName('');
+                            return;
+                          }
+                          if (onAddCategory) {
+                            onAddCategory(name);
+                          }
+                          setTaskCategory(name);
+                          setIsAddingCustomCategory(false);
+                          setCustomCategoryName('');
+                        }}
+                        className="px-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center justify-center"
+                      >
+                        บันทึก
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={taskCategory}
+                      onChange={(e) => setTaskCategory(e.target.value)}
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                      style={{ '--accent': accentColor } as React.CSSProperties}
+                    >
+                      {categories.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -883,6 +1073,169 @@ export default function TaskModule({
                   className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                 />
+              </div>
+
+              {/* Recurring settings (only if not editing) */}
+              {!editingTask && (
+                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <label className="flex items-center gap-2 font-bold text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isRecurring}
+                      onChange={(e) => setIsRecurring(e.target.checked)}
+                      className="w-4 h-4 rounded text-accent accent-accent focus:ring-accent"
+                      style={{ '--accent': accentColor } as React.CSSProperties}
+                    />
+                    🔄 ตั้งค่าให้แผนงานนี้ทำซ้ำๆ (Set Recurring Task)
+                  </label>
+
+                  {isRecurring && (
+                    <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+                      <div>
+                        <span className="block text-[11px] font-bold text-slate-500 mb-1.5 dark:text-slate-400">รูปแบบการทำซ้ำ:</span>
+                        <div className="flex gap-2">
+                          {[
+                            { value: 'weekly', label: '📆 ตามวันในสัปดาห์ที่เลือก' },
+                            { value: 'daily', label: '☀️ ทุกวันต่อเนื่องกัน' }
+                          ].map((t) => (
+                            <button
+                              key={t.value}
+                              type="button"
+                              onClick={() => setRecurringType(t.value as any)}
+                              className={`flex-1 h-9 rounded-lg border text-xs font-bold transition-all ${
+                                recurringType === t.value
+                                  ? 'bg-slate-800 border-slate-800 text-white dark:bg-slate-200 dark:border-slate-200 dark:text-slate-900'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-950'
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {recurringType === 'weekly' ? (
+                        <div className="space-y-2">
+                          <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">เลือกวันทำซ้ำในสัปดาห์:</span>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'].map((day) => {
+                              const isChecked = recurringDays.includes(day);
+                              return (
+                                <button
+                                  key={day}
+                                  type="button"
+                                  onClick={() => {
+                                    setRecurringDays(prev => 
+                                      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                                    );
+                                  }}
+                                  className={`h-8 rounded-lg text-[10.5px] font-bold border transition-all ${
+                                    isChecked
+                                      ? 'text-white border-accent'
+                                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800'
+                                  }`}
+                                  style={isChecked ? { backgroundColor: accentColor, borderColor: accentColor } : {}}
+                                >
+                                  {day.replace('พฤหัสบดี', 'พฤ')}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="pt-1.5">
+                            <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">จำนวนสัปดาห์ที่ต้องการทำซ้ำ (สูงสุด 12)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="12"
+                              value={repeatWeeks}
+                              onChange={(e) => setRepeatWeeks(e.target.value)}
+                              className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-accent dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100"
+                              style={{ '--accent': accentColor } as React.CSSProperties}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">จำนวนวันที่ทำซ้ำต่อเนื่อง (สูงสุด 30)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={repeatDaysCount}
+                            onChange={(e) => setRepeatDaysCount(e.target.value)}
+                            className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-accent dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100"
+                            style={{ '--accent': accentColor } as React.CSSProperties}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attachments Section */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-650 dark:text-slate-350">
+                  📎 แนบรูปภาพหรือไฟล์ประกอบงาน (Attachments)
+                </label>
+                
+                <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl hover:border-accent transition-all p-4 text-center bg-slate-50/50 dark:bg-slate-950/20 cursor-pointer"
+                  style={{ '--accent': accentColor } as React.CSSProperties}>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files) {
+                        Array.from(files).forEach((file: any) => {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const newAttachment: TaskAttachment = {
+                              name: file.name,
+                              type: file.type.startsWith('image/') ? 'image' : 'file',
+                              base64: reader.result as string
+                            };
+                            setTaskAttachments(prev => [...prev, newAttachment]);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  
+                  <div className="flex flex-col items-center justify-center gap-1.5 text-slate-450">
+                    <UploadCloud className="w-6 h-6 text-slate-400" />
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-350">เลือกไฟล์หรือลากมาวางเพื่อแนบรูป/ไฟล์</span>
+                    <span className="text-[10px] text-slate-400">รองรับเอกสาร ภาพถ่าย ไม่จำกัดจำนวน</span>
+                  </div>
+                </div>
+
+                {/* Attachments list preview */}
+                {taskAttachments.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mt-2 max-h-40 overflow-y-auto p-1.5 bg-slate-50 dark:bg-slate-950/50 rounded-lg">
+                    {taskAttachments.map((file, idx) => (
+                      <div key={idx} className="p-1.5 border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {file.type === 'image' ? (
+                            <img src={file.base64} className="w-6 h-6 rounded object-cover border border-slate-200 flex-shrink-0" alt="Preview" />
+                          ) : (
+                            <File className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                          )}
+                          <span className="text-[10px] font-semibold truncate text-slate-700 dark:text-slate-350">{file.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTaskAttachments(prev => prev.filter((_, i) => i !== idx))}
+                          className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-colors text-[10px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1112,6 +1465,489 @@ export default function TaskModule({
           </div>
         </div>
       )}
+
+      {/* 6.1 Complete Task Confirmation Modal */}
+      {isCompleteModalOpen && completingTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 dark:bg-slate-900 dark:border-slate-800">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
+                ส่งมอบงานและบันทึกเสร็จสิ้นภารกิจ
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsCompleteModalOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-850">
+                <span className="block text-[10px] font-black text-slate-400 mb-1">ชื่องานที่ทำเสร็จ:</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{completingTask.title}</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1 dark:text-slate-400">📝 โน้ตบันทึกการส่งงาน / รายละเอียด (ระบุหรือไม่ระบุก็ได้)</label>
+                <textarea
+                  value={completionNotes}
+                  onChange={(e) => setCompletionNotes(e.target.value)}
+                  placeholder="เช่น ส่งรายงานให้หัวหน้าแล้วเรียบร้อย หรือปัญหาที่พบ..."
+                  rows={2}
+                  className="w-full p-2.5 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">📸 อัปโหลดรูปภาพหรือเอกสารยืนยันความเสร็จสิ้น</label>
+                <div className="relative border border-dashed border-slate-300 dark:border-slate-700 rounded-lg hover:border-emerald-500 transition-all p-3 text-center bg-slate-50/50 dark:bg-slate-950/20 cursor-pointer">
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files) {
+                        Array.from(files).forEach((file: any) => {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const newAttachment: TaskAttachment = {
+                              name: file.name,
+                              type: file.type.startsWith('image/') ? 'image' : 'file',
+                              base64: reader.result as string
+                            };
+                            setCompletionAttachments(prev => [...prev, newAttachment]);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-1 text-slate-400">
+                    <UploadCloud className="w-5 h-5 text-emerald-500" />
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-350">กดเพื่อแนบไฟล์ส่งงาน</span>
+                    <span className="text-[9px] text-slate-400">รองรับ PDF, DOCX, ภาพถ่ายประกอบงาน</span>
+                  </div>
+                </div>
+
+                {completionAttachments.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-slate-50 dark:bg-slate-950/30 rounded-lg">
+                    {completionAttachments.map((file, idx) => (
+                      <div key={idx} className="p-1 border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-md flex items-center justify-between gap-1.5 min-w-0">
+                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                          {file.type === 'image' ? (
+                            <img src={file.base64} className="w-5 h-5 rounded object-cover border border-slate-100 flex-shrink-0" alt="Preview" />
+                          ) : (
+                            <File className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                          )}
+                          <span className="text-[9.5px] truncate text-slate-600 dark:text-slate-400">{file.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCompletionAttachments(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-slate-450 hover:text-rose-500 font-bold px-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 dark:bg-slate-950 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsCompleteModalOpen(false)}
+                className="h-9 px-4 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  onEditTask(completingTask.id, {
+                    status: 'completed',
+                    approvalStatus: completingTask.assignedByAdmin ? 'pending_review' : undefined,
+                    desc: completionNotes ? `${completingTask.desc || ''}\n\n[บันทึกส่งงาน]: ${completionNotes}`.trim() : completingTask.desc,
+                    completedAttachments: completionAttachments,
+                    completedAt: new Date().toISOString()
+                  });
+                  setIsCompleteModalOpen(false);
+                  await showAlert(`เสร็จสิ้นภารกิจ "${completingTask.title}" เรียบร้อยแล้ว!`, 'ส่งงานสำเร็จ', 'success');
+                }}
+                className="h-9 px-4 text-white bg-emerald-600 hover:bg-emerald-750 font-bold text-xs rounded-lg shadow-md flex items-center gap-1"
+              >
+                <CheckCircle className="w-4 h-4" />
+                บันทึกเสร็จงาน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6.2 Completed Tasks History Modal */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-4xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in duration-150 dark:bg-slate-900 dark:border-slate-800">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <History className="w-5 h-5 text-emerald-500" />
+                ประวัติงานและภารกิจเสร็จสิ้นสะสม (Completed Tasks Archive)
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsHistoryModalOpen(false);
+                  setSelectedHistoryIds([]);
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Filter Area */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่องานหรือข้อมูลประวัติ..."
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <select
+                  value={historyFilterCategory}
+                  onChange={(e) => setHistoryFilterCategory(e.target.value)}
+                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100"
+                >
+                  <option value="">ทุกหมวดหมู่ของภารกิจ</option>
+                  {categories.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <input
+                  type="date"
+                  placeholder="กรองด้วยวันส่งงาน..."
+                  value={historyFilterDate}
+                  onChange={(e) => setHistoryFilterDate(e.target.value)}
+                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100"
+                />
+              </div>
+            </div>
+
+            {/* Completed list */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {(() => {
+                const completedList = tasks.filter(t => {
+                  if (t.status !== 'completed') return false;
+                  
+                  const query = historySearchQuery.toLowerCase();
+                  const matchesSearch = t.title.toLowerCase().includes(query) || (t.desc || '').toLowerCase().includes(query);
+                  if (!matchesSearch) return false;
+
+                  if (historyFilterCategory && t.category !== historyFilterCategory) return false;
+
+                  if (historyFilterDate) {
+                    const completedDateOnly = t.completedAt ? t.completedAt.split('T')[0] : '';
+                    if (completedDateOnly !== historyFilterDate && t.dueDate !== historyFilterDate) return false;
+                  }
+
+                  return true;
+                });
+
+                if (completedList.length === 0) {
+                  return (
+                    <div className="text-center py-16 text-xs text-slate-400 italic">
+                      ไม่พบประวัติภารกิจที่ทำเสร็จสิ้นตามตัวกรองที่เลือก 📭
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {/* Bulk Selection Toolbar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-50/50 dark:bg-slate-950/60 p-3 rounded-xl border border-emerald-100/40 dark:border-slate-850">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedHistoryIds.length === completedList.length) {
+                              setSelectedHistoryIds([]);
+                            } else {
+                              setSelectedHistoryIds(completedList.map(item => item.id));
+                            }
+                          }}
+                          className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 dark:text-emerald-400"
+                        >
+                          {selectedHistoryIds.length === completedList.length ? '✕ ยกเลิกการเลือกทั้งหมด' : '☑ เลือกผลลัพธ์ทั้งหมด'}
+                        </button>
+                        <span className="text-xs text-slate-400 font-mono">|</span>
+                        <span className="text-xs text-slate-500 font-semibold">เลือกไว้ {selectedHistoryIds.length} รายการ</span>
+                      </div>
+
+                      <div className="flex gap-2">
+                        {selectedHistoryIds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const isConfirmed = await showConfirm(
+                                `ต้องการลบประวัติงานที่ทำเสร็จสิ้นที่เลือกจำนวน ${selectedHistoryIds.length} รายการออกจากระบบใช่หรือไม่? (การกระทำนี้ไม่สามารถย้อนกลับได้)`,
+                                'ลบประวัติที่เลือก',
+                                'danger'
+                              );
+                              if (isConfirmed) {
+                                if (onDeleteTasks) {
+                                  onDeleteTasks(selectedHistoryIds);
+                                } else {
+                                  // Fallback loop if prop missing
+                                  selectedHistoryIds.forEach(id => onDeleteTask(id));
+                                }
+                                setSelectedHistoryIds([]);
+                                await showAlert('ลบรายการที่เลือกเรียบร้อยแล้ว', 'ลบสำเร็จ', 'success');
+                              }
+                            }}
+                            className="h-8 px-3 text-white bg-rose-600 hover:bg-rose-750 font-bold text-[11px] rounded-lg shadow flex items-center gap-1.5"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            ลบรายการที่เลือก
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const isConfirmed = await showConfirm(
+                              'คุณต้องการล้างประวัติภารกิจที่ทำเสร็จสิ้นทั้งหมดออกจากระบบใช่หรือไม่? (การกระทำนี้จะลบงานทุกรายการที่สถานะสำเร็จถาวร)',
+                              'ล้างประวัติทั้งหมด',
+                              'danger'
+                            );
+                            if (isConfirmed) {
+                              onDeleteAllCompleted();
+                              setSelectedHistoryIds([]);
+                              setIsHistoryModalOpen(false);
+                              await showAlert('เคลียร์ประวัติภารกิจเสร็จสิ้นเรียบร้อยแล้ว', 'เคลียร์สำเร็จ', 'success');
+                            }
+                          }}
+                          className="h-8 px-3 border border-rose-250 hover:bg-rose-50 text-rose-650 hover:text-rose-800 font-bold text-[11px] bg-white rounded-lg dark:bg-slate-900 dark:border-rose-900 dark:hover:bg-slate-950 flex items-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          ล้างประวัติทั้งหมด
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Table-like custom rows */}
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800/60 border border-slate-150 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                      {completedList.map((item) => {
+                        const isChecked = selectedHistoryIds.includes(item.id);
+                        const displayCompDate = item.completedAt ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.completedAt)) : 'ไม่ได้ระบุ';
+                        
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left transition-all ${
+                              isChecked ? 'bg-slate-50 dark:bg-slate-950/40' : 'hover:bg-slate-50/40'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedHistoryIds(prev => 
+                                    prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id]
+                                  );
+                                }}
+                                className="mt-0.5 text-slate-400 hover:text-accent flex-shrink-0"
+                                style={{ '--accent': accentColor } as React.CSSProperties}
+                              >
+                                {isChecked ? (
+                                  <CheckSquare className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <Square className="w-4 h-4" />
+                                )}
+                              </button>
+
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                    {item.category}
+                                  </span>
+                                  {item.isRecurring && (
+                                    <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                      🔄 ทำซ้ำ
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">เสร็จสิ้น: {displayCompDate}</span>
+                                </div>
+
+                                <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{item.title}</h5>
+                                
+                                {item.desc && (
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed whitespace-pre-wrap">
+                                    {item.desc}
+                                  </p>
+                                )}
+
+                                {/* Attachments tags */}
+                                <div className="flex flex-wrap gap-1.5 pt-1.5">
+                                  {/* Creation files */}
+                                  {item.attachments && item.attachments.map((f, fidx) => (
+                                    <button
+                                      key={`c-${fidx}`}
+                                      type="button"
+                                      onClick={() => setViewingAttachment(f)}
+                                      className="h-6 px-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-[9px] font-medium text-slate-500 flex items-center gap-1 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-950 dark:text-slate-400"
+                                    >
+                                      <Paperclip className="w-2.5 h-2.5 text-slate-400" />
+                                      <span>ไฟล์แนบ ({f.name})</span>
+                                    </button>
+                                  ))}
+
+                                  {/* Completion files */}
+                                  {item.completedAttachments && item.completedAttachments.map((f, fidx) => (
+                                    <button
+                                      key={`e-${fidx}`}
+                                      type="button"
+                                      onClick={() => setViewingAttachment(f)}
+                                      className="h-6 px-1.5 rounded-md border border-emerald-200 hover:bg-emerald-50 text-[9px] font-medium text-emerald-700 flex items-center gap-1 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-400"
+                                    >
+                                      <CheckCircle className="w-2.5 h-2.5 text-emerald-500" />
+                                      <span>หลักฐาน ({f.name})</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {item.assignedByAdmin ? (
+                              <span className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-100 text-slate-350 dark:border-slate-850 dark:text-slate-650 bg-slate-50 dark:bg-slate-950 flex-shrink-0" title="งานมอบหมายจากผู้ดูแลระบบ ไม่สามารถลบได้">
+                                🔒
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const isConfirmed = await showConfirm(
+                                    `คุณแน่ใจว่าต้องการลบประวัติงาน "${item.title}" ออกจากฐานข้อมูลถาวร?`,
+                                    'ลบประวัติภารกิจ',
+                                    'danger'
+                                  );
+                                  if (isConfirmed) {
+                                    onDeleteTask(item.id);
+                                    await showAlert('ลบรายการเรียบร้อย', 'สำเร็จ', 'success');
+                                  }
+                                }}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-rose-600 bg-white hover:bg-rose-50 dark:bg-slate-900 dark:border-slate-800 flex-shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end dark:bg-slate-950 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsHistoryModalOpen(false);
+                  setSelectedHistoryIds([]);
+                }}
+                className="h-10 px-5 text-slate-700 border border-slate-200 bg-white rounded-lg font-bold text-xs hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+              >
+                ปิดหน้าต่างประวัติ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6.3 Beautiful File Viewer Modal */}
+      {viewingAttachment && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-150 dark:bg-slate-900 dark:border-slate-800">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-accent" style={{ color: accentColor }} />
+                <span>เปิดดูไฟล์แนบ: {viewingAttachment.name}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingAttachment(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 min-h-[300px]">
+              {viewingAttachment.type === 'image' ? (
+                <div className="relative max-w-full max-h-[60vh] rounded-lg overflow-hidden border border-slate-250 dark:border-slate-800 bg-white shadow-md">
+                  <img
+                    src={viewingAttachment.base64}
+                    alt={viewingAttachment.name}
+                    className="max-w-full max-h-[60vh] object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="text-center p-8 border border-dashed border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm max-w-md w-full space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-indigo-50 dark:bg-slate-850 flex items-center justify-center mx-auto">
+                    <FileText className="w-8 h-8 text-indigo-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{viewingAttachment.name}</h4>
+                    <p className="text-xs text-slate-400">ไฟล์เอกสารประกอบภารกิจ</p>
+                  </div>
+                  <a
+                    href={viewingAttachment.base64}
+                    download={viewingAttachment.name}
+                    className="inline-flex h-10 px-6 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-950 items-center justify-center gap-2 transition-all dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+                  >
+                    ดาวน์โหลดไฟล์เอกสารเพื่อเปิดดู
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between gap-2 dark:bg-slate-950 dark:border-slate-800">
+              {viewingAttachment.base64 && (
+                <a
+                  href={viewingAttachment.base64}
+                  download={viewingAttachment.name}
+                  className="h-10 px-4 bg-emerald-600 hover:bg-emerald-750 text-white rounded-lg font-bold text-xs shadow flex items-center justify-center gap-1.5 transition-all"
+                >
+                  📥 ดาวน์โหลดต้นฉบับ
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setViewingAttachment(null)}
+                className="h-10 px-5 text-slate-700 border border-slate-200 bg-white rounded-lg font-semibold text-xs hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+              >
+                ปิดไฟล์แนบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1216,6 +2052,11 @@ export default function TaskModule({
               {t.category}
             </span>
             <div className="flex gap-1.5 flex-shrink-0">
+              {t.assignedByAdmin && (
+                <span className="text-[9px] font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs animate-pulse">
+                  👑 งานแอดมิน
+                </span>
+              )}
               {isToday && (
                 <span className="text-[9px] font-extrabold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md flex items-center gap-1 dark:bg-blue-950/50 dark:text-blue-300">
                   <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
@@ -1242,20 +2083,54 @@ export default function TaskModule({
           {/* Footer controls inside card */}
           <div className="mt-4 pt-3.5 border-t border-slate-100/80 flex items-center justify-between gap-3 dark:border-slate-800">
             <div>
-              {isDone ? (
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                  เสร็จสิ้นแล้ว
-                </span>
+              {t.assignedByAdmin ? (
+                <div className="flex flex-col gap-1.5">
+                  {t.approvalStatus === 'approved' ? (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                      อนุมัติแล้ว ✨
+                    </span>
+                  ) : t.approvalStatus === 'pending_review' ? (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full dark:bg-blue-950/30 dark:text-blue-450 dark:border-blue-900 animate-pulse">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                      รอแอดมินตรวจ 🔍
+                    </span>
+                  ) : t.approvalStatus === 'needs_revision' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickComplete(t.id, t.title)}
+                      className="inline-flex items-center gap-1.5 text-[10px] font-bold text-rose-800 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full hover:bg-rose-100 transition-all dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900 animate-bounce"
+                    >
+                      <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping"></span>
+                      แก้ไขและส่งใหม่ 🔄
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickComplete(t.id, t.title)}
+                      className="inline-flex items-center gap-1.5 text-[10px] font-bold text-violet-850 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-full hover:bg-violet-100 transition-all dark:bg-violet-950/30 dark:text-violet-350 dark:border-violet-900"
+                    >
+                      <span className="w-1.5 h-1.5 bg-violet-500 rounded-full"></span>
+                      ส่งงานแอดมิน 👑
+                    </button>
+                  )}
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => handleQuickComplete(t.id, t.title)}
-                  className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-all dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900"
-                >
-                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-                  รอดำเนินการ
-                </button>
+                isDone ? (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                    เสร็จสิ้นแล้ว
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleQuickComplete(t.id, t.title)}
+                    className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-all dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900"
+                  >
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                    รอดำเนินการ
+                  </button>
+                )
               )}
             </div>
 
@@ -1273,21 +2148,27 @@ export default function TaskModule({
                 {isDrawerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
 
-              {!isDone ? (
-                <button
-                  onClick={() => openEditTaskModal(t)}
-                  className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-accent rounded-lg hover:bg-slate-50 dark:hover:bg-slate-950 dark:text-slate-500"
-                  style={{ '--accent': accentColor } as React.CSSProperties}
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
+              {t.assignedByAdmin ? (
+                <span className="w-7 h-7 flex items-center justify-center text-slate-350 dark:text-slate-650" title="งานมอบหมายจากผู้ดูแลระบบ ไม่สามารถลบหรือแก้ไขเองได้">
+                  🔒
+                </span>
               ) : (
-                <button
-                  onClick={() => handleDeleteClick(t.id, t.title)}
-                  className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-slate-950 dark:text-slate-500"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                !isDone ? (
+                  <button
+                    onClick={() => openEditTaskModal(t)}
+                    className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-accent rounded-lg hover:bg-slate-50 dark:hover:bg-slate-950 dark:text-slate-500"
+                    style={{ '--accent': accentColor } as React.CSSProperties}
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleDeleteClick(t.id, t.title)}
+                    className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-slate-950 dark:text-slate-500"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )
               )}
             </div>
           </div>
@@ -1311,6 +2192,17 @@ export default function TaskModule({
                   </p>
                 </div>
 
+                {t.assignedByAdmin && t.adminFeedback && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-xl space-y-1">
+                    <span className="text-[10px] font-black text-rose-700 dark:text-rose-450 flex items-center gap-1">
+                      💬 ความเห็น/คำแนะนำจากแอดมิน:
+                    </span>
+                    <p className="text-xs text-rose-800 dark:text-rose-300 font-bold leading-relaxed whitespace-pre-wrap">
+                      {t.adminFeedback}
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2 text-[10.5px]">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Folder className="w-3.5 h-3.5 text-slate-400" />
@@ -1326,6 +2218,59 @@ export default function TaskModule({
                   <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-slate-500 dark:text-slate-400 border-t border-slate-200/50 pt-2 dark:border-slate-800">
                     <Clock className="w-3.5 h-3.5 text-slate-400" />
                     <span>เวลาระบุส่ง: <strong className="text-slate-700 dark:text-slate-300">{t.dueTime} น.</strong></span>
+                  </div>
+                )}
+
+                {/* Recurring Badge */}
+                {t.isRecurring && (
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold border-t border-slate-200/50 pt-2 dark:border-slate-800" style={{ color: accentColor }}>
+                    <span>🔄 แผนงานภารกิจทำซ้ำต่อเนื่อง</span>
+                  </div>
+                )}
+
+                {/* Creation Attachments */}
+                {t.attachments && t.attachments.length > 0 && (
+                  <div className="border-t border-slate-200/50 pt-2 dark:border-slate-800 space-y-1.5">
+                    <span className="block text-[10px] font-bold text-slate-450">📎 ไฟล์แนบตอนสร้างงาน ({t.attachments.length}):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {t.attachments.map((file, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingAttachment(file);
+                          }}
+                          className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-md text-[9.5px] font-semibold text-slate-700 flex items-center gap-1 max-w-[140px] truncate dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+                        >
+                          {file.type === 'image' ? <ImageIcon className="w-3 h-3 text-emerald-500" /> : <File className="w-3 h-3 text-indigo-500" />}
+                          <span className="truncate">{file.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Completion Attachments */}
+                {t.completedAttachments && t.completedAttachments.length > 0 && (
+                  <div className="border-t border-slate-200/50 pt-2 dark:border-slate-800 space-y-1.5">
+                    <span className="block text-[10px] font-bold text-slate-450 text-emerald-600 dark:text-emerald-450">✅ เอกสาร/รูปภาพส่งมอบงาน ({t.completedAttachments.length}):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {t.completedAttachments.map((file, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingAttachment(file);
+                          }}
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-md text-[9.5px] font-semibold text-emerald-800 flex items-center gap-1 max-w-[140px] truncate dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-350"
+                        >
+                          {file.type === 'image' ? <ImageIcon className="w-3 h-3 text-emerald-500" /> : <File className="w-3 h-3 text-indigo-500" />}
+                          <span className="truncate">{file.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

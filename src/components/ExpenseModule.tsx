@@ -49,6 +49,8 @@ interface ExpenseModuleProps {
   onEditExpense: (id: string, updated: Partial<Expense>) => void;
   onDeleteExpense: (id: string) => void;
   accentColor: string;
+  expenseCategories?: string[];
+  onAddExpenseCategory?: (category: string) => void;
 }
 
 export default function ExpenseModule({
@@ -56,9 +58,22 @@ export default function ExpenseModule({
   onAddExpense,
   onEditExpense,
   onDeleteExpense,
-  accentColor
+  accentColor,
+  expenseCategories: propExpenseCategories,
+  onAddExpenseCategory
 }: ExpenseModuleProps) {
   const { showAlert, showConfirm } = useDialog();
+
+  // Custom categories creation on-the-fly
+  const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
+  const [customCategoryName, setCustomCategoryName] = useState('');
+
+  const defaultExpenseCategories = [
+    '🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง',
+    '💊 สุขภาพ', '📱 สื่อสาร', '🎓 การศึกษา', '🎉 บันเทิง', '📦 อื่นๆ'
+  ];
+  const expenseCategories = propExpenseCategories || defaultExpenseCategories;
+
   const [filterMonth, setFilterMonth] = useState<string>(() => {
     return String(new Date().getMonth() + 1).padStart(2, '0');
   });
@@ -85,6 +100,8 @@ export default function ExpenseModule({
   const [isInstallment, setIsInstallment] = useState(false);
   const [totalInstallments, setTotalInstallments] = useState('12');
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
+  const [tempInstallments, setTempInstallments] = useState<Installment[]>([]);
+  const [actualPaidAmount, setActualPaidAmount] = useState<string>('');
 
   // Payment Slip Upload Modal states
   const [isPaySlipModalOpen, setIsPaySlipModalOpen] = useState(false);
@@ -107,11 +124,6 @@ export default function ExpenseModule({
   const [historyCategory, setHistoryCategory] = useState('');
   const [historyMonth, setHistoryMonth] = useState('');
   const [historyYear, setHistoryYear] = useState('');
-
-  const expenseCategories = [
-    '🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง',
-    '💊 สุขภาพ', '📱 สื่อสาร', '🎓 การศึกษา', '🎉 บันเทิง', '📦 อื่นๆ'
-  ];
 
   const catColors: Record<string, string> = {
     '🏠 ที่พัก': 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
@@ -236,6 +248,44 @@ export default function ExpenseModule({
     }
   });
 
+  const handleAmountChange = (val: string) => {
+    setExpAmount(val);
+    if (isInstallment) {
+      const parsedTotal = parseInt(totalInstallments) || 0;
+      const parsedAmt = parseFloat(val) || 0;
+      setTempInstallments(generateInstallments(expDueDate || todayStr, parsedTotal, parsedAmt));
+    }
+  };
+
+  const handleTotalInstallmentsChange = (val: string) => {
+    setTotalInstallments(val);
+    if (isInstallment) {
+      const parsedTotal = parseInt(val) || 0;
+      const parsedAmt = parseFloat(expAmount) || 0;
+      setTempInstallments(generateInstallments(expDueDate || todayStr, parsedTotal, parsedAmt));
+    }
+  };
+
+  const handleDueDateChange = (val: string) => {
+    setExpDueDate(val);
+    if (isInstallment) {
+      const parsedTotal = parseInt(totalInstallments) || 0;
+      const parsedAmt = parseFloat(expAmount) || 0;
+      setTempInstallments(generateInstallments(val || todayStr, parsedTotal, parsedAmt));
+    }
+  };
+
+  const handleIsInstallmentToggle = (checked: boolean) => {
+    setIsInstallment(checked);
+    if (checked) {
+      const parsedTotal = parseInt(totalInstallments) || 0;
+      const parsedAmt = parseFloat(expAmount) || 0;
+      setTempInstallments(generateInstallments(expDueDate || todayStr, parsedTotal, parsedAmt));
+    } else {
+      setTempInstallments([]);
+    }
+  };
+
   const triggerAddModal = () => {
     setEditId('');
     setExpName('');
@@ -246,6 +296,7 @@ export default function ExpenseModule({
     setExpNote('');
     setIsInstallment(false);
     setTotalInstallments('12');
+    setTempInstallments([]);
     setIsModalOpen(true);
   };
 
@@ -259,6 +310,11 @@ export default function ExpenseModule({
     setExpNote(e.note || '');
     setIsInstallment(e.isInstallment || false);
     setTotalInstallments(String(e.totalInstallments || '12'));
+    if (e.isInstallment && e.installments) {
+      setTempInstallments(e.installments);
+    } else {
+      setTempInstallments([]);
+    }
     setIsModalOpen(true);
   };
 
@@ -287,15 +343,7 @@ export default function ExpenseModule({
 
     if (editId) {
       const existing = expenses.find(item => item.id === editId);
-      let updatedInstallments = existing?.installments;
-      
-      if (isInstallment && (!existing?.isInstallment || existing.totalInstallments !== parsedTotalInstallments || existing.amount !== parsedAmt || existing.dueDate !== expDueDate)) {
-        updatedInstallments = generateInstallments(expDueDate, parsedTotalInstallments, parsedAmt);
-      } else if (!isInstallment) {
-        updatedInstallments = undefined;
-      }
-
-      const allPaid = isInstallment ? (updatedInstallments?.every(inst => inst.paid) || false) : (existing?.paid || false);
+      const allPaid = isInstallment ? (tempInstallments?.every(inst => inst.paid) || false) : (existing?.paid || false);
 
       onEditExpense(editId, {
         name: expName,
@@ -306,15 +354,10 @@ export default function ExpenseModule({
         note: expNote,
         isInstallment,
         totalInstallments: isInstallment ? parsedTotalInstallments : undefined,
-        installments: updatedInstallments,
+        installments: isInstallment ? tempInstallments : undefined,
         paid: allPaid
       });
     } else {
-      let generatedInst = undefined;
-      if (isInstallment) {
-        generatedInst = generateInstallments(expDueDate, parsedTotalInstallments, parsedAmt);
-      }
-
       onAddExpense({
         name: expName,
         amount: parsedAmt,
@@ -326,7 +369,7 @@ export default function ExpenseModule({
         userId: 'session',
         isInstallment,
         totalInstallments: isInstallment ? parsedTotalInstallments : undefined,
-        installments: generatedInst
+        installments: isInstallment ? tempInstallments : undefined
       });
     }
     setIsModalOpen(false);
@@ -346,6 +389,8 @@ export default function ExpenseModule({
 
     setPaySlipExpense(expense);
     setPaySlipInstallmentNo(installmentNo);
+    const targetAmount = inst?.amount ?? expense.amount;
+    setActualPaidAmount(String(targetAmount));
     setPaySlipBase64('');
     setPaySlipFileName('');
     setIsPaySlipModalOpen(true);
@@ -367,6 +412,7 @@ export default function ExpenseModule({
 
     setPaySlipExpense(expense);
     setPaySlipInstallmentNo(null);
+    setActualPaidAmount(String(expense.amount));
     setPaySlipBase64('');
     setPaySlipFileName('');
     setIsPaySlipModalOpen(true);
@@ -376,6 +422,12 @@ export default function ExpenseModule({
     e.preventDefault();
     if (!paySlipExpense) return;
 
+    const parsedActualPaid = parseFloat(actualPaidAmount);
+    if (isNaN(parsedActualPaid) || parsedActualPaid < 0) {
+      await showAlert('กรุณาระบุจำนวนเงินที่ชำระจริงให้ถูกต้อง', 'ยอดเงินไม่ถูกต้อง', 'warning');
+      return;
+    }
+
     const targetAmount = paySlipInstallmentNo !== null
       ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.amount ?? paySlipExpense.amount)
       : paySlipExpense.amount;
@@ -383,7 +435,7 @@ export default function ExpenseModule({
     const isConfirmed = await showConfirm(
       `คุณต้องการบันทึกการชำระเงินสำหรับ "${paySlipExpense.name}" ${
         paySlipInstallmentNo ? `งวดที่ ${paySlipInstallmentNo}` : ''
-      } ยอดเงิน ฿${targetAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ใช่หรือไม่? (เมื่อกดยืนยันแล้วจะไม่สามารถแก้ไขสลิปหรือยกเลิกการจ่ายเงินได้)`,
+      } ยอดเงินชำระจริง ฿${parsedActualPaid.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ใช่หรือไม่? (เมื่อกดยืนยันแล้วจะไม่สามารถแก้ไขสลิปหรือยกเลิกการจ่ายเงินได้)`,
       'ยืนยันการบันทึกชำระเงิน',
       'success'
     );
@@ -396,8 +448,15 @@ export default function ExpenseModule({
           return {
             ...inst,
             paid: true,
+            amount: parsedActualPaid, // Save actual paid amount
             paidDate: getThailandTodayStr(),
             slipBase64: paySlipBase64 || undefined
+          };
+        } else if (inst.installmentNo === paySlipInstallmentNo + 1) {
+          const diff = targetAmount - parsedActualPaid;
+          return {
+            ...inst,
+            amount: Math.max(0, inst.amount + diff) // Automatically carry over the difference
           };
         }
         return inst;
@@ -410,6 +469,7 @@ export default function ExpenseModule({
       });
     } else {
       onEditExpense(paySlipExpense.id, {
+        amount: parsedActualPaid, // Save actual paid amount
         paid: true,
         paidDate: getThailandTodayStr(),
         slipBase64: paySlipBase64 || undefined
@@ -846,6 +906,39 @@ export default function ExpenseModule({
                         {e.dueDate && <span>กำหนดชำระ: {e.dueDate}</span>}
                         {e.note && <span className="font-sans italic">({highlightText(e.note, searchQuery)})</span>}
                       </div>
+
+                      {/* สรุปยอดรวมและยอดคงเหลือสำหรับค่างวด */}
+                      {(e.isVirtualInstallment || e.isInstallment) && (() => {
+                        const parentInsts = e.isVirtualInstallment ? (e.parentExpense?.installments || []) : (e.installments || []);
+                        const totalContractAmount = parentInsts.reduce((acc, inst) => acc + inst.amount, 0);
+                        const remainingContractBalance = parentInsts.filter(inst => !inst.paid).reduce((acc, inst) => acc + inst.amount, 0);
+                        const paidContractAmount = parentInsts.filter(inst => inst.paid).reduce((acc, inst) => acc + inst.amount, 0);
+                        const paidInstCount = parentInsts.filter(inst => inst.paid).length;
+                        const totalInstCount = parentInsts.length;
+                        
+                        return (
+                          <div className="mt-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800/80 rounded-xl p-3 space-y-1 text-xs text-left">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-1.5 font-bold">
+                              <span className="text-slate-500">📊 สรุปสัญญาผ่อนชำระ:</span>
+                              <span className="text-accent" style={{ color: accentColor }}>{e.isVirtualInstallment ? e.parentExpense?.name : e.name}</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 pt-1 font-semibold text-[11px]">
+                              <div>
+                                <span className="text-slate-400">ยอดรวมทุกงวด: </span>
+                                <span className="text-slate-700 dark:text-slate-300">฿{totalContractAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">ชำระไปแล้ว: </span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">฿{paidContractAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ({paidInstCount}/{totalInstCount} งวด)</span>
+                              </div>
+                              <div>
+                                <span className="text-rose-500 font-extrabold">ยอดคงเหลือ: </span>
+                                <span className="text-rose-600 dark:text-rose-400 font-black">฿{remainingContractBalance.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
  
                     <div className="flex items-center justify-between md:justify-start gap-4 w-full md:w-auto border-t border-slate-100 pt-3 md:pt-0 md:border-none">
@@ -1097,7 +1190,7 @@ export default function ExpenseModule({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">
-                    {isInstallment ? 'จำนวนเงินต่องวด (บาท) *' : 'จำนวนเงินเงินยอด (บาท) *'}
+                    {isInstallment ? 'จำนวนเงินต่องวดเริ่มต้น (บาท) *' : 'จำนวนเงินเงินยอด (บาท) *'}
                   </label>
                   <input
                     type="number"
@@ -1106,24 +1199,71 @@ export default function ExpenseModule({
                     min="0"
                     placeholder="0.00"
                     value={expAmount}
-                    onChange={(e) => setExpAmount(e.target.value)}
+                    onChange={(e) => handleAmountChange(e.target.value)}
                     className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1 dark:text-slate-400">หมวดหมู่รอบบิล</label>
-                  <select
-                    value={expCategory}
-                    onChange={(e) => setExpCategory(e.target.value)}
-                    className="w-full h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                    style={{ '--accent': accentColor } as React.CSSProperties}
-                  >
-                    {expenseCategories.map(ec => (
-                      <option key={ec} value={ec}>{ec}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">หมวดหมู่รอบบิล</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingCustomCategory(!isAddingCustomCategory)}
+                      className="text-[10px] font-bold hover:underline flex items-center gap-0.5"
+                      style={{ color: accentColor }}
+                    >
+                      {isAddingCustomCategory ? '❌ ยกเลิก' : '➕ เพิ่มหมวดหมู่'}
+                    </button>
+                  </div>
+                  
+                  {isAddingCustomCategory ? (
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="ชื่อหมวดหมู่ใหม่..."
+                        value={customCategoryName}
+                        onChange={(e) => setCustomCategoryName(e.target.value)}
+                        className="flex-1 h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                        style={{ '--accent': accentColor } as React.CSSProperties}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const name = customCategoryName.trim();
+                          if (!name) return;
+                          if (expenseCategories.includes(name)) {
+                            showAlert('หมวดหมู่นี้มีอยู่แล้ว', 'มีอยู่แล้ว', 'warning');
+                            setExpCategory(name);
+                            setIsAddingCustomCategory(false);
+                            setCustomCategoryName('');
+                            return;
+                          }
+                          if (onAddExpenseCategory) {
+                            onAddExpenseCategory(name);
+                          }
+                          setExpCategory(name);
+                          setIsAddingCustomCategory(false);
+                          setCustomCategoryName('');
+                        }}
+                        className="px-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center justify-center"
+                      >
+                        บันทึก
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={expCategory}
+                      onChange={(e) => setExpCategory(e.target.value)}
+                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                      style={{ '--accent': accentColor } as React.CSSProperties}
+                    >
+                      {expenseCategories.map(ec => (
+                        <option key={ec} value={ec}>{ec}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -1134,7 +1274,7 @@ export default function ExpenseModule({
                 <input
                   type="date"
                   value={expDueDate}
-                  onChange={(e) => setExpDueDate(e.target.value)}
+                  onChange={(e) => handleDueDateChange(e.target.value)}
                   className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                 />
@@ -1149,35 +1289,72 @@ export default function ExpenseModule({
                 <input
                   type="checkbox"
                   checked={isInstallment}
-                  onChange={(e) => setIsInstallment(e.target.checked)}
+                  onChange={(e) => handleIsInstallmentToggle(e.target.checked)}
                   className="w-4.5 h-4.5 text-accent focus:ring-accent border-slate-300 rounded dark:bg-slate-900 dark:border-slate-850"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                 />
               </div>
 
               {isInstallment && (
-                <div className="grid grid-cols-2 gap-4 p-3.5 bg-violet-50/20 dark:bg-violet-950/10 border border-violet-100 dark:border-violet-950/30 rounded-xl animate-in slide-in-from-top-1 duration-150">
-                  <div className="text-left">
-                    <label className="block text-xs font-bold text-slate-600 mb-1 dark:text-slate-450">จำนวนงวดผ่อนชำระทั้งหมด *</label>
-                    <input
-                      type="number"
-                      required={isInstallment}
-                      min="1"
-                      max="120"
-                      value={totalInstallments}
-                      onChange={(e) => setTotalInstallments(e.target.value)}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
-                      style={{ '--accent': accentColor } as React.CSSProperties}
-                    />
-                  </div>
-                  
-                  <div className="text-left">
-                    <label className="block text-xs font-bold text-slate-600 mb-1 dark:text-slate-450">ยอดผ่อนรวม (โดยประมาณ)</label>
-                    <div className="h-11 px-3 flex items-center bg-slate-100/60 border border-slate-200 rounded-lg text-xs text-slate-500 font-bold font-mono dark:bg-slate-950/40 dark:border-slate-800 dark:text-slate-400">
-                      ฿{((parseFloat(expAmount) || 0) * (parseInt(totalInstallments) || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                <>
+                  <div className="grid grid-cols-2 gap-4 p-3.5 bg-violet-50/20 dark:bg-violet-950/10 border border-violet-100 dark:border-violet-950/30 rounded-xl animate-in slide-in-from-top-1 duration-150">
+                    <div className="text-left">
+                      <label className="block text-xs font-bold text-slate-600 mb-1 dark:text-slate-450">จำนวนงวดทั้งหมด *</label>
+                      <input
+                        type="number"
+                        required={isInstallment}
+                        min="1"
+                        max="120"
+                        value={totalInstallments}
+                        onChange={(e) => handleTotalInstallmentsChange(e.target.value)}
+                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100"
+                        style={{ '--accent': accentColor } as React.CSSProperties}
+                      />
+                    </div>
+                    
+                    <div className="text-left">
+                      <label className="block text-xs font-bold text-slate-600 mb-1 dark:text-slate-450">ยอดผ่อนรวมจริง</label>
+                      <div className="h-11 px-3 flex items-center bg-slate-100/60 border border-slate-200 rounded-lg text-xs text-slate-500 font-bold font-mono dark:bg-slate-950/40 dark:border-slate-800 dark:text-slate-400">
+                        ฿{tempInstallments.reduce((sum, inst) => sum + inst.amount, 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  {/* ปรับแต่งจำนวนเงิน / กำหนดส่งของแต่ละงวดแยกกันได้ที่นี่ */}
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-950/20 max-h-52 overflow-y-auto space-y-2">
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400">
+                      ✍️ ปรับแต่งยอดเงินและวันครบกำหนดของแต่ละงวดได้ที่นี่:
+                    </label>
+                    <div className="space-y-2.5">
+                      {tempInstallments.map((inst, index) => (
+                        <div key={index} className="flex items-center gap-2 text-xs">
+                          <span className="w-16 font-extrabold shrink-0 text-slate-500">งวดที่ {inst.installmentNo}:</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={inst.amount}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              setTempInstallments(prev => prev.map((item, idx) => idx === index ? { ...item, amount: isNaN(val) ? 0 : val } : item));
+                            }}
+                            className="w-24 h-9 px-2 border border-slate-200 bg-white dark:border-slate-850 dark:bg-slate-950 rounded-lg text-xs focus:outline-none focus:border-accent font-bold text-slate-700 dark:text-slate-300"
+                            placeholder="0.00"
+                          />
+                          <input
+                            type="date"
+                            value={inst.dueDate}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setTempInstallments(prev => prev.map((item, idx) => idx === index ? { ...item, dueDate: val } : item));
+                            }}
+                            className="flex-1 h-9 px-2 border border-slate-200 bg-white dark:border-slate-850 dark:bg-slate-950 rounded-lg text-xs focus:outline-none focus:border-accent font-bold text-slate-700 dark:text-slate-300"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
 
               <div>
@@ -1342,7 +1519,7 @@ export default function ExpenseModule({
                     {paySlipExpense.name}
                   </h4>
                   <div className="text-sm font-black text-purple-700 dark:text-purple-400 pt-1">
-                    ยอดชำระ: ฿{(paySlipInstallmentNo 
+                    ยอดชำระตามดีล: ฿{(paySlipInstallmentNo 
                       ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.amount ?? paySlipExpense.amount)
                       : paySlipExpense.amount
                     ).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
@@ -1353,6 +1530,48 @@ export default function ExpenseModule({
                       : paySlipExpense.dueDate
                     }
                   </div>
+                </div>
+
+                {/* Actual Paid Amount Field */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">
+                    ยอดเงินที่ชำระจริง (บาท) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    value={actualPaidAmount}
+                    onChange={(e) => setActualPaidAmount(e.target.value)}
+                    className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white rounded-lg text-sm text-slate-800 focus:outline-none focus:border-accent dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 font-bold"
+                    style={{ '--accent': accentColor } as React.CSSProperties}
+                  />
+                  {(() => {
+                    const targetAmount = paySlipInstallmentNo !== null
+                      ? (paySlipExpense.installments?.find(i => i.installmentNo === paySlipInstallmentNo)?.amount ?? paySlipExpense.amount)
+                      : paySlipExpense.amount;
+                    const parsedVal = parseFloat(actualPaidAmount);
+                    if (isNaN(parsedVal) || parsedVal === targetAmount) return null;
+                    
+                    if (paySlipInstallmentNo !== null) {
+                      if (paySlipInstallmentNo === paySlipExpense.totalInstallments) {
+                        return (
+                          <p className="text-[10.5px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
+                            💡 นี่คืองวดสุดท้ายแล้ว ยอดต่างจะไม่สามารถทดไปงวดถัดไปได้
+                          </p>
+                        );
+                      }
+                      
+                      const diff = targetAmount - parsedVal;
+                      return (
+                        <p className="text-[10.5px] font-semibold text-purple-600 dark:text-purple-400 mt-1">
+                          💡 ชำระ{parsedVal > targetAmount ? 'มากกว่า' : 'น้อยกว่า'}ที่กำหนด: ส่วนต่าง ฿{Math.abs(diff).toLocaleString('th-TH', { minimumFractionDigits: 2 })} จะถูก{diff < 0 ? 'ลบออก' : 'บวกเพิ่ม'}ในค่างวดเดือนถัดไป (งวดที่ {paySlipInstallmentNo + 1}) โดยอัตโนมัติ
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 {/* Slip File Upload Field */}

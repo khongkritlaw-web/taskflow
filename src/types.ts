@@ -1,3 +1,9 @@
+export interface TaskAttachment {
+  name: string;
+  type: string; // 'image' | 'file'
+  base64: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -8,6 +14,15 @@ export interface Task {
   status: 'pending' | 'completed';
   userId: string;
   createdAt: string;
+  attachments?: TaskAttachment[];
+  completedAttachments?: TaskAttachment[];
+  completedAt?: string;
+  isRecurring?: boolean;
+  recurringDays?: string[]; // e.g. ['Sunday', 'Monday', etc.] or ['0', '1', etc.] for week days or specific options
+  assignedByAdmin?: boolean;
+  approvalStatus?: 'assigned' | 'pending_review' | 'approved' | 'needs_revision';
+  adminFeedback?: string;
+  completionNotes?: string;
 }
 
 export interface Installment {
@@ -43,6 +58,7 @@ export interface CustomMenuLink {
   iconName?: string;
   visibility?: 'all' | 'specific';
   allowedUsers?: string[];
+  openDirectly?: boolean;
 }
 
 export interface Announcement {
@@ -64,6 +80,7 @@ export interface AppSettings {
   customBgUrl?: string;
   darkMode: boolean;
   categories: string[];
+  expenseCategories?: string[];
   emailRecipient?: string;
   emailNotificationEnabled?: boolean;
   emailMessageTemplate?: string;
