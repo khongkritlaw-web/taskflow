@@ -279,6 +279,16 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState('');
   const [activeAlarms, setActiveAlarms] = useState<Task[]>([]);
   const alarmedTaskIds = useRef<Set<string>>(new Set());
+  const expensesRef = useRef<Expense[]>([]);
+  const tasksRef = useRef<Task[]>([]);
+
+  useEffect(() => {
+    expensesRef.current = expenses;
+  }, [expenses]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   // Web Notification Permission State & Handlers
   const [browserPermission, setBrowserPermission] = useState<string>('default');
@@ -1012,6 +1022,7 @@ export default function App() {
             tasksList.push(docSnap.data() as Task);
           });
           setTasks(tasksList);
+          tasksRef.current = tasksList;
           localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify(tasksList));
         }, (error) => {
           console.error('Firestore real-time tasks sync error:', error);
@@ -1024,6 +1035,7 @@ export default function App() {
             expensesList.push(docSnap.data() as Expense);
           });
           setExpenses(expensesList);
+          expensesRef.current = expensesList;
           localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
         }, (error) => {
           console.error('Firestore real-time expenses sync error:', error);
@@ -1138,7 +1150,9 @@ export default function App() {
 
   // Synchronizers of data
   const syncTasks = async (newTasks: Task[]) => {
+    const oldTasks = tasksRef.current;
     setTasks(newTasks);
+    tasksRef.current = newTasks;
     if (currentViewUserId) {
       localStorage.setItem(`tasks_${currentViewUserId}`, JSON.stringify(newTasks));
     }
@@ -1149,7 +1163,7 @@ export default function App() {
     const uid = currentViewUserId || localStorage.getItem('sess_userId');
     if (uid) {
       try {
-        const previousMap = new Map<string, Task>(tasks.map(t => [t.id, t]));
+        const previousMap = new Map<string, Task>(oldTasks.map(t => [t.id, t]));
         const currentMap = new Map<string, Task>(newTasks.map(t => [t.id, t]));
 
         // Check for deleted tasks
@@ -1173,7 +1187,9 @@ export default function App() {
   };
 
   const syncExpenses = async (newExpenses: Expense[]) => {
+    const oldExpenses = expensesRef.current;
     setExpenses(newExpenses);
+    expensesRef.current = newExpenses;
     if (currentViewUserId) {
       localStorage.setItem(`expenses_${currentViewUserId}`, JSON.stringify(newExpenses));
     }
@@ -1184,7 +1200,7 @@ export default function App() {
     const uid = currentViewUserId || localStorage.getItem('sess_userId');
     if (uid) {
       try {
-        const previousMap = new Map<string, Expense>(expenses.map(e => [e.id, e]));
+        const previousMap = new Map<string, Expense>(oldExpenses.map(e => [e.id, e]));
         const currentMap = new Map<string, Expense>(newExpenses.map(e => [e.id, e]));
 
         // Check for deleted expenses
@@ -1308,7 +1324,7 @@ export default function App() {
       id: 'task_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
       createdAt: new Date().toISOString()
     };
-    syncTasks([...tasks, created]);
+    syncTasks([...tasksRef.current, created]);
     if (settings.soundEnabled !== false && settings.soundOnAdd !== false) {
       playNotificationSound(settings.soundType || 'chime', settings.soundVolume ?? 80);
     }
@@ -1325,7 +1341,7 @@ export default function App() {
   };
 
   const handleEditTask = (id: string, updated: Partial<Task>) => {
-    const oldTask = tasks.find(t => t.id === id);
+    const oldTask = tasksRef.current.find(t => t.id === id);
     if (updated.status === 'completed' && oldTask?.status !== 'completed') {
       if (settings.soundEnabled !== false && settings.soundOnComplete !== false) {
         playNotificationSound('success', settings.soundVolume ?? 80);
@@ -1341,22 +1357,22 @@ export default function App() {
         }
       }
     }
-    const updatedTasks = tasks.map(t => t.id === id ? { ...t, ...updated } : t);
+    const updatedTasks = tasksRef.current.map(t => t.id === id ? { ...t, ...updated } : t);
     syncTasks(updatedTasks);
   };
 
   const handleDeleteTask = (id: string) => {
-    const filtered = tasks.filter(t => t.id !== id);
+    const filtered = tasksRef.current.filter(t => t.id !== id);
     syncTasks(filtered);
   };
 
   const handleDeleteTasks = (ids: string[]) => {
-    const filtered = tasks.filter(t => !ids.includes(t.id));
+    const filtered = tasksRef.current.filter(t => !ids.includes(t.id));
     syncTasks(filtered);
   };
 
   const handleDeleteAllCompleted = () => {
-    const filtered = tasks.filter(t => t.status !== 'completed');
+    const filtered = tasksRef.current.filter(t => t.status !== 'completed');
     syncTasks(filtered);
   };
 
@@ -1366,7 +1382,7 @@ export default function App() {
       ...newExpData,
       id: 'exp_' + Date.now() + '_' + Math.floor(Math.random() * 9999)
     };
-    syncExpenses([...expenses, created]);
+    syncExpenses([...expensesRef.current, created]);
     if (settings.soundEnabled !== false && settings.soundOnAdd !== false) {
       playNotificationSound('pop', settings.soundVolume ?? 80);
     }
@@ -1383,7 +1399,7 @@ export default function App() {
   };
 
   const handleEditExpense = (id: string, updated: Partial<Expense>) => {
-    const oldExp = expenses.find(e => e.id === id);
+    const oldExp = expensesRef.current.find(e => e.id === id);
     if (updated.paid === true && oldExp?.paid !== true) {
       if (settings.soundEnabled !== false && settings.soundOnComplete !== false) {
         playNotificationSound('success', settings.soundVolume ?? 80);
@@ -1399,12 +1415,12 @@ export default function App() {
         }
       }
     }
-    const updatedExps = expenses.map(e => e.id === id ? { ...e, ...updated } : e);
+    const updatedExps = expensesRef.current.map(e => e.id === id ? { ...e, ...updated } : e);
     syncExpenses(updatedExps);
   };
 
   const handleDeleteExpense = (id: string) => {
-    const filtered = expenses.filter(e => e.id !== id);
+    const filtered = expensesRef.current.filter(e => e.id !== id);
     syncExpenses(filtered);
   };
 
