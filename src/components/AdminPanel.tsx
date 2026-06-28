@@ -105,6 +105,12 @@ export default function AdminPanel({
   // Admin Panel Tab Navigation State
   const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'tasks'>('users');
 
+  // Dashboard detail modal state
+  const [dashboardDetailType, setDashboardDetailType] = useState<'all_users' | 'pending_users' | 'approved_users' | 'all_tasks' | 'pending_reviews' | 'approved_tasks' | 'needs_revision' | null>(null);
+  const [dashboardDetailSearch, setDashboardDetailSearch] = useState('');
+  const [modalRevisingTask, setModalRevisingTask] = useState<{ userId: string; taskId: string; title: string } | null>(null);
+  const [modalFeedbackText, setModalFeedbackText] = useState('');
+
   // Real-time user tasks map
   const [allUsersTasks, setAllUsersTasks] = useState<{ [userId: string]: Task[] }>({});
 
@@ -648,34 +654,55 @@ export default function AdminPanel({
         <div className="space-y-6">
           {/* Statistics Cards summary row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
-                <Users className="w-6 h-6" />
+            <div 
+              onClick={() => { setDashboardDetailType('all_users'); setDashboardDetailSearch(''); }}
+              className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between gap-4 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-800 hover:shadow-md hover:bg-slate-50/40 dark:hover:bg-slate-950/20 active:scale-[0.98] transition-all group"
+              title="คลิกเพื่อเปิดกล่องพรีวิวดูรายละเอียดและค้นหาผู้ใช้งานทั้งหมด"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-450 dark:text-slate-400 font-extrabold uppercase tracking-widest block">คุณผู้สมัครทั้งหมด</span>
+                  <span className="text-xl font-black text-slate-800 dark:text-slate-100">{totalUsers} บัญชี</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block">คุณผู้สมัครทั้งหมด</span>
-                <span className="text-xl font-black text-slate-800 dark:text-slate-100">{totalUsers} บัญชี</span>
-              </div>
+              <span className="text-xs text-indigo-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดูทั้งหมด ➜</span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-amber-500 flex items-center justify-center flex-shrink-0">
-                <Info className="w-6 h-6 animate-pulse" />
+            <div 
+              onClick={() => { setDashboardDetailType('pending_users'); setDashboardDetailSearch(''); }}
+              className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between gap-4 cursor-pointer hover:border-amber-400 dark:hover:border-amber-800 hover:shadow-md hover:bg-slate-50/40 dark:hover:bg-slate-950/20 active:scale-[0.98] transition-all group"
+              title="คลิกเพื่อดูรายชื่อและอนุมัติผู้ขอเข้าใช้งาน"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-amber-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <Info className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-455 dark:text-slate-400 font-extrabold uppercase tracking-widest block">รอแอดมินยืนยัน</span>
+                  <span className="text-xl font-black text-amber-500">{pendingUsers} บัญชี</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block">รอแอดมินยืนยัน</span>
-                <span className="text-xl font-black text-amber-500">{pendingUsers} บัญชี</span>
-              </div>
+              <span className="text-xs text-amber-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดูและยืนยัน ➜</span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 flex items-center justify-center flex-shrink-0">
-                <UserCheck className="w-6 h-6" />
+            <div 
+              onClick={() => { setDashboardDetailType('approved_users'); setDashboardDetailSearch(''); }}
+              className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between gap-4 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-800 hover:shadow-md hover:bg-slate-50/40 dark:hover:bg-slate-950/20 active:scale-[0.98] transition-all group"
+              title="คลิกเพื่อดูและจัดการผู้ใช้ที่ได้รับอนุมัติแล้ว"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <UserCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-455 dark:text-slate-400 font-extrabold uppercase tracking-widest block">อนุมัติเข้าใช้งานแล้ว</span>
+                  <span className="text-xl font-black text-emerald-500">{approvedUsers} บัญชี</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block">อนุมัติเข้าใช้งานแล้ว</span>
-                <span className="text-xl font-black text-emerald-500">{approvedUsers} บัญชี</span>
-              </div>
+              <span className="text-xs text-emerald-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดูรายชื่อ ➜</span>
             </div>
           </div>
 
@@ -929,10 +956,10 @@ export default function AdminPanel({
                           <div 
                             className={`p-3 rounded-2xl text-xs font-semibold leading-relaxed shadow-sm break-words max-w-full ${
                               isMe 
-                                ? 'text-white rounded-tr-none' 
-                                : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none dark:bg-slate-850 dark:border-slate-800 dark:text-slate-100'
+                                ? 'rounded-tr-none' 
+                                : 'bg-slate-100 text-slate-850 border border-slate-200 rounded-tl-none dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100'
                             }`}
-                            style={isMe ? { backgroundColor: accentColor } : {}}
+                            style={isMe ? { backgroundColor: accentColor || '#4f46e5', color: 'var(--accent-text, #ffffff)' } : {}}
                           >
                             {msg.text}
                           </div>
@@ -1033,44 +1060,72 @@ export default function AdminPanel({
           
           {/* Task Statistics row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-950/30 text-slate-600 dark:text-slate-400 flex items-center justify-center flex-shrink-0">
-                <Layers className="w-5 h-5" />
+            <div 
+              onClick={() => { setDashboardDetailType('all_tasks'); setDashboardDetailSearch(''); }}
+              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between gap-3 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-800 hover:shadow-md hover:bg-slate-50/40 dark:hover:bg-slate-950/20 active:scale-[0.98] transition-all group"
+              title="คลิกเพื่อดูและจัดการรายการงานที่มอบหมายทั้งหมด"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-950/30 text-slate-600 dark:text-slate-400 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[9px] text-slate-450 dark:text-slate-400 font-extrabold uppercase block">มอบหมายทั้งหมด</span>
+                  <span className="text-base font-black text-slate-800 dark:text-slate-100">{totalAssignedTasks} งาน</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[9px] text-slate-400 font-bold block">มอบหมายทั้งหมด</span>
-                <span className="text-base font-black text-slate-800 dark:text-slate-100">{totalAssignedTasks} งาน</span>
-              </div>
+              <span className="text-[10px] text-emerald-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดู ➜</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-500 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-5 h-5 animate-pulse" />
+            <div 
+              onClick={() => { setDashboardDetailType('pending_reviews'); setDashboardDetailSearch(''); }}
+              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between gap-3 cursor-pointer hover:border-amber-400 dark:hover:border-amber-800 hover:shadow-md hover:bg-slate-50/40 dark:hover:bg-slate-950/20 active:scale-[0.98] transition-all group"
+              title="คลิกเพื่อเปิดกล่องตรวจสอบและให้คะแนนการตรวจการบ้านด่วน"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <Clock className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <span className="text-[9px] text-slate-450 dark:text-slate-400 font-extrabold uppercase block">รอตรวจผลงาน</span>
+                  <span className="text-base font-black text-amber-500">{totalPendingReviews} งาน</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[9px] text-slate-400 font-bold block">รอตรวจผลงาน</span>
-                <span className="text-base font-black text-amber-500">{totalPendingReviews} งาน</span>
-              </div>
+              <span className="text-[10px] text-amber-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ตรวจ ➜</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5" />
+            <div 
+              onClick={() => { setDashboardDetailType('approved_tasks'); setDashboardDetailSearch(''); }}
+              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between gap-3 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-800 hover:shadow-md hover:bg-slate-50/40 dark:hover:bg-slate-950/20 active:scale-[0.98] transition-all group"
+              title="คลิกเพื่อดูงานที่ตรวจอนุมัติผ่านเรียบร้อยแล้วทั้งหมด"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[9px] text-slate-450 dark:text-slate-400 font-extrabold uppercase block">ตรวจผ่านแล้ว</span>
+                  <span className="text-base font-black text-emerald-500">{totalApprovedAssigned} งาน</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[9px] text-slate-400 font-bold block">ตรวจผ่านแล้ว</span>
-                <span className="text-base font-black text-emerald-500">{totalApprovedAssigned} งาน</span>
-              </div>
+              <span className="text-[10px] text-emerald-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดู ➜</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+            <div 
+              onClick={() => { setDashboardDetailType('needs_revision'); setDashboardDetailSearch(''); }}
+              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs dark:bg-slate-900 dark:border-slate-800 flex items-center justify-between gap-3 cursor-pointer hover:border-rose-400 dark:hover:border-rose-800 hover:shadow-md hover:bg-slate-50/40 dark:hover:bg-slate-950/20 active:scale-[0.98] transition-all group"
+              title="คลิกเพื่อตรวจสอบงานที่ส่งกลับไปให้ผู้ใช้แก้ไขเพิ่มเติม"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[9px] text-slate-455 dark:text-slate-400 font-extrabold uppercase block">ส่งกลับไปแก้ไข</span>
+                  <span className="text-base font-black text-rose-500">{totalNeedsRevision} งาน</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[9px] text-slate-400 font-bold block">ส่งกลับไปแก้ไข</span>
-                <span className="text-base font-black text-rose-500">{totalNeedsRevision} งาน</span>
-              </div>
+              <span className="text-[10px] text-rose-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ดู ➜</span>
             </div>
           </div>
 
@@ -1604,6 +1659,452 @@ export default function AdminPanel({
                   className="h-9 px-4 border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 text-xs font-bold rounded-lg"
                 >
                   ปิดหน้าต่างนี้
+                </button>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ----------------- DASHBOARD DRILL-DOWN DETAILS MODAL ----------------- */}
+      <AnimatePresence>
+        {dashboardDetailType && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] bg-slate-950/80 flex flex-col items-center justify-center p-4 backdrop-blur-md"
+          >
+            {/* Modal Box */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden max-w-4xl w-full flex flex-col max-h-[85vh] relative shadow-2xl animate-in zoom-in duration-150 text-left">
+              
+              {/* Header */}
+              <div className="p-5 border-b border-slate-150 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300">
+                    {dashboardDetailType.includes('user') ? (
+                      <Users className="w-5 h-5 text-indigo-500" />
+                    ) : (
+                      <Layers className="w-5 h-5 text-emerald-500" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      {dashboardDetailType === 'all_users' && "📋 รายชื่อผู้สมัครทั้งหมดในระบบ"}
+                      {dashboardDetailType === 'pending_users' && "⏳ บัญชีที่รอแอดมินยืนยันอนุมัติ"}
+                      {dashboardDetailType === 'approved_users' && "✅ รายชื่อสมาชิกผู้ผ่านการอนุมัติแล้ว"}
+                      {dashboardDetailType === 'all_tasks' && "📑 รายการภารกิจงานที่มอบหมายทั้งหมด"}
+                      {dashboardDetailType === 'pending_reviews' && "📥 รายการส่งการบ้านที่รอแอดมินตรวจทาน"}
+                      {dashboardDetailType === 'approved_tasks' && "✓ ประวัติภารกิจที่ผ่านการตรวจแล้ว"}
+                      {dashboardDetailType === 'needs_revision' && "⚠️ รายการภารกิจที่ส่งกลับไปแก้ไขปรับปรุง"}
+                    </h3>
+                    <span className="text-[11px] text-slate-400 block font-semibold mt-0.5">
+                      {dashboardDetailType === 'all_users' && "แสดงข้อมูลรายชื่อบัญชี และความเคลื่อนไหวทั้งหมดในระบบบริหารจัดการ"}
+                      {dashboardDetailType === 'pending_users' && "กรุณาตรวจสอบโปรไฟล์และเอกสารก่อนกดยืนยันการอนุญาตสิทธิ์ใช้งานระบบ"}
+                      {dashboardDetailType === 'approved_users' && "สมาชิกที่มีสิทธิ์เข้าใช้งาน คีย์ข้อมูล รายงานผล และใช้งานระบบในปัจจุบัน"}
+                      {dashboardDetailType === 'all_tasks' && "ติดตามสถานะงานมอบหมายรายบุคคล ตรวจสอบความคืบหน้าการดำเนินงานในฐานข้อมูล"}
+                      {dashboardDetailType === 'pending_reviews' && "คลิกตรวจสอบสลิป/หลักฐาน พร้อมตัดสินผลงานการส่งแบบเรียลไทม์"}
+                      {dashboardDetailType === 'approved_tasks' && "งานที่ได้รับการพิจารณาอนุมัติผลเรียบร้อยแล้ว ท่านสามารถดูความคืบหน้าย้อนหลังได้ค่ะ"}
+                      {dashboardDetailType === 'needs_revision' && "ผู้ใช้ต้องทำการส่งรายงานผลงานหรือแนบภาพสลิปที่ถูกต้องเข้ามาใหม่อีกครั้ง"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Internal Search box inside Modal */}
+                  <div className="relative w-48 sm:w-60">
+                    <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาชื่อ, รหัส, ข้อความ..."
+                      value={dashboardDetailSearch}
+                      onChange={(e) => setDashboardDetailSearch(e.target.value)}
+                      className="w-full h-8.5 pl-8.5 pr-3 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-xl focus:outline-none focus:border-indigo-400 font-semibold text-slate-700 dark:text-slate-100"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => { setDashboardDetailType(null); setDashboardDetailSearch(''); setModalRevisingTask(null); }}
+                    className="w-8.5 h-8.5 rounded-xl border border-slate-200 dark:border-slate-850 bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950/20">
+                
+                {/* 1. USERS DETAIL VIEWS */}
+                {dashboardDetailType.includes('user') && (() => {
+                  const filteredUsersInModal = users.filter(u => {
+                    if (u.userId === 'admin') return false;
+                    
+                    // Filter by type
+                    if (dashboardDetailType === 'pending_users' && u.isApproved) return false;
+                    if (dashboardDetailType === 'approved_users' && !u.isApproved) return false;
+
+                    // Filter by search term
+                    const term = dashboardDetailSearch.toLowerCase();
+                    if (!term) return true;
+                    return (
+                      u.userId.toLowerCase().includes(term) ||
+                      (u.displayName && u.displayName.toLowerCase().includes(term)) ||
+                      (u.email && u.email.toLowerCase().includes(term)) ||
+                      (u.phone && u.phone.toLowerCase().includes(term))
+                    );
+                  });
+
+                  if (filteredUsersInModal.length === 0) {
+                    return (
+                      <div className="py-16 text-center text-xs text-slate-400 italic">
+                        ไม่พบรายการผู้ใช้ตามคำค้นหาที่ระบุ 🔍
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3.5">
+                      {filteredUsersInModal.map((user) => (
+                        <div 
+                          key={user.userId}
+                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors text-xs"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {user.avatarUrl ? (
+                              <img src={user.avatarUrl} className="w-11 h-11 rounded-2xl object-cover border border-slate-100 flex-shrink-0" alt="Avatar" />
+                            ) : (
+                              <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500 flex items-center justify-center font-black text-xs border border-indigo-100 flex-shrink-0">
+                                {(user.displayName || user.userId).substring(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                                  {user.displayName || user.userId}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  (@{user.userId})
+                                </span>
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                                  user.isApproved 
+                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-450' 
+                                    : 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-450 animate-pulse'
+                                }`}>
+                                  {user.isApproved ? "✓ อนุมัติแล้ว" : "⏳ รออนุมัติ"}
+                                </span>
+                                {user.isLocked && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded dark:bg-rose-950/30 dark:text-rose-450">
+                                    🔒 ระงับชั่วคราว
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-455 font-medium leading-normal">
+                                ✉️ อีเมล: <span className="font-semibold text-slate-700 dark:text-slate-300">{user.email || 'ไม่มีอีเมล'}</span> | 📞 เบอร์โทร: <span className="font-semibold text-slate-700 dark:text-slate-300">{user.phone || 'ไม่มีเบอร์โทร'}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Chat button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedChatUser(user.userId);
+                                setDashboardDetailType(null);
+                              }}
+                              className="h-8.5 px-3 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-100 flex items-center gap-1 transition-all dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>แชท</span>
+                            </button>
+
+                            {/* Approve button */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleApprove(user)}
+                              className={`h-8.5 px-3 rounded-lg text-[11px] font-bold flex items-center gap-1 border transition-all ${
+                                user.isApproved 
+                                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-150 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' 
+                                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-150 animate-bounce'
+                              }`}
+                            >
+                              {user.isApproved ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
+                              <span>{user.isApproved ? 'อนุมัติแล้ว' : 'กดยืนยัน'}</span>
+                            </button>
+
+                            {/* Lock button */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLock(user)}
+                              className="w-8.5 h-8.5 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-all dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700"
+                              title={user.isLocked ? "ปลดล็อกบัญชี" : "ระงับสิทธิ์"}
+                            >
+                              <Shield className={`w-3.5 h-3.5 ${user.isLocked ? 'text-rose-500 animate-bounce' : 'text-slate-450'}`} />
+                            </button>
+
+                            {/* Delete account */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(user.userId)}
+                              className="w-8.5 h-8.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-all dark:bg-rose-950/20 dark:text-rose-455"
+                              title="ลบบัญชีถาวร"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* 2. TASKS DETAIL VIEWS */}
+                {dashboardDetailType.includes('task') && (() => {
+                  const filteredTasksInModal = assignedTasksList.filter(item => {
+                    // Filter by task types
+                    if (dashboardDetailType === 'pending_reviews' && item.task.approvalStatus !== 'pending_review') return false;
+                    if (dashboardDetailType === 'approved_tasks' && item.task.approvalStatus !== 'approved') return false;
+                    if (dashboardDetailType === 'needs_revision' && item.task.approvalStatus !== 'needs_revision') return false;
+
+                    // Filter by search term
+                    const term = dashboardDetailSearch.toLowerCase();
+                    if (!term) return true;
+                    return (
+                      item.task.title.toLowerCase().includes(term) ||
+                      (item.task.desc && item.task.desc.toLowerCase().includes(term)) ||
+                      item.userId.toLowerCase().includes(term) ||
+                      (item.userProfile?.displayName && item.userProfile.displayName.toLowerCase().includes(term))
+                    );
+                  });
+
+                  if (filteredTasksInModal.length === 0) {
+                    return (
+                      <div className="py-16 text-center text-xs text-slate-400 italic">
+                        ไม่พบรายการภารกิจงานที่ตรงตามคำค้นหาที่ระบุ 🔍
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {filteredTasksInModal.map(({ userId, userProfile, task }) => {
+                        let statusBadge = {
+                          bg: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-850 dark:text-slate-400 dark:border-slate-800',
+                          label: '📌 มอบหมายแล้ว'
+                        };
+
+                        if (task.approvalStatus === 'pending_review') {
+                          statusBadge = {
+                            bg: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-455 dark:border-blue-900/30',
+                            label: '⏳ ส่งงานรอตรวจ'
+                          };
+                        } else if (task.approvalStatus === 'approved') {
+                          statusBadge = {
+                            bg: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-455 dark:border-emerald-900/30',
+                            label: '✓ ตรวจผ่านแล้ว'
+                          };
+                        } else if (task.approvalStatus === 'needs_revision') {
+                          statusBadge = {
+                            bg: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-455 dark:border-rose-900/30',
+                            label: '⚠️ ส่งกลับแก้ไข'
+                          };
+                        }
+
+                        const isCurrentlyRevising = modalRevisingTask?.userId === userId && modalRevisingTask?.taskId === task.id;
+
+                        return (
+                          <div 
+                            key={task.id}
+                            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs space-y-3 hover:border-slate-300 dark:hover:border-slate-700 transition-colors text-xs"
+                          >
+                            {/* User details and status */}
+                            <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 font-black text-[10px] flex items-center justify-center">
+                                  {(userProfile?.displayName || userId).substring(0, 1).toUpperCase()}
+                                </div>
+                                <span className="font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                                  {userProfile?.displayName || userId}
+                                </span>
+                                <span className="text-[9px] text-slate-400 font-mono">(@{userId})</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-slate-400 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+                                  {task.category}
+                                </span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadge.bg}`}>
+                                  {statusBadge.label}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Task Info */}
+                            <div className="space-y-1">
+                              <h4 className="font-black text-slate-800 dark:text-slate-100">📌 {task.title}</h4>
+                              {task.desc && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                                  {task.desc}
+                                </p>
+                              )}
+                              <p className="text-[9.5px] text-slate-400 font-medium">
+                                📅 กำหนดส่ง: <span className="font-semibold text-slate-600 dark:text-slate-300">{task.dueDate || '-'} {task.dueTime ? `${task.dueTime} น.` : ''}</span>
+                              </p>
+                            </div>
+
+                            {/* If submitted, show notes and attachments */}
+                            {task.approvalStatus === 'pending_review' && (
+                              <div className="p-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-850 rounded-xl space-y-2.5">
+                                {task.completedAt && (
+                                  <span className="block text-[9px] text-slate-400 font-mono">
+                                    📅 ส่งเมื่อ: {new Date(task.completedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.
+                                  </span>
+                                )}
+                                {task.completionNotes && (
+                                  <div className="space-y-1">
+                                    <span className="block text-[9.5px] font-bold text-slate-500">📝 บันทึกแนบส่งผลงาน:</span>
+                                    <p className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                      {task.completionNotes}
+                                    </p>
+                                  </div>
+                                )}
+                                {task.completedAttachments && task.completedAttachments.length > 0 && (
+                                  <div className="space-y-1">
+                                    <span className="block text-[9.5px] font-bold text-emerald-600">📎 หลักฐานแนบส่ง ({task.completedAttachments.length}):</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {task.completedAttachments.map((file, fidx) => (
+                                        <button
+                                          key={fidx}
+                                          type="button"
+                                          onClick={() => setViewingAttachment(file)}
+                                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-lg text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-emerald-900/30 flex items-center gap-1 max-w-[150px] truncate"
+                                        >
+                                          {file.type === 'image' ? <ImageIcon className="w-3 h-3" /> : <File className="w-3 h-3 text-indigo-500" />}
+                                          <span className="truncate">{file.name}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* If needs revision, show previous feedback */}
+                            {task.approvalStatus === 'needs_revision' && task.adminFeedback && (
+                              <div className="p-3 bg-rose-50/50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-950 rounded-xl space-y-1 text-[11px]">
+                                <span className="block font-bold text-rose-600">📝 คำชี้แจงให้แก้ไขปรับปรุง:</span>
+                                <p className="font-semibold text-rose-700 dark:text-rose-400 whitespace-pre-wrap">
+                                  {task.adminFeedback}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Actions under the task */}
+                            {!isCurrentlyRevising ? (
+                              <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/60 pt-2.5">
+                                {task.approvalStatus === 'pending_review' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setModalRevisingTask({ userId, taskId: task.id, title: task.title });
+                                        setModalFeedbackText('');
+                                      }}
+                                      className="h-8 px-3 border border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-900 dark:text-amber-400 dark:hover:bg-amber-950/20 text-[10.5px] font-bold rounded-lg transition-all"
+                                    >
+                                      ⚠️ ส่งกลับแก้ไข
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        await handleApproveTask(userId, task.id);
+                                      }}
+                                      className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-750 text-white font-bold text-[10.5px] rounded-lg transition-all flex items-center gap-1 shadow-xs"
+                                    >
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      ผ่านการตรวจ
+                                    </button>
+                                  </>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAssignedTask(userId, task.id, task.title)}
+                                  className="w-8 h-8 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-all dark:bg-rose-950/20 dark:text-rose-450"
+                                  title="ลบภารกิจถาวร"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <form 
+                                onSubmit={async (e) => {
+                                  e.preventDefault();
+                                  if (!modalFeedbackText.trim()) {
+                                    await showAlert('กรุณากรอกข้อความชี้แจงเพื่อส่งกลับแก้ไข', 'คำเตือน', 'warning');
+                                    return;
+                                  }
+                                  try {
+                                    const taskRef = doc(db, 'users', userId, 'tasks', task.id);
+                                    await updateDoc(taskRef, {
+                                      approvalStatus: 'needs_revision',
+                                      status: 'pending',
+                                      adminFeedback: modalFeedbackText.trim()
+                                    });
+                                    await showAlert('ส่งงานกลับไปที่ผู้ใช้เพื่อขอให้แก้ไขเรียบร้อยแล้วค่ะ', 'ส่งกลับสำเร็จ', 'success');
+                                    setModalRevisingTask(null);
+                                    setModalFeedbackText('');
+                                  } catch (err) {
+                                    console.error('Failed to send back revision in modal:', err);
+                                  }
+                                }} 
+                                className="space-y-2 border-t border-slate-200/60 pt-2 dark:border-slate-800/60 animate-in slide-in-from-top duration-150"
+                              >
+                                <label className="block text-[10px] font-bold text-amber-600">📝 รายละเอียดข้อบกพร่องที่ต้องการให้แก้ไขปรับปรุง:</label>
+                                <textarea
+                                  required
+                                  rows={2}
+                                  value={modalFeedbackText}
+                                  onChange={(e) => setModalFeedbackText(e.target.value)}
+                                  placeholder="เช่น ขอให้ตรวจสอบยอดโอนเงิน หรือภาพที่ส่งไม่ชัดเจน..."
+                                  className="w-full p-2 border border-slate-200 rounded-lg text-xs dark:bg-slate-900 dark:border-slate-800 focus:outline-none focus:border-amber-500 text-slate-800 dark:text-slate-100"
+                                />
+                                <div className="flex gap-1.5 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => setModalRevisingTask(null)}
+                                    className="h-7 px-2.5 border border-slate-200 bg-white text-[10px] font-bold rounded-md hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300"
+                                  >
+                                    ยกเลิก
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    className="h-7 px-3 text-white bg-amber-500 hover:bg-amber-600 text-[10px] font-bold rounded-md flex items-center gap-1"
+                                  >
+                                    <Send className="w-3 h-3" />
+                                    ยืนยันส่งกลับแก้ไข
+                                  </button>
+                                </div>
+                              </form>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-150 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setDashboardDetailType(null); setDashboardDetailSearch(''); setModalRevisingTask(null); }}
+                  className="h-9 px-4.5 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-750 dark:hover:bg-slate-700 text-xs font-bold rounded-xl transition-all active:scale-95 shadow-sm"
+                >
+                  ปิดหน้าต่างพรีวิว
                 </button>
               </div>
 

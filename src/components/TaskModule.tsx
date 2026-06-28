@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   List,
   Clock,
@@ -67,6 +67,38 @@ export default function TaskModule({
   const [filterCategory, setFilterCategory] = useState('');
   const [openDrawers, setOpenDrawers] = useState<Record<string, boolean>>({});
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleFocusTask = (e: Event) => {
+      const customEvent = e as CustomEvent<{ taskId: string }>;
+      const { taskId } = customEvent.detail;
+      if (!taskId) return;
+      
+      // Highlight task
+      setHighlightedTaskId(taskId);
+      
+      // Open drawer of task to show details
+      setOpenDrawers(prev => ({ ...prev, [taskId]: true }));
+      
+      // Scroll to element
+      setTimeout(() => {
+        const el = document.getElementById(`task-card-${taskId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      
+      // Reset highlight after 5 seconds
+      setTimeout(() => {
+        setHighlightedTaskId(curr => curr === taskId ? null : curr);
+      }, 5000);
+    };
+
+    window.addEventListener('focus-task', handleFocusTask);
+    return () => {
+      window.removeEventListener('focus-task', handleFocusTask);
+    };
+  }, []);
   
   // Custom categories creation on-the-fly
   const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
@@ -230,6 +262,13 @@ export default function TaskModule({
       return;
     }
 
+    const isConfirmed = await showConfirm(
+      editingTask ? 'คุณต้องการบันทึกการแก้ไขภารกิจนี้ใช่หรือไม่?' : 'คุณต้องการบันทึกภารกิจใหม่นี้ใช่หรือไม่?',
+      'ยืนยันการบันทึกข้อมูล',
+      'success'
+    );
+    if (!isConfirmed) return;
+
     if (editingTask) {
       onEditTask(editingTask.id, {
         title: taskTitle,
@@ -241,6 +280,7 @@ export default function TaskModule({
         isRecurring,
         recurringDays: isRecurring ? recurringDays : undefined
       });
+      await showAlert('บันทึกการแก้ไขภารกิจสำเร็จเรียบร้อยแล้ว!', 'สำเร็จ', 'success');
     } else {
       if (isRecurring) {
         let datesToCreate: string[] = [];
@@ -285,6 +325,7 @@ export default function TaskModule({
           userId: 'session',
           attachments: taskAttachments
         });
+        await showAlert('บันทึกภารกิจใหม่สำเร็จเรียบร้อยแล้ว!', 'สำเร็จ', 'success');
       }
     }
 
@@ -1570,6 +1611,13 @@ export default function TaskModule({
               <button
                 type="button"
                 onClick={async () => {
+                  const isConfirmed = await showConfirm(
+                    `คุณต้องการบันทึกการทำภารกิจ "${completingTask.title}" เสร็จสิ้นใช่หรือไม่?`,
+                    'ยืนยันการทำภารกิจเสร็จสิ้น',
+                    'success'
+                  );
+                  if (!isConfirmed) return;
+
                   onEditTask(completingTask.id, {
                     status: 'completed',
                     approvalStatus: completingTask.assignedByAdmin ? 'pending_review' : undefined,

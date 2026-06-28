@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Receipt, Plus, CheckCircle, Trash2, Edit3, Circle, Coins, Calendar, Tag, Printer, ChevronDown, ChevronUp, Upload, Eye, X, Image, History, Search } from 'lucide-react';
 import { Expense, Installment } from '../types';
 import { useDialog } from './CustomDialog';
@@ -63,6 +63,35 @@ export default function ExpenseModule({
   onAddExpenseCategory
 }: ExpenseModuleProps) {
   const { showAlert, showConfirm } = useDialog();
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleFocusExpense = (e: Event) => {
+      const customEvent = e as CustomEvent<{ expenseId: string }>;
+      const { expenseId } = customEvent.detail;
+      if (!expenseId) return;
+      
+      setHighlightedExpenseId(expenseId);
+      
+      // Scroll to element
+      setTimeout(() => {
+        const el = document.getElementById(`expense-card-${expenseId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      
+      // Reset highlight after 5 seconds
+      setTimeout(() => {
+        setHighlightedExpenseId(curr => curr === expenseId ? null : curr);
+      }, 5000);
+    };
+
+    window.addEventListener('focus-expense', handleFocusExpense);
+    return () => {
+      window.removeEventListener('focus-expense', handleFocusExpense);
+    };
+  }, []);
 
   // Custom categories creation on-the-fly
   const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
@@ -341,6 +370,13 @@ export default function ExpenseModule({
       return;
     }
 
+    const isConfirmed = await showConfirm(
+      editId ? 'คุณต้องการบันทึกการแก้ไขรายการค่าใช้จ่ายนี้ใช่หรือไม่?' : 'คุณต้องการบันทึกรายการค่าใช้จ่ายใหม่นี้ใช่หรือไม่?',
+      'ยืนยันการบันทึกข้อมูล',
+      'success'
+    );
+    if (!isConfirmed) return;
+
     if (editId) {
       const existing = expenses.find(item => item.id === editId);
       const allPaid = isInstallment ? (tempInstallments?.every(inst => inst.paid) || false) : (existing?.paid || false);
@@ -373,6 +409,7 @@ export default function ExpenseModule({
       });
     }
     setIsModalOpen(false);
+    await showAlert(editId ? 'บันทึกการแก้ไขรายการค่าใช้จ่ายสำเร็จเรียบร้อยแล้ว!' : 'บันทึกรายการค่าใช้จ่ายใหม่สำเร็จเรียบร้อยแล้ว!', 'สำเร็จ', 'success');
   };
 
   const handleToggleInstallmentPaid = async (expense: Expense, installmentNo: number) => {
@@ -481,6 +518,7 @@ export default function ExpenseModule({
     setPaySlipInstallmentNo(null);
     setPaySlipBase64('');
     setPaySlipFileName('');
+    await showAlert('บันทึกการชำระเงินเสร็จสมบูรณ์เรียบร้อยแล้วค่ะ!', 'สำเร็จ', 'success');
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -855,14 +893,20 @@ export default function ExpenseModule({
                 (e.note?.toLowerCase().includes(searchQuery.toLowerCase()) || false)
               );
 
+              const isHighlighted = e.id === highlightedExpenseId;
+
               return (
                 <div
                   key={e.id}
+                  id={`expense-card-${e.id}`}
                   className={`border p-4 rounded-xl flex flex-col gap-3 shadow-sm hover:shadow-md transition-all dark:bg-slate-900 ${
-                    isSearchMatched 
-                      ? 'bg-purple-50/20 border-purple-500 ring-2 ring-purple-500/20 shadow-purple-100 dark:border-purple-800 dark:ring-purple-900/40 scale-[1.01] animate-pulse duration-1000' 
-                      : 'bg-white border-slate-200 dark:border-slate-800'
+                    isHighlighted
+                      ? 'ring-2 ring-offset-2 dark:ring-offset-slate-950 animate-pulse'
+                      : isSearchMatched 
+                        ? 'bg-purple-50/20 border-purple-500 ring-2 ring-purple-500/20 shadow-purple-100 dark:border-purple-800 dark:ring-purple-900/40 scale-[1.01] animate-pulse duration-1000' 
+                        : 'bg-white border-slate-200 dark:border-slate-800'
                   }`}
+                  style={isHighlighted ? { borderColor: accentColor, borderRadius: '12px', boxShadow: `0 0 20px ${accentColor}`, transform: 'scale(1.03)', zIndex: 10, '--tw-ring-color': accentColor } : {}}
                 >
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
                     <div className="min-w-0 flex-1 space-y-1.5 text-left">
@@ -1577,14 +1621,13 @@ export default function ExpenseModule({
                 {/* Slip File Upload Field */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">
-                    แนบไฟล์ภาพหลักฐานการโอนเงิน (สลิป) <span className="text-rose-500">*</span>
+                    แนบไฟล์ภาพหลักฐานการโอนเงิน (สลิป) <span className="text-slate-400 font-normal">(ไม่บังคับแนบก็ได้)</span>
                   </label>
                   
                   <div className="relative border-2 border-dashed border-slate-250 dark:border-slate-850 rounded-xl hover:border-purple-400 dark:hover:border-purple-800 transition-all p-5 text-center bg-slate-50/50 dark:bg-slate-950/20">
                     <input
                       type="file"
                       accept="image/*"
-                      required
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -1661,11 +1704,8 @@ export default function ExpenseModule({
                 </button>
                 <button
                   type="submit"
-                  disabled={!paySlipBase64}
-                  className={`h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md transition-all flex items-center gap-1 ${
-                    !paySlipBase64 ? 'opacity-50 cursor-not-allowed bg-slate-400' : 'hover:opacity-95'
-                  }`}
-                  style={{ backgroundColor: paySlipBase64 ? accentColor : undefined }}
+                  className="h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md transition-all flex items-center gap-1 hover:opacity-95"
+                  style={{ backgroundColor: accentColor }}
                 >
                   <CheckCircle className="w-4 h-4" />
                   บันทึกชำระเงิน

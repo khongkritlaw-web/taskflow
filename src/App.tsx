@@ -18,6 +18,8 @@ import {
   Send,
   Mail,
   Save,
+  Home,
+  ArrowLeft,
   Moon,
   Volume2,
   Trash2,
@@ -98,9 +100,19 @@ function getCustomLinkIconComponent(name: string) {
 }
 
 // Check if a URL might fail to load in standard sandboxed iframe (such as Mixed Content or X-Frame-Options blocked sites)
+function sanitizeUrl(url: string | undefined): string {
+  if (!url) return '';
+  let trimmed = url.trim();
+  if (!/^[a-zA-Z]+:\/\//.test(trimmed)) {
+    trimmed = 'https://' + trimmed;
+  }
+  return trimmed;
+}
+
 function isFrameRestricted(url: string | undefined): boolean {
   if (!url) return false;
-  const lower = url.toLowerCase();
+  const sanitized = sanitizeUrl(url);
+  const lower = sanitized.toLowerCase();
   
   // Mixed Content block: HTTP embedded inside HTTPS application
   if (lower.startsWith('http://')) {
@@ -210,6 +222,7 @@ export default function App() {
     } catch (e) {}
   };
   const [activeTab, setActiveTab] = useState<string>('tasks');
+  const [linkPopupData, setLinkPopupData] = useState<{ url: string; title: string; visible: boolean }>({ url: '', title: '', visible: false });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSettingsUnlocked, setIsSettingsUnlocked] = useState(false);
 
@@ -260,18 +273,37 @@ export default function App() {
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
   const [showAnnounceModalId, setShowAnnounceModalId] = useState<string | null>(null);
 
-  // Manage visibility of iframe frame security guidelines banner (shows for 5 seconds when switching custom links)
+  // Manage visibility of iframe frame security guidelines banner and handle auto-popup for restricted sites
   useEffect(() => {
     if (activeTab.startsWith('link_')) {
       setLinkHintVisible(true);
+      const linkId = activeTab.replace('link_', '');
+      const allLinks = [...(settings.customMenuLinks || []), ...(adminCustomLinks || [])];
+      const targetLink = allLinks.find(l => l.id === linkId);
+      if (targetLink) {
+        const sanitized = sanitizeUrl(targetLink.url);
+        if (isFrameRestricted(sanitized) || targetLink.openDirectly) {
+          setLinkPopupData({
+            url: sanitized,
+            title: targetLink.title,
+            visible: true
+          });
+          try {
+            window.open(sanitized, '_blank', 'noopener,noreferrer');
+          } catch (e) {
+            console.error('Failed to auto-open link window:', e);
+          }
+        }
+      }
       const timer = setTimeout(() => {
         setLinkHintVisible(false);
       }, 5000); // Hide after exactly 5 seconds
       return () => clearTimeout(timer);
     } else {
       setLinkHintVisible(false);
+      setLinkPopupData({ url: '', title: '', visible: false });
     }
-  }, [activeTab]);
+  }, [activeTab, settings.customMenuLinks, adminCustomLinks]);
   
   // Email connection notifications test result
   const [emailResult, setEmailResult] = useState<{ text: string; type: 'ok' | 'err' | 'loading' | null }>({ text: '', type: null });
@@ -2210,10 +2242,6 @@ export default function App() {
                 onClick={() => { 
                   setActiveTab(`link_${link.id}`); 
                   setMobileMenuOpen(false); 
-                  if (link.openDirectly || isFrameRestricted(link.url)) {
-                    const fullUrl = link.url.match(/^[a-zA-Z]+:\/\//) ? link.url : 'https://' + link.url;
-                    window.open(fullUrl, '_blank', 'noopener,noreferrer');
-                  }
                 }}
                 className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
                   activeTab === `link_${link.id}`
@@ -2371,6 +2399,13 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Live Chat Help Desk Support Widget */}
+            <HeaderChatWidget
+              sessionUser={sessionUser}
+              accentColor={settings.colorAccent}
+              darkMode={settings.darkMode}
+            />
+
             {/* Notification center */}
             <div className="relative">
               <button
@@ -2415,50 +2450,91 @@ export default function App() {
                           ✨ ไม่มีรายการแจ้งเตือนค้างจัดทำค่ะ
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                           {/* List Tasks */}
                           {notificationTasks.length > 0 && (
                             <div className="space-y-2 text-left">
-                              <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">📋 ภารกิจเร่งด่วน/ค้างทำ ({notificationTasks.length})</span>
-                              {notificationTasks.map(t => (
-                                <div 
-                                  key={t.id} 
-                                  onClick={() => {
-                                    setActiveTab('tasks');
-                                    setShowNotificationFlyout(false);
-                                  }}
-                                  className="p-3 bg-rose-500/5 dark:bg-rose-950/20 hover:bg-rose-500/10 dark:hover:bg-rose-950/40 rounded-xl border border-rose-500/10 dark:border-rose-900/40 cursor-pointer transition-all flex flex-col gap-1"
-                                >
-                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">{t.title}</span>
-                                  <div className="flex justify-between items-center text-[9px] text-slate-400 mt-1">
-                                    <span>หมวด: {t.category}</span>
-                                    <span className="text-rose-600 font-bold dark:text-rose-400">กำหนด: {t.dueDate}</span>
+                              <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block px-1">📋 ภารกิจเร่งด่วน/ค้างทำ ({notificationTasks.length})</span>
+                              <div className="space-y-2">
+                                {notificationTasks.map(t => (
+                                  <div 
+                                    key={t.id} 
+                                    onClick={() => {
+                                      setActiveTab('tasks');
+                                      setShowNotificationFlyout(false);
+                                      setTimeout(() => {
+                                        window.dispatchEvent(new CustomEvent('focus-task', { detail: { taskId: t.id } }));
+                                      }, 300);
+                                    }}
+                                    className="group p-3 bg-slate-50 hover:bg-rose-500/5 dark:bg-slate-950/40 dark:hover:bg-rose-950/20 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-rose-500/30 dark:hover:border-rose-950/50 cursor-pointer transition-all duration-200 flex items-start gap-3 relative shadow-xs hover:shadow-md border-l-4 border-l-rose-500"
+                                  >
+                                    <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-500 flex-shrink-0 group-hover:scale-110 transition-transform">
+                                      <CheckSquare className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                                        {t.title}
+                                      </span>
+                                      <div className="flex flex-wrap gap-1.5 mt-2">
+                                        <span className="text-[9px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                                          📁 {t.category}
+                                        </span>
+                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 flex items-center gap-1">
+                                          <Clock className="w-2.5 h-2.5" /> กำหนด: {t.dueDate}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity pr-1 text-rose-500 font-bold text-sm">
+                                      →
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
                           )}
 
                           {/* List Expenses */}
                           {notificationExpenses.length > 0 && (
                             <div className="space-y-2 text-left">
-                              <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block">💰 บิลที่ถึงกำหนดชำระ ({notificationExpenses.length})</span>
-                              {notificationExpenses.map(e => (
-                                <div 
-                                  key={e.id} 
-                                  onClick={() => {
-                                    setActiveTab('expenses');
-                                    setShowNotificationFlyout(false);
-                                  }}
-                                  className="p-3 bg-amber-500/5 dark:bg-amber-950/20 hover:bg-amber-500/10 dark:hover:bg-amber-950/40 rounded-xl border border-amber-500/10 dark:border-amber-900/40 cursor-pointer transition-all flex flex-col gap-1"
-                                >
-                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">{e.title}</span>
-                                  <div className="flex justify-between items-center text-[9px] mt-1">
-                                    <span className="text-slate-400">ยอดชำระ: <strong className="text-amber-600 dark:text-amber-400">{e.amount.toLocaleString()} ฿</strong></span>
-                                    <span className="text-amber-600 font-bold dark:text-amber-400">ครบกำหนด: {e.dueDate}</span>
+                              <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block px-1">💰 บิลที่ถึงกำหนดชำระ ({notificationExpenses.length})</span>
+                              <div className="space-y-2">
+                                {notificationExpenses.map(e => (
+                                  <div 
+                                    key={e.id} 
+                                    onClick={() => {
+                                      setActiveTab('expenses');
+                                      setShowNotificationFlyout(false);
+                                      setTimeout(() => {
+                                        window.dispatchEvent(new CustomEvent('focus-expense', { detail: { expenseId: e.id } }));
+                                      }, 300);
+                                    }}
+                                    className="group p-3 bg-slate-50 hover:bg-amber-500/5 dark:bg-slate-950/40 dark:hover:bg-amber-950/20 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-amber-500/30 dark:hover:border-amber-950/50 cursor-pointer transition-all duration-200 flex items-start gap-3 relative shadow-xs hover:shadow-md border-l-4 border-l-amber-500"
+                                  >
+                                    <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-500 flex-shrink-0 group-hover:scale-110 transition-transform">
+                                      <Receipt className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                                        {e.title}
+                                      </span>
+                                      <div className="flex flex-wrap gap-1.5 mt-2">
+                                        <span className="text-[9px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                                          🏷️ {e.cat}
+                                        </span>
+                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center gap-1">
+                                          💵 ฿{e.amount.toLocaleString()}
+                                        </span>
+                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center gap-1">
+                                          📅 กำหนด: {e.dueDate}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity pr-1 text-amber-500 font-bold text-sm">
+                                      →
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2591,16 +2667,21 @@ export default function App() {
             const targetLink = visibleCustomLinks?.find(l => l.id === linkId);
             if (!targetLink) {
               return (
-                <div className="p-8 text-center">
+                <div className="p-8 text-center animate-fade-in">
                   <p className="text-xs text-slate-500 font-bold">ไม่พบหน้าเว็บลิงก์เชื่อมโยงที่กำหนด</p>
                 </div>
               );
             }
+
+            const sanitizedUrl = sanitizeUrl(targetLink.url);
+            const isRestricted = isFrameRestricted(sanitizedUrl) || targetLink.openDirectly;
+
             return (
               <div 
-                className="flex flex-col w-full h-full overflow-hidden"
+                className="flex flex-col w-full h-full overflow-hidden relative"
                 id="custom-link-viewport"
               >
+                {/* Header controls for Custom Link */}
                 <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 gap-3 flex-shrink-0">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <button
@@ -2615,60 +2696,62 @@ export default function App() {
                     <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 flex-shrink-0" />
                     <Link className="w-4 h-4 flex-shrink-0" style={{ color: settings.colorAccent }} />
                     <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{targetLink.title}</span>
-                    <span className="text-[10px] font-mono text-slate-400 truncate max-w-[150px] sm:max-w-xs">{targetLink.url}</span>
+                    <span className="text-[10px] font-mono text-slate-400 truncate max-w-[150px] sm:max-w-xs">{sanitizedUrl}</span>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-                    <button 
-                      onClick={() => {
-                        try {
-                          const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
-                          if (iframe && iframe.contentWindow) {
-                            iframe.contentWindow.history.back();
-                          }
-                        } catch (err) {
-                          console.warn('Cannot navigate iframe history due to cross-origin security:', err);
-                        }
-                      }}
-                      className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
-                      style={{ color: settings.colorAccent }}
-                      title="ย้อนกลับ"
-                    >
-                      ⬅️ ย้อนกลับ
-                    </button>
-                    <button 
-                      onClick={() => {
-                        try {
-                          const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
-                          if (iframe && iframe.contentWindow) {
-                            iframe.contentWindow.history.forward();
-                          }
-                        } catch (err) {
-                          console.warn('Cannot navigate iframe history due to cross-origin security:', err);
-                        }
-                      }}
-                      className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
-                      style={{ color: settings.colorAccent }}
-                      title="ถัดไป"
-                    >
-                      ➡️ ถัดไป
-                    </button>
-                    <button 
-                      onClick={() => {
-                        const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
-                        if (iframe) iframe.src = targetLink.url;
-                      }}
-                      className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
-                      style={{ color: settings.colorAccent }}
-                      title="เริ่มใหม่"
-                    >
-                      🔄 เริ่มใหม่
-                    </button>
+                    {!isRestricted && (
+                      <>
+                        <button 
+                          onClick={() => {
+                            try {
+                              const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
+                              if (iframe && iframe.contentWindow) {
+                                iframe.contentWindow.history.back();
+                              }
+                            } catch (err) {
+                              console.warn('Cannot navigate iframe history due to cross-origin security:', err);
+                            }
+                          }}
+                          className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
+                          style={{ color: settings.colorAccent }}
+                          title="ย้อนกลับ"
+                        >
+                          ⬅️ ย้อนกลับ
+                        </button>
+                        <button 
+                          onClick={() => {
+                            try {
+                              const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
+                              if (iframe && iframe.contentWindow) {
+                                iframe.contentWindow.history.forward();
+                              }
+                            } catch (err) {
+                              console.warn('Cannot navigate iframe history due to cross-origin security:', err);
+                            }
+                          }}
+                          className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
+                          style={{ color: settings.colorAccent }}
+                          title="ถัดไป"
+                        >
+                          ➡️ ถัดไป
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const iframe = document.getElementById('link-iframe') as HTMLIFrameElement;
+                            if (iframe) iframe.src = sanitizedUrl;
+                          }}
+                          className="hover:underline text-[10px] font-black flex items-center gap-1 flex-shrink-0"
+                          style={{ color: settings.colorAccent }}
+                          title="เริ่มใหม่"
+                        >
+                          🔄 เริ่มใหม่
+                        </button>
+                      </>
+                    )}
 
                     <button 
                       onClick={() => {
-                        // Standardize the URL before opening
-                        const fullUrl = targetLink.url.match(/^[a-zA-Z]+:\/\//) ? targetLink.url : 'https://' + targetLink.url;
-                        window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                        window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
                       }}
                       className="hover:scale-105 active:scale-95 transition-all px-3 py-1 bg-white hover:text-white rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 shadow-sm border"
                       style={{ 
@@ -2690,48 +2773,59 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* HELP BANNER FOR IFRAME SECURITY POLICIES */}
-                {linkHintVisible && isFrameRestricted(targetLink.url) && (
-                  <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center gap-2 text-slate-600 dark:text-slate-350 flex-shrink-0 transition-opacity duration-350 animate-fade-in">
-                    <span className="text-[11px] font-medium leading-relaxed">
-                      💡 <strong>คำแนะนำระบบ:</strong> บางเว็บไซต์ที่มีความปลอดภัยสูง (เช่น Google, Facebook, Youtube, Wikipedia) อาจถูกบล็อกไม่ให้แสดงผลในเฟรม (แซนด์บ็อกซ์ปกติของเบราว์เซอร์) ท่านสามารถคลิกปุ่ม <strong>"🚀 เปิดลิงก์ตรง"</strong> ด้านบนขวา เพื่อเข้าชมเว็บไซต์โดยตรงและเปิดใช้ได้ทันทีทุกที่เชื่อมโยง
-                    </span>
-                  </div>
-                )}
+                {/* HELP BANNER FOR IFRAME LOAD ISSUES / FALLBACK */}
+                <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between gap-2 text-slate-700 dark:text-slate-300 flex-shrink-0">
+                  <span className="text-[10px] font-medium leading-relaxed">
+                    💡 <strong>คำแนะนำ:</strong> หากหน้าเว็บไม่แสดงผล หน้าจอว่างเปล่า หรือต้องการแสดงผลเต็มรูปแบบ (เช่น {targetLink.title}) แนะนำให้ใช้ปุ่ม <strong>เปิดในแท็บใหม่</strong> เพื่อประสิทธิภาพสูงสุด 100%
+                  </span>
+                  <button
+                    onClick={() => {
+                      setLinkPopupData({
+                        url: sanitizedUrl,
+                        title: targetLink.title,
+                        visible: true
+                      });
+                      window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 rounded-lg text-[9px] font-bold transition-colors flex-shrink-0"
+                  >
+                    🌐 เปิดในแท็บใหม่ทันที
+                  </button>
+                </div>
 
-                <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
-                  {(isFrameRestricted(targetLink.url) || targetLink.openDirectly) ? (
+                {/* MAIN CONTENT AREA FOR THE WEB PAGE */}
+                <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+                  {isRestricted ? (
                     <div className="w-full max-w-xl p-8 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl shadow-xl text-center space-y-6 animate-in fade-in duration-350">
-                      <div className="w-20 h-20 rounded-full bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center mx-auto text-amber-500 text-3xl shadow-sm">
-                        🚀
+                      <div className="w-20 h-20 rounded-full bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center mx-auto text-amber-500 text-3xl shadow-sm animate-pulse" style={{ animationDuration: '3s' }}>
+                        🌐
                       </div>
                       
                       <div className="space-y-2">
                         <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
-                          {targetLink.title}
+                          กำลังเปิดเข้าสู่ระบบภายนอก: {targetLink.title}
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-450 leading-relaxed max-w-md mx-auto">
                           {targetLink.openDirectly ? (
-                            <span>ลิงก์นี้ถูกกำหนดให้ <strong>"เปิดในแท็บใหม่เสมอ"</strong> เพื่อการใช้งานที่รวดเร็ว ปลอดภัย และแสดงผลได้สมบูรณ์แบบ 100%</span>
+                            <span>ลิงก์นี้ได้รับการตั้งค่าให้ <strong>"เปิดโดยตรงในแท็บใหม่"</strong> เพื่อประสบการณ์ใช้งานที่ดีที่สุด หลีกเลี่ยงปัญหาเว็บล็อกเอาท์</span>
                           ) : (
-                            <span>เว็บไซต์นี้มีนโยบายความปลอดภัยสูง (X-Frame-Options) ที่จำกัดการแสดงผลแบบฝังตัวในเฟรม จึงต้องเปิดใช้งานภายนอกเฟรม</span>
+                            <span>เว็บไซต์นี้ (เช่น Google.com) มีระบบรักษาความปลอดภัยสูงที่จำกัดการฝังกรอบเฟรมในเว็บอื่น ระบบจึงอำนวยความสะดวกในการเปิดลิงก์ตรงให้แก่ท่านโดยอัตโนมัติ</span>
                           )}
                         </p>
                         <div className="p-2.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl max-w-md mx-auto font-mono text-[10px] text-slate-400 truncate">
-                          {targetLink.url}
+                          {sanitizedUrl}
                         </div>
                       </div>
 
                       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                         <button
                           onClick={() => {
-                            const fullUrl = targetLink.url.match(/^[a-zA-Z]+:\/\//) ? targetLink.url : 'https://' + targetLink.url;
-                            window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                            window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
                           }}
                           className="w-full sm:w-auto h-11 px-6 text-white font-black text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                           style={{ backgroundColor: settings.colorAccent }}
                         >
-                          🌐 เปิดเข้าใช้งานหน้าเว็บหลัก
+                          🌐 คลิกเปิดเข้าใช้หน้าต่างหลัก
                         </button>
                         
                         <button
@@ -2740,25 +2834,119 @@ export default function App() {
                           }}
                           className="w-full sm:w-auto h-11 px-6 border border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950/40 text-slate-600 dark:text-slate-350 font-bold text-xs rounded-xl transition-all cursor-pointer"
                         >
-                          🏠 ย้อนกลับบอร์ดงานหลัก
+                          🏠 กลับสู่หน้าแดชบอร์ดหลัก
                         </button>
                       </div>
                       
                       <p className="text-[10px] text-slate-400">
-                        * ปลอดภัยและรักษาสถานะบัญชีการเข้าสู่ระบบของคุณท่านได้อย่างครบถ้วนสมบูรณ์
+                        * ปลอดภัย 100% รักษาเซสชันการเข้าสู่ระบบบัญชีของคุณไว้ตามปกติในบราวเซอร์หลัก
                       </p>
                     </div>
                   ) : (
                     <iframe 
                       id="link-iframe"
-                      src={targetLink.url} 
-                      className="w-full h-full border-0 bg-white dark:bg-slate-900" 
+                      src={sanitizedUrl} 
+                      className="w-full h-full border-0 bg-white dark:bg-slate-900 rounded-2xl shadow-inner" 
                       title={targetLink.title}
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                       referrerPolicy="no-referrer"
                     />
                   )}
                 </div>
+
+                {/* PERSISTENT FLOATING BUTTON (ปุ่มลอยสำหรับกลับหน้าหลัก) */}
+                <div className="fixed bottom-6 right-6 z-50 animate-bounce" style={{ animationDuration: '3s' }}>
+                  <button
+                    onClick={() => {
+                      setActiveTab('tasks');
+                    }}
+                    className="flex items-center gap-2 px-5 py-3 rounded-full text-white font-bold text-xs shadow-2xl transition-all hover:scale-105 active:scale-95 border border-white/10 select-none cursor-pointer"
+                    style={{ 
+                      backgroundColor: settings.colorAccent || '#4f46e5',
+                      boxShadow: `0 10px 25px -5px ${settings.colorAccent || '#4f46e5'}80, 0 8px 10px -6px ${settings.colorAccent || '#4f46e5'}80`
+                    }}
+                    title="คลิกปุ่มลอยเพื่อย้อนกลับเข้าสู่ระบบหลักทันที"
+                  >
+                    <Home className="w-4 h-4" />
+                    <span>🏠 กลับหน้าหลักระบบ</span>
+                  </button>
+                </div>
+
+                {/* BEAUTIFUL POPUP MODAL (เด้งป๊อปอัปหากเป็นเว็บ Google หรือมีปัญหาการแสดงผล) */}
+                <AnimatePresence>
+                  {linkPopupData.visible && linkPopupData.url === sanitizedUrl && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                      {/* Dark blurred overlay */}
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setLinkPopupData(prev => ({ ...prev, visible: false }))}
+                        className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs"
+                      />
+                      
+                      {/* Modal Content Card */}
+                      <motion.div
+                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                        className="relative bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-6 z-10"
+                      >
+                        <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 flex items-center justify-center mx-auto text-2xl shadow-sm border border-indigo-100/50 dark:border-indigo-900/30">
+                          🚀
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-base font-black text-slate-800 dark:text-slate-100">
+                            ระบบตรวจพบความปลอดภัยสูง
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            หน้าเว็บ <strong>"{linkPopupData.title}"</strong> ปฏิเสธการแสดงผลแบบฝังเฟรม (X-Frame-Options) หรืออาจพบปัญหาการแสดงผล ระบบจึงทำการเปิดแท็บภายนอกเพื่อความสมบูรณ์ในการทำงาน 100%
+                          </p>
+                          <div className="p-2.5 bg-slate-50 dark:bg-slate-950 text-slate-400 font-mono text-[10px] rounded-xl truncate select-all border border-slate-100 dark:border-slate-850">
+                            {linkPopupData.url}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 pt-2">
+                          <button
+                            onClick={() => {
+                              window.open(linkPopupData.url, '_blank', 'noopener,noreferrer');
+                            }}
+                            className="w-full h-11 text-white font-black text-xs rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            style={{ backgroundColor: settings.colorAccent }}
+                          >
+                            🌐 เปิดหน้าเว็บหลักในหน้าต่างใหม่
+                          </button>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => {
+                                setLinkPopupData(prev => ({ ...prev, visible: false }));
+                              }}
+                              className="h-10 border border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950 text-slate-600 dark:text-slate-450 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                              ❌ ปิดหน้านี้
+                            </button>
+                            <button
+                              onClick={() => {
+                                setLinkPopupData(prev => ({ ...prev, visible: false }));
+                                setActiveTab('tasks');
+                              }}
+                              className="h-10 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 font-black text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                              🏠 กลับแดชบอร์ด
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                          * คุณสามารถปิดป๊อปอัปนี้หรือกดปุ่มลอย "กลับหน้าหลัก" ได้ตลอดเวลา
+                        </p>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })()}

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase'; // verify this matches imports
+import { useDialog } from './CustomDialog';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ export function EditProfileModal({
   const [dragActive, setDragActive] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showConfirm, showAlert } = useDialog();
 
   // Sync inputs with profile data when modal is launched
   useEffect(() => {
@@ -150,13 +152,22 @@ export function EditProfileModal({
     e.preventDefault();
     setErrorText('');
     setSuccessText('');
+
+    if (!displayName.trim()) {
+      setErrorText('กรุณากรอกชื่อผู้ใช้ / ชื่อแสดงตัวตนด้วยค่ะ');
+      return;
+    }
+
+    const isConfirmed = await showConfirm(
+      'คุณต้องการบันทึกการเปลี่ยนแปลงข้อมูลส่วนตัวใช่หรือไม่?',
+      'ยืนยันการบันทึกข้อมูล',
+      'success'
+    );
+    if (!isConfirmed) return;
+
     setSaving(true);
 
     try {
-      if (!displayName.trim()) {
-        throw new Error('กรุณากรอกชื่อผู้ใช้ / ชื่อแสดงตัวตนด้วยค่ะ');
-      }
-
       const updatedData = {
         userId: sessionUser.userId,
         displayName: displayName.trim(),

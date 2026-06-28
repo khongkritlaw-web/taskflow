@@ -328,10 +328,10 @@ export default function PendingApprovalView({
                       <div 
                         className={`p-3 rounded-2xl text-xs font-semibold leading-relaxed shadow-sm break-words max-w-full ${
                           isMe 
-                            ? 'text-white rounded-tr-sm' 
-                            : 'bg-white text-slate-800 border border-slate-200 rounded-tl-sm dark:bg-slate-850 dark:border-slate-800 dark:text-slate-100'
+                            ? 'rounded-tr-sm' 
+                            : 'bg-slate-100 text-slate-850 border border-slate-200 rounded-tl-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100'
                         }`}
-                        style={isMe ? { backgroundColor: accentColor } : {}}
+                        style={isMe ? { backgroundColor: accentColor || '#4f46e5', color: 'var(--accent-text, #ffffff)' } : {}}
                       >
                         {msg.text}
                       </div>

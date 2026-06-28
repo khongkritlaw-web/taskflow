@@ -240,6 +240,7 @@ export default function CalendarModule({
     setPaySlipInstallmentNo(null);
     setPaySlipBase64('');
     setPaySlipFileName('');
+    await showAlert('บันทึกการชำระเงินเสร็จสมบูรณ์เรียบร้อยแล้วค่ะ!', 'สำเร็จ', 'success');
   };
 
   // Static/Fallback Holidays
@@ -1120,14 +1121,13 @@ export default function CalendarModule({
                 {/* Slip File Upload Field */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">
-                    แนบไฟล์ภาพหลักฐานการโอนเงิน (สลิป) <span className="text-rose-500">*</span>
+                    แนบไฟล์ภาพหลักฐานการโอนเงิน (สลิป) <span className="text-slate-400 font-normal">(ไม่บังคับแนบก็ได้)</span>
                   </label>
                   
                   <div className="relative border-2 border-dashed border-slate-250 dark:border-slate-850 rounded-xl hover:border-purple-400 dark:hover:border-purple-800 transition-all p-5 text-center bg-slate-50/50 dark:bg-slate-950/20">
                     <input
                       type="file"
                       accept="image/*"
-                      required
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -1204,11 +1204,8 @@ export default function CalendarModule({
                 </button>
                 <button
                   type="submit"
-                  disabled={!paySlipBase64}
-                  className={`h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md transition-all flex items-center gap-1 ${
-                    !paySlipBase64 ? 'opacity-50 cursor-not-allowed bg-slate-400' : 'hover:opacity-95'
-                  }`}
-                  style={{ backgroundColor: paySlipBase64 ? accentColor : undefined }}
+                  className="h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md transition-all flex items-center gap-1 hover:opacity-95"
+                  style={{ backgroundColor: accentColor }}
                 >
                   <CheckCircle className="w-4 h-4" />
                   บันทึกชำระเงิน
