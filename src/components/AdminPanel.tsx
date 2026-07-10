@@ -50,6 +50,12 @@ interface AdminPanelProps {
   darkMode: boolean;
   categories?: string[];
   onAddCategory?: (category: string) => void;
+  sessionUser?: {
+    userId: string;
+    isAssistant?: boolean;
+    displayName?: string;
+    [key: string]: any;
+  };
 }
 
 interface UserProfile {
@@ -61,6 +67,7 @@ interface UserProfile {
   avatarUrl?: string;
   isApproved?: boolean;
   isLocked?: boolean;
+  isAssistant?: boolean;
 }
 
 interface Announcement {
@@ -84,7 +91,8 @@ export default function AdminPanel({
   accentColor, 
   darkMode,
   categories = ['💼 งานทั่วไป'],
-  onAddCategory
+  onAddCategory,
+  sessionUser
 }: AdminPanelProps) {
   const { showAlert, showConfirm } = useDialog();
 
@@ -199,7 +207,8 @@ export default function AdminPanel({
           displayName: udata.displayName || '',
           avatarUrl: udata.avatarUrl || '',
           isApproved: udata.isApproved !== undefined ? udata.isApproved : (docSnap.id === 'admin' ? true : false),
-          isLocked: udata.isLocked !== undefined ? udata.isLocked : false
+          isLocked: udata.isLocked !== undefined ? udata.isLocked : false,
+          isAssistant: udata.isAssistant !== undefined ? udata.isAssistant : false
         });
       });
       setUsers(uList);
@@ -298,6 +307,11 @@ export default function AdminPanel({
 
   // Toggle user Approval
   const handleToggleApprove = async (user: UserProfile) => {
+    if (user.userId === 'admin') {
+      await triggerAlert('ไม่สามารถระงับสิทธิ์บัญชีผู้ดูแลระบบหลักได้ค่ะ', 'error');
+      return;
+    }
+
     const targetStatus = !user.isApproved;
     const actionLabel = targetStatus ? 'อนุมัติ' : 'ระงับ';
 
@@ -329,6 +343,11 @@ export default function AdminPanel({
 
   // Toggle user Lock/Block status specifically
   const handleToggleLock = async (user: UserProfile) => {
+    if (user.userId === 'admin') {
+      await triggerAlert('ไม่สามารถล็อกบัญชีผู้ดูแลระบบหลักได้ค่ะ', 'error');
+      return;
+    }
+
     const targetLockStatus = !user.isLocked;
     const actionLabel = targetLockStatus ? 'ล็อกบัญชีเฉพาะเจาะจง' : 'ปลดล็อกบัญชี';
 
@@ -353,6 +372,46 @@ export default function AdminPanel({
         await triggerAlert(`ดำเนินการ ${actionLabel} ผู้ใช้ "${user.userId}" สำเร็จ (ฟอลแบ็ก)`, 'success');
       } catch (subErr) {
         await triggerAlert('ไม่สามารถอัปเดตสถานะการล็อกได้ในขณะนี้ กรุณาลองใหม่อีกครั้งค่ะ', 'error');
+      }
+    }
+  };
+
+  // Toggle Assistant role
+  const handleToggleAssistant = async (user: UserProfile) => {
+    if (user.userId === 'admin') {
+      await triggerAlert('ไม่สามารถสับเปลี่ยนบทบาทผู้ดูแลระบบหลักได้ค่ะ', 'error');
+      return;
+    }
+
+    if (sessionUser?.userId !== 'admin') {
+      await triggerAlert('ขออภัยค่ะ มีเพียงผู้ดูแลหลัก (Admin) เท่านั้นที่สามารถแต่งตั้งหรือปลดผู้ช่วยได้ค่ะ', 'error');
+      return;
+    }
+
+    const targetStatus = !user.isAssistant;
+    const actionLabel = targetStatus ? 'แต่งตั้งเป็นผู้ช่วยแอดมิน' : 'ปลดจากสิทธิ์ผู้ช่วยแอดมิน';
+
+    const isConfirmed = await showConfirm(
+      `คุณต้องการ "${actionLabel}" แก่คุณผู้ใช้ "${user.displayName || user.userId}" หรือไม่? (ผู้ช่วยแอดมินจะมีสิทธิ์ช่วยงานจัดการผู้ใช้และดูแลแผงควบคุมระบบ แต่จะไม่สามารถแตะต้องแก้ไขหรือล็อกบัญชีแอดมินสูงสุดได้)`,
+      'ยืนยันการเปลี่ยนบทบาท',
+      targetStatus ? 'success' : 'warning'
+    );
+    if (!isConfirmed) return;
+
+    try {
+      const userRef = doc(db, 'users', user.userId);
+      await updateDoc(userRef, {
+        isAssistant: targetStatus
+      });
+      await triggerAlert(`ดำเนินการ ${actionLabel} ผู้ใช้ "${user.userId}" เรียบร้อยแล้วค่ะ`, 'success');
+    } catch (err) {
+      console.error('Failed to toggle assistant status:', err);
+      try {
+        const userRef = doc(db, 'users', user.userId);
+        await setDoc(userRef, { ...user, isAssistant: targetStatus }, { merge: true });
+        await triggerAlert(`ดำเนินการ ${actionLabel} ผู้ใช้ "${user.userId}" สำเร็จ (ฟอลแบ็ก)`, 'success');
+      } catch (subErr) {
+        await triggerAlert('ไม่สามารถจัดการสิทธิ์ผู้ช่วยได้ในขณะนี้ กรุณาลองใหม่อีกครั้งค่ะ', 'error');
       }
     }
   };
@@ -765,6 +824,16 @@ export default function AdminPanel({
                               <span className="text-[9px] text-slate-400 font-mono">
                                 (@{user.userId})
                               </span>
+                              {user.userId === 'admin' && (
+                                <span className="text-[8px] font-extrabold px-1.5 py-0.5 bg-amber-500 text-white rounded-md shadow-xs flex items-center gap-0.5">
+                                  👑 แอดมินหลัก
+                                </span>
+                              )}
+                              {user.isAssistant && (
+                                <span className="text-[8px] font-extrabold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/30 flex items-center gap-0.5">
+                                  🛡️ ผู้ช่วย
+                                </span>
+                              )}
                               {user.isLocked && (
                                 <span className="text-[8px] font-extrabold px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded-md dark:bg-rose-950/30 dark:text-rose-450">
                                   🔒 โดนระงับ
@@ -778,54 +847,78 @@ export default function AdminPanel({
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {/* Live Chat launch */}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedChatUser(user.userId)}
-                            className={`h-8 px-2.5 rounded-lg text-[10.5px] font-bold transition-all flex items-center gap-1 border ${
-                              selectedChatUser === user.userId
-                                ? 'bg-indigo-600 text-white border-indigo-600'
-                                : 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30'
-                            }`}
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>เปิดกล่องแชท</span>
-                          </button>
+                          {user.userId === 'admin' ? (
+                            <span className="text-[10px] font-bold px-2.5 py-1 bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-lg">
+                              👑 สิทธิ์สูงสุด (ปรับแต่งไม่ได้)
+                            </span>
+                          ) : (
+                            <>
+                              {/* Live Chat launch */}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedChatUser(user.userId)}
+                                className={`h-8 px-2.5 rounded-lg text-[10.5px] font-bold transition-all flex items-center gap-1 border ${
+                                  selectedChatUser === user.userId
+                                    ? 'bg-indigo-600 text-white border-indigo-600'
+                                    : 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30'
+                                }`}
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>เปิดกล่องแชท</span>
+                              </button>
 
-                          {/* Approved toggler */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleApprove(user)}
-                            className={`h-8 px-2.5 rounded-lg text-[10.5px] font-bold transition-all flex items-center gap-1 border ${
-                              user.isApproved 
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' 
-                                : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100 animate-pulse'
-                            }`}
-                          >
-                            {user.isApproved ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
-                            <span>{user.isApproved ? 'อนุมัติแล้ว' : 'กดยืนยัน'}</span>
-                          </button>
+                              {/* Approved toggler */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleApprove(user)}
+                                className={`h-8 px-2.5 rounded-lg text-[10.5px] font-bold transition-all flex items-center gap-1 border ${
+                                  user.isApproved 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' 
+                                    : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100 animate-pulse'
+                                }`}
+                              >
+                                {user.isApproved ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
+                                <span>{user.isApproved ? 'อนุมัติแล้ว' : 'กดยืนยัน'}</span>
+                              </button>
 
-                          {/* Lock toggler */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleLock(user)}
-                            className="w-8 h-8 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-850 border border-slate-200 flex items-center justify-center transition-all dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700"
-                            title={user.isLocked ? "ปลดล็อกบัญชี" : "ล็อกบัญชี"}
-                          >
-                            <Shield className={`w-3.5 h-3.5 ${user.isLocked ? 'text-rose-500 animate-bounce' : 'text-slate-450'}`} />
-                          </button>
+                              {/* Assistant toggler: ONLY visible if logged in user is admin */}
+                              {sessionUser?.userId === 'admin' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleAssistant(user)}
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all border ${
+                                    user.isAssistant
+                                      ? 'bg-amber-100 border-amber-200 text-amber-750 hover:bg-amber-200 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-400'
+                                      : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700'
+                                  }`}
+                                  title={user.isAssistant ? "ปลดจากสิทธิ์ผู้ช่วยแอดมิน" : "แต่งตั้งเป็นผู้ช่วยแอดมิน"}
+                                >
+                                  <Shield className={`w-3.5 h-3.5 ${user.isAssistant ? 'fill-current text-amber-500' : ''}`} />
+                                </button>
+                              )}
 
-                          {/* Delete Account */}
-                          {user.userId !== 'admin' && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUser(user.userId)}
-                              className="w-8 h-8 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 flex items-center justify-center transition-all dark:bg-rose-950/20 dark:text-rose-450"
-                              title="ลบบัญชีผู้ใช้งานและข้อมูลถาวร"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                              {/* Lock toggler */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleLock(user)}
+                                className="w-8 h-8 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-850 border border-slate-200 flex items-center justify-center transition-all dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700"
+                                title={user.isLocked ? "ปลดล็อกบัญชี" : "ล็อกบัญชี"}
+                              >
+                                <Shield className={`w-3.5 h-3.5 ${user.isLocked ? 'text-rose-500 animate-bounce' : 'text-slate-450'}`} />
+                              </button>
+
+                              {/* Delete Account */}
+                              {user.userId !== 'admin' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteUser(user.userId)}
+                                  className="w-8 h-8 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 flex items-center justify-center transition-all dark:bg-rose-950/20 dark:text-rose-450"
+                                  title="ลบบัญชีผู้ใช้งานและข้อมูลถาวร"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>

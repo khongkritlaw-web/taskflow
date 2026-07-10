@@ -155,12 +155,18 @@ export default function App() {
     displayName: '', 
     avatarUrl: '',
     isApproved: localStorage.getItem('user_approved') === 'true' || localStorage.getItem('sess_userId') === 'admin',
-    isLocked: localStorage.getItem('user_locked') === 'true'
+    isLocked: localStorage.getItem('user_locked') === 'true',
+    isAssistant: localStorage.getItem('user_assistant') === 'true'
   });
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showNotificationFlyout, setShowNotificationFlyout] = useState(false);
   
+  // Settings Page States
+  const [tempSettings, setTempSettings] = useState<AppSettings | null>(null);
+  const [settingsSubTab, setSettingsSubTab] = useState<string>('branding');
+  const [settingsSaveSuccess, setSettingsSaveSuccess] = useState<boolean>(false);
+
   // App data states
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -225,6 +231,17 @@ export default function App() {
   const [linkPopupData, setLinkPopupData] = useState<{ url: string; title: string; visible: boolean }>({ url: '', title: '', visible: false });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSettingsUnlocked, setIsSettingsUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'settings' && isSettingsUnlocked) {
+      if (!tempSettings) {
+        setTempSettings(settings);
+      }
+    } else {
+      setTempSettings(null);
+      setSettingsSaveSuccess(false);
+    }
+  }, [activeTab, isSettingsUnlocked, settings, tempSettings]);
 
   // Admin and Multi-profile states
   const [allUsersList, setAllUsersList] = useState<{ userId: string; email: string; phone: string; uid: string }[]>([]);
@@ -763,6 +780,7 @@ export default function App() {
     
     let userIsApproved = userId === 'admin';
     let userIsLocked = false;
+    let userIsAssistant = false;
     try {
       const userDocRef = doc(db, 'users', userId);
       const userDocSnap = await getDoc(userDocRef);
@@ -774,12 +792,16 @@ export default function App() {
         if (udata.isLocked !== undefined) {
           userIsLocked = udata.isLocked;
         }
+        if (udata.isAssistant !== undefined) {
+          userIsAssistant = udata.isAssistant;
+        }
       }
     } catch (e) {
-      console.warn('Failed to fetch approval/lock state from Firestore on login:', e);
+      console.warn('Failed to fetch approval/lock/assistant state from Firestore on login:', e);
     }
     localStorage.setItem('user_approved', userIsApproved ? 'true' : 'false');
     localStorage.setItem('user_locked', userIsLocked ? 'true' : 'false');
+    localStorage.setItem('user_assistant', userIsAssistant ? 'true' : 'false');
 
     const localSessProfileStr = localStorage.getItem(`profile_${userId}`);
     let loadedDisplayName = '';
@@ -799,7 +821,8 @@ export default function App() {
       displayName: loadedDisplayName, 
       avatarUrl: loadedAvatarUrl, 
       isApproved: userIsApproved,
-      isLocked: userIsLocked
+      isLocked: userIsLocked,
+      isAssistant: userIsAssistant
     });
     setIsLoggedIn(true);
 
@@ -1081,6 +1104,8 @@ export default function App() {
               localStorage.setItem('user_approved', uApproved ? 'true' : 'false');
               const uLocked = userData.isLocked !== undefined ? userData.isLocked : false;
               localStorage.setItem('user_locked', uLocked ? 'true' : 'false');
+              const uAssistant = userData.isAssistant !== undefined ? userData.isAssistant : false;
+              localStorage.setItem('user_assistant', uAssistant ? 'true' : 'false');
               const updated = {
                 ...prev,
                 displayName: userData.displayName || '',
@@ -1089,7 +1114,8 @@ export default function App() {
                 phone: userData.phone || prev.phone,
                 password: userData.password || prev.password,
                 isApproved: uApproved,
-                isLocked: uLocked
+                isLocked: uLocked,
+                isAssistant: uAssistant
               };
               localStorage.setItem(`profile_${targetUserId}`, JSON.stringify(updated));
               return updated;
@@ -1271,6 +1297,31 @@ export default function App() {
       } catch (e) {
         console.error('Failed to sync settings to Firestore:', e);
       }
+    }
+  };
+
+  const handleSaveAllSettings = async () => {
+    if (!tempSettings) return;
+    try {
+      await syncSettings(tempSettings);
+      setSettingsSaveSuccess(true);
+      setTimeout(() => setSettingsSaveSuccess(false), 3000);
+      await showAlert('บันทึกการตั้งค่าทั้งหมดเรียบร้อยแล้วค่ะ', 'สำเร็จ', 'success');
+    } catch (e) {
+      console.error(e);
+      await showAlert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า', 'เกิดข้อผิดพลาด', 'danger');
+    }
+  };
+
+  const handleResetAllSettings = async () => {
+    const isConfirmed = await showConfirm(
+      'คุณต้องการยกเลิกการเปลี่ยนแปลงทั้งหมดและย้อนกลับไปใช้ค่าเดิมที่บันทึกล่าสุดใช่หรือไม่?',
+      'ยกเลิกการเปลี่ยนแปลง',
+      'warning'
+    );
+    if (isConfirmed) {
+      setTempSettings(settings);
+      await showAlert('คืนค่าการตั้งค่าเดิมเรียบร้อยแล้วค่ะ', 'คืนค่าสำเร็จ', 'success');
     }
   };
 
@@ -1557,9 +1608,13 @@ export default function App() {
       url = 'https://' + url;
     }
 
+    const baseToUse = tempSettings || settings;
+    const currentCustomLinks = baseToUse.customMenuLinks || [];
+    let updatedLinks = [];
+
     if (editingLinkId) {
       // Edit mode
-      const updatedLinks = (settings.customMenuLinks || []).map(link => {
+      updatedLinks = currentCustomLinks.map(link => {
         if (link.id === editingLinkId) {
           return {
             ...link,
@@ -1573,7 +1628,6 @@ export default function App() {
         }
         return link;
       });
-      syncSettings({ ...settings, customMenuLinks: updatedLinks });
       setEditingLinkId(null);
       await showAlert('แก้ไขลิงก์เมนูเชื่อมระบบเรียบร้อยแล้วค่ะ', 'สำเร็จ', 'success');
     } else {
@@ -1587,8 +1641,12 @@ export default function App() {
         allowedUsers: newLinkVisibility === 'specific' ? newLinkAllowedUsers : [],
         openDirectly: newLinkOpenDirectly
       };
+      updatedLinks = [...currentCustomLinks, newLink];
+    }
 
-      const updatedLinks = [...(settings.customMenuLinks || []), newLink];
+    if (tempSettings) {
+      setTempSettings({ ...tempSettings, customMenuLinks: updatedLinks });
+    } else {
       syncSettings({ ...settings, customMenuLinks: updatedLinks });
     }
 
@@ -1601,7 +1659,8 @@ export default function App() {
   };
 
   const handleEditMenuLinkStart = (id: string) => {
-    const link = (settings.customMenuLinks || []).find(l => l.id === id);
+    const baseToUse = tempSettings || settings;
+    const link = (baseToUse.customMenuLinks || []).find(l => l.id === id);
     if (link) {
       setEditingLinkId(id);
       setNewLinkTitle(link.title);
@@ -1630,30 +1689,45 @@ export default function App() {
       'danger'
     );
     if (isConfirmed) {
-      const updatedLinks = (settings.customMenuLinks || []).filter(l => l.id !== id);
-      syncSettings({ ...settings, customMenuLinks: updatedLinks });
-      if (activeTab === `link_${id}`) {
-        setActiveTab('tasks');
+      const baseToUse = tempSettings || settings;
+      const updatedLinks = (baseToUse.customMenuLinks || []).filter(l => l.id !== id);
+      if (tempSettings) {
+        setTempSettings({ ...tempSettings, customMenuLinks: updatedLinks });
+      } else {
+        syncSettings({ ...settings, customMenuLinks: updatedLinks });
+        if (activeTab === `link_${id}`) {
+          setActiveTab('tasks');
+        }
       }
     }
   };
 
   const moveMenuLinkUp = (index: number) => {
     if (index === 0) return;
-    const links = [...(settings.customMenuLinks || [])];
+    const baseToUse = tempSettings || settings;
+    const links = [...(baseToUse.customMenuLinks || [])];
     const temp = links[index];
     links[index] = links[index - 1];
     links[index - 1] = temp;
-    syncSettings({ ...settings, customMenuLinks: links });
+    if (tempSettings) {
+      setTempSettings({ ...tempSettings, customMenuLinks: links });
+    } else {
+      syncSettings({ ...settings, customMenuLinks: links });
+    }
   };
 
   const moveMenuLinkDown = (index: number) => {
-    const links = [...(settings.customMenuLinks || [])];
+    const baseToUse = tempSettings || settings;
+    const links = [...(baseToUse.customMenuLinks || [])];
     if (index === links.length - 1) return;
     const temp = links[index];
     links[index] = links[index + 1];
     links[index + 1] = temp;
-    syncSettings({ ...settings, customMenuLinks: links });
+    if (tempSettings) {
+      setTempSettings({ ...tempSettings, customMenuLinks: links });
+    } else {
+      syncSettings({ ...settings, customMenuLinks: links });
+    }
   };
 
   // Announcement Helpers
@@ -1771,8 +1845,9 @@ export default function App() {
     const preset = THEME_PRESETS.find(p => p.id === presetId);
     if (!preset) return;
 
+    const baseToUse = tempSettings || settings;
     const updated = {
-      ...settings,
+      ...baseToUse,
       themePreset: presetId,
       colorAccent: preset.colorAccent,
       colorAccentHover: preset.colorAccentHover,
@@ -1785,26 +1860,40 @@ export default function App() {
       colorBgAppEnd: preset.colorBgAppEnd,
       bgType: preset.bgType
     };
-    syncSettings(updated);
+    if (tempSettings) {
+      setTempSettings(updated);
+    } else {
+      syncSettings(updated);
+    }
   };
 
   const handleAccentColorChangeInput = (color: string) => {
+    const baseToUse = tempSettings || settings;
     if (harmoniousMode) {
       // Auto-compute harmonious sub colors
       const hover = getDarkerColor(color, 12);
       const light = getLighterColor(color, 85);
       
       const updated = {
-        ...settings,
+        ...baseToUse,
         colorAccent: color,
         colorAccentHover: hover,
         colorAccentLight: light,
         // Match sidebar values dynamically to look cohesive
         colorSidebarActive: color
       };
-      syncSettings(updated);
+      if (tempSettings) {
+        setTempSettings(updated);
+      } else {
+        syncSettings(updated);
+      }
     } else {
-      syncSettings({ ...settings, colorAccent: color });
+      const updated = { ...baseToUse, colorAccent: color };
+      if (tempSettings) {
+        setTempSettings(updated);
+      } else {
+        syncSettings(updated);
+      }
     }
   };
 
@@ -2233,26 +2322,23 @@ export default function App() {
             {!sidebarCollapsed && <span>จัดการเงินค่าใช้จ่าย</span>}
           </button>
 
-          {/* Inline custom menu links */}
+          {/* Inline custom menu links - Opens directly in a new tab */}
           {visibleCustomLinks.map((link) => {
             const IconComponent = getCustomLinkIconComponent(link.iconName || 'Link');
             return (
               <button
                 key={link.id}
                 onClick={() => { 
-                  setActiveTab(`link_${link.id}`); 
+                  const sanitizedUrl = sanitizeUrl(link.url);
+                  window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
                   setMobileMenuOpen(false); 
                 }}
-                className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
-                  activeTab === `link_${link.id}`
-                    ? 'bg-slate-800 text-white border-l-[3px]'
-                    : 'hover:bg-slate-800'
-                }`}
-                style={activeTab === `link_${link.id}` ? { borderLeftColor: settings.colorAccent } : {}}
-                title={link.title}
+                className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-slate-400 hover:bg-slate-800 hover:text-white"
+                title={`${link.title} (เปิดในแท็บใหม่)`}
               >
-                <IconComponent className="w-4.5 h-4.5 flex-shrink-0" style={{ color: activeTab === `link_${link.id}` ? settings.colorAccent : undefined }} />
+                <IconComponent className="w-4.5 h-4.5 flex-shrink-0 text-slate-400 group-hover:text-white" />
                 {!sidebarCollapsed && <span className="truncate">{link.title}</span>}
+                {!sidebarCollapsed && <ExternalLink className="w-3.5 h-3.5 ml-auto text-slate-500 opacity-60 flex-shrink-0" />}
               </button>
             );
           })}
@@ -2263,7 +2349,7 @@ export default function App() {
             </div>
           )}
 
-          {sessionUser.userId === 'admin' && (
+          {(sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && (
             <button
               onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }}
               className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
@@ -2274,7 +2360,11 @@ export default function App() {
               style={activeTab === 'admin' ? { borderLeftColor: settings.colorAccent } : {}}
             >
               <Shield className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" />
-              {!sidebarCollapsed && <span>👑 แดชบอร์ดแอดมิน</span>}
+              {!sidebarCollapsed && (
+                <span>
+                  {sessionUser.userId === 'admin' ? '👑 แดชบอร์ดแอดมิน' : '🛡️ แดชบอร์ดผู้ช่วย'}
+                </span>
+              )}
             </button>
           )}
 
@@ -3119,7 +3209,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'admin' && sessionUser.userId === 'admin' && (
+            {activeTab === 'admin' && (sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && (
               <motion.div
                 key="admin"
                 initial={{ opacity: 0, y: 15, scale: 0.98 }}
@@ -3133,6 +3223,7 @@ export default function App() {
                   darkMode={settings.darkMode}
                   categories={settings.categories}
                   onAddCategory={handleAddCategoryOnTheFly}
+                  sessionUser={sessionUser}
                 />
               </motion.div>
             )}
@@ -3153,1405 +3244,1098 @@ export default function App() {
                     accentColor={settings.colorAccent}
                   />
                 ) : (
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-              
-              {/* STATUS ACTION BANNER */}
-              <div className="xl:col-span-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 p-4 border border-emerald-500/20 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 dark:from-emerald-950/20 dark:via-teal-950/20 dark:to-blue-950/20 dark:border-emerald-800/30">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-500 text-white animate-pulse">
-                    ⚡
-                  </div>
-                  <div className="text-left">
-                    <h4 className="text-xs font-black text-emerald-800 dark:text-emerald-400">ระบบซิงก์ข้อมูลคลาวด์แบบเรียลไทม์สมบูรณ์แบบ (Cloud & Cross-Device Live Sync Enabled)</h4>
-                    <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-semibold">การแก้ไขการตั้งค่าใดๆ ในบัญชีเดียวกันบนอุปกรณ์/เบราว์เซอร์นี้ จะเปลี่ยนตามทั้งหมดบนหน้าจอของอุปกรณ์อื่นทันที</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-750 dark:text-emerald-400 px-3 py-1.5 rounded-full text-[10px] font-black">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
-                  ระบบเชื่อมต่ออยู่ (Cloud Live)
-                </div>
-              </div>
-              
-              {/* ส่วนความปลอดภัย & แก้ไขรหัสผ่านก่อนเข้าใช้งาน */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 dark:bg-slate-900 dark:border-slate-800 xl:col-span-2">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-sm">
-                    🔐
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">ข้อมูลบัญชีและความปลอดภัยก่อนเข้าใช้งาน (System Security & Access)</span>
-                    <span className="text-[10px] text-slate-400 font-medium">จัดการชื่อผู้ใช้งานเริ่มต้นและรหัสผ่านลับก่อนเปิดเข้าเว็บใช้งานแอปพลิเคชัน</span>
-                  </div>
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-450 mb-1.5">
-                      👤 ชื่อผู้ใช้งานเข้าใช้ระบบหลัก (Username / ID)
-                    </label>
-                    <input
-                      type="text"
-                      value={editUsername}
-                      onChange={(e) => setEditUsername(e.target.value)}
-                      placeholder="เช่น admin"
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">ใช้พิมพ์ในช่องยูเซอร์เนมเข้าสู่เว็บไซต์ในครั้งถัดไป</p>
-                  </div>
-
-                   <div>
-                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-450 mb-1.5">
-                      🔑 รหัสผ่านเข้าใช้งานระบบ (Password ยาว 6 หลักเท่านั้น)
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={editPassword}
-                      onChange={(e) => setEditPassword(e.target.value)}
-                      placeholder="เช่น 123456"
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">รหัสผ่านใหม่ต้องมีความยาว <span className="font-bold text-amber-500">6 หลักเท่านั้น</span> เพื่อความปลอดภัยในการเข้าใช้งานในครั้งถัดไป</p>
-                  </div>
-                </div>
-
-                {/* Settings Menu PIN Lock Password Section */}
-                <div className="border-t border-slate-100 pt-5 mt-4 dark:border-slate-800">
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-3">
-                    <span>🔒</span> รหัสผ่านปลดล็อกเมนูตั้งค่ารวม (Settings Menu Tab Lock PIN)
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-450 mb-1.5">
-                        🔑 รหัสล็อกปัจจุบันหรือตั้งค่าใหม่ (ค่าเริ่มต้นคือ 0000)
-                      </label>
-                      <input
-                        type="text"
-                        maxLength={12}
-                        value={settings.settingsPassword || '0000'}
-                        onChange={(e) => syncSettings({ ...settings, settingsPassword: e.target.value.trim() })}
-                        placeholder="เช่น 0000"
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-medium font-mono"
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        เมื่อคุณท่านเปลี่ยนรหัสตรงส่วนนี้ รหัสความปลอดภัยจะอัปเดตแบบเรียลไทม์ และจะซิงค์ไปยังระบบคลาวด์อัตโนมัติ
-                      </p>
-                    </div>
-                    <div className="flex items-center bg-amber-50/50 p-4 border border-amber-100 rounded-xl dark:bg-amber-950/10 dark:border-amber-900/30">
-                      <div className="text-amber-800 dark:text-amber-400 text-[11px] leading-relaxed font-semibold">
-                        💡 <strong>คำแนะนำเพิ่มเติม:</strong> รหัสนี้นอกจากป้องกันมือไม่พึงประสงค์สวิตช์และแก้ไขหน้าเว็บแล้ว ยังถูกอัปโหลดขึ้นระดับเซิร์ฟเวอร์คลาวด์เพื่อให้ทุกอุปกรณ์ของท่านซิงค์เข้าหากันอย่างปลอดภัย หากตั้งค่าแล้วโปรดจดจำไว้ให้ดี
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {profileMessage && (
-                  <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
-                    profileMessage.type === 'ok' 
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900' 
-                      : 'bg-rose-50 text-rose-800 border border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900'
-                  }`}>
-                    <span className="text-sm">{profileMessage.type === 'ok' ? '✅' : '⚠️'}</span>
-                    <span className="font-semibold">{profileMessage.text}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="button"
-                    disabled={profileSaving}
-                    onClick={() => handleUpdateAccount(editUsername, editPassword)}
-                    className="flex items-center gap-2 px-5 h-11 rounded-lg text-xs font-black text-white hover:opacity-95 active:scale-95 transition-all cursor-pointer shadow-md shadow-accent/15"
-                    style={{ backgroundColor: settings.colorAccent }}
-                  >
-                    {profileSaving ? (
-                      <>
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                        กำลังประมวลผลข้อมูลบัญชี...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        บันทึกเปลี่ยนรหัสผ่านและยูเซอร์ใหม่
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Branding and style customizers */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 dark:bg-slate-900 dark:border-slate-800">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
-                  <Sliders className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
-                  การตั้งค่าทั่วไปของแอปพลิเคชัน
-                </h3>
-
-                <div className="space-y-4 text-xs font-semibold text-slate-650">
-                  <div>
-                    <label className="block text-slate-600 mb-1 dark:text-slate-450">ชื่อระบบงานแอปพลิเคชัน</label>
-                    <input
-                      type="text"
-                      value={settings.appName}
-                      onChange={(e) => syncSettings({ ...settings, appName: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 mb-1 dark:text-slate-450">คำนิยามหรือคำอธิบายระบบ</label>
-                    <input
-                      type="text"
-                      value={settings.appDesc}
-                      onChange={(e) => syncSettings({ ...settings, appDesc: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-650 mb-1.5 dark:text-slate-450 font-bold">อัปโหลดรูปภาพโลโก้ หรือป้อนประเภทลิงก์ URL (Logo Image File / URL)</label>
-                    <div className="space-y-2">
-                      {/* Drag & Drop File Upload Field & Preview */}
-                      <div
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const file = e.dataTransfer.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                              if (event.target?.result) {
-                                syncSettings({ ...settings, appLogoUrl: event.target.result as string });
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="border border-dashed border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 rounded-xl p-4 bg-slate-100/50 dark:bg-slate-950/25 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer relative"
-                        onClick={() => {
-                          const fileInput = document.getElementById('logo-file-input');
-                          if (fileInput) fileInput.click();
-                        }}
-                      >
-                        <input
-                          id="logo-file-input"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                if (event.target?.result) {
-                                  syncSettings({ ...settings, appLogoUrl: event.target.result as string });
-                                }
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                        {settings.appLogoUrl ? (
-                          <div className="flex items-center gap-3 w-full">
-                            <div className="w-12 h-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 flex items-center justify-center flex-shrink-0 shadow-sm">
-                              <img
-                                src={settings.appLogoUrl}
-                                alt="Uploaded Logo Preview"
-                                className="max-w-full max-h-full object-contain rounded-md animate-fade-in"
-                                style={{ imageRendering: 'auto' }}
-                              />
-                            </div>
-                            <div className="min-w-0 flex-1 text-left">
-                              <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate">มีไฟล์โลโก้ติดตั้งอยู่</p>
-                              <p className="text-[10px] text-slate-400 font-medium truncate">คลิกที่นี่หรือลากรูปใหม่ เพื่อแทนที่โลโก้เดิม</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                syncSettings({ ...settings, appLogoUrl: '' });
-                              }}
-                              className="text-[10px] font-black text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1.5 rounded-lg active:scale-95 transition-all"
-                            >
-                              ลบโลโก้ออก
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="text-center py-2">
-                            <div className="mx-auto w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-350 text-sm mb-1.5">
-                              🖼️
-                            </div>
-                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">คลิกเพื่อเลือกไฟล์ หรือ ลากไฟล์รูปวางตรงนี้</p>
-                            <p className="text-[9px] text-slate-400 mt-0.5">รองรับไฟล์ชนิด PNG, JPG, SVG, WebP</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Text Input for URL option */}
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <span className="text-[10px] text-slate-400 font-bold font-mono">URL:</span>
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="หรือวาง URL ลิงก์รูปภาพโดยตรงที่นี่..."
-                          value={settings.appLogoUrl || ''}
-                          onChange={(e) => syncSettings({ ...settings, appLogoUrl: e.target.value })}
-                          className="w-full h-10 pl-11 pr-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250 font-medium"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div>
-                      <label className="block text-slate-600 mb-1 dark:text-slate-450">สไตล์พื้นหลังหน้าต่าง</label>
-                      <select
-                        value={settings.bgStyle}
-                        onChange={(e) => syncSettings({ ...settings, bgStyle: e.target.value as any })}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                      >
-                        <option value="theme-custom">ปรับสีกรมหมุนตามธีม (Recommended)</option>
-                        <option value="default">สีเทา Minimal ปกติ</option>
-                        <option value="indigo">เฉดฟ้าม่วงออโรร่า (Indigo)</option>
-                        <option value="slate">เฉดเทากระเบื้อง (Slate)</option>
-                        <option value="custom">รูปภาพจากเว็บ URL</option>
-                      </select>
-                    </div>
-
-                    {settings.bgStyle === 'custom' && (
-                      <div>
-                        <label className="block text-slate-600 mb-1 dark:text-slate-450">ลิงก์ภาพพื้นหลัง URL *</label>
-                        <input
-                          type="text"
-                          value={settings.customBgUrl || ''}
-                          onChange={(e) => syncSettings({ ...settings, customBgUrl: e.target.value })}
-                          placeholder="https://..."
-                          className="w-full h-11 px-3 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-slate-50 p-4 border border-slate-200 rounded-xl flex items-center justify-between dark:bg-slate-950 dark:border-slate-800">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-350 flex items-center gap-2">
-                      <Moon className="w-4 h-4 text-slate-400" />
-                      โหมดธีมมืด (Dark Mode)
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={settings.darkMode}
-                      onChange={(e) => syncSettings({ ...settings, darkMode: e.target.checked })}
-                      className="w-4.5 h-4.5 cursor-pointer accent-accent"
-                      style={{ '--accent': settings.colorAccent } as React.CSSProperties}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* HARMONIOUS COLOR CUSTOMIZER (THE CORE FEATURE TO EDIT SYSTEM COLORS HARMONIOUSLY) */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 dark:bg-slate-900 dark:border-slate-800">
-                <div className="border-b border-slate-100 pb-3 flex items-center justify-between dark:border-slate-800">
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full animate-bounce" style={{ backgroundColor: settings.colorAccent }}></span>
-                    จานสีกำหนดเองทั้งหน้าต่าง (Harmonious Theme Customizer)
-                  </h3>
                   
-                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full dark:bg-emerald-950/40 dark:text-emerald-400">
-                    Harmonious 100%
-                  </span>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Presets List */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-450 mb-2">1. เลือกชุดจานสีพรีเซ็ตหลัก ( harmonious presets )</label>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {THEME_PRESETS.map(preset => {
-                        const isActive = settings.themePreset === preset.id;
+                  <div className="flex flex-col lg:flex-row gap-6 items-start pb-24 relative" id="unlocked-settings-container">
+                    
+                    {/* LEFT SIDEBAR NAVIGATION */}
+                    <div className="w-full lg:w-64 flex-shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-1">
+                      <div className="px-3 py-2 mb-2">
+                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">หมวดหมู่การตั้งค่า</p>
+                      </div>
+                      
+                      {[
+                        { id: 'branding', label: 'แบรนดิ้ง & หน้าตาเว็บ', icon: 'Palette' },
+                        { id: 'account', label: 'ผู้ใช้ & ความปลอดภัย', icon: 'Shield' },
+                        { id: 'notifications', label: 'การแจ้งเตือน & ระบบส่งเมล', icon: 'Bell' },
+                        { id: 'reports_links', label: 'พิมพ์สรุป & ลิงก์เสริม', icon: 'FileText' }
+                      ].map(tab => {
+                        const isActive = settingsSubTab === tab.id;
                         return (
                           <button
-                            key={preset.id}
+                            key={tab.id}
                             type="button"
-                            onClick={() => applyThemePreset(preset.id)}
-                            className={`p-2.5 rounded-xl border text-left text-[11px] font-bold transition-all relative overflow-hidden ${
-                              isActive 
-                                ? 'border-accent bg-accent/5 ring-1 ring-accent' 
-                                : 'border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950'
+                            onClick={() => setSettingsSubTab(tab.id)}
+                            className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-black transition-all cursor-pointer text-left ${
+                              isActive
+                                ? 'bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border-l-4 border-accent'
+                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-850 dark:text-slate-400 dark:hover:bg-slate-950/50 dark:hover:text-slate-200'
                             }`}
-                            style={isActive ? { '--accent': settings.colorAccent } as React.CSSProperties : {}}
+                            style={isActive ? { borderLeftColor: (tempSettings || settings).colorAccent } : {}}
                           >
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: preset.colorAccent }} />
-                              <span className="truncate text-slate-700 dark:text-slate-300">{preset.name}</span>
-                            </div>
-                            <div className="mt-1 text-[10px] font-medium text-slate-400 truncate">
-                              {preset.nameTh}
-                            </div>
+                            <span className="text-sm">
+                              {tab.icon === 'Palette' && '🎨'}
+                              {tab.icon === 'Shield' && '🔐'}
+                              {tab.icon === 'Bell' && '🔔'}
+                              {tab.icon === 'FileText' && '📄'}
+                            </span>
+                            <span>{tab.label}</span>
                           </button>
                         );
                       })}
                     </div>
-                  </div>
 
-                  {/* Harmonious calculation toggle */}
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between dark:bg-blue-950/20 dark:border-blue-900">
-                    <div>
-                      <h4 className="text-xs font-bold text-blue-800 dark:text-blue-400">โหมดคำนวณสีอัตโนมัติ (Harmonious Mode)</h4>
-                      <p className="text-[10px] text-blue-600/80 mt-0.5 dark:text-blue-400/70">เลือกเพื่อปรับแต่ง Accent หลัก แล้วสี Hover / บอร์เดอร์จะปรับสมดุลตามเองอย่างกลมกลืน</p>
-                    </div>
-                    
-                    <input
-                      type="checkbox"
-                      checked={harmoniousMode}
-                      onChange={(e) => setHarmoniousMode(e.target.checked)}
-                      className="w-4.5 h-4.5 cursor-pointer accent-blue-600"
-                    />
-                  </div>
-
-                  {/* Hex Color Pickers Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Primary Accent Color Selector */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl dark:bg-slate-950 dark:border-slate-800">
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1.5">สีเน้นหลักระบบ (Primary Accent)</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={settings.colorAccent}
-                          onChange={(e) => handleAccentColorChangeInput(e.target.value)}
-                          className="w-10 h-10 border border-slate-300 rounded cursor-pointer p-0 overflow-hidden"
-                        />
-                        <div className="min-w-0">
-                          <input
-                            type="text"
-                            maxLength={7}
-                            value={settings.colorAccent}
-                            onChange={(e) => handleAccentColorChangeInput(e.target.value)}
-                            className="w-20 font-mono text-xs text-slate-700 bg-white border border-slate-200 p-1.5 rounded focus:outline-none dark:bg-slate-900 dark:border-slate-800"
-                          />
-                          <p className="text-[9px] text-slate-400 mt-1">ใช้กับกลุ่มปุ่มและเช็กมาร์ก</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Secondary Accent (Advanced only) */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl dark:bg-slate-950 dark:border-slate-800">
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1.5">ปุ่มโฮเวอร์ (Hover Accent)</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={settings.colorAccentHover}
-                          onChange={(e) => syncSettings({ ...settings, colorAccentHover: e.target.value })}
-                          disabled={harmoniousMode}
-                          className={`w-10 h-10 border border-slate-300 rounded p-0 overflow-hidden ${harmoniousMode ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'}`}
-                        />
-                        <div className="min-w-0">
-                          <input
-                            type="text"
-                            maxLength={7}
-                            value={settings.colorAccentHover}
-                            onChange={(e) => syncSettings({ ...settings, colorAccentHover: e.target.value })}
-                            disabled={harmoniousMode}
-                            className={`w-20 font-mono text-xs text-slate-700 bg-white border border-slate-200 p-1.5 rounded focus:outline-none dark:bg-slate-900 dark:border-slate-800 ${harmoniousMode ? 'bg-slate-100 text-slate-400' : ''}`}
-                          />
-                          <p className="text-[9px] text-slate-400 mt-1">{harmoniousMode ? 'โหมดออโต้ล็อคไว้' : 'ปรับเปลี่ยนสีได้อิสระ'}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* App background gradients / solids customize config */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl dark:bg-slate-950 dark:border-slate-800">
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1.5">พื้นหลังเพลท 1 (App Background)</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={settings.colorBgAppStart}
-                          onChange={(e) => syncSettings({ ...settings, colorBgAppStart: e.target.value })}
-                          className="w-10 h-10 border border-slate-300 rounded cursor-pointer p-0 overflow-hidden"
-                        />
-                        <div className="min-w-0">
-                          <input
-                            type="text"
-                            maxLength={7}
-                            value={settings.colorBgAppStart}
-                            onChange={(e) => syncSettings({ ...settings, colorBgAppStart: e.target.value })}
-                            className="w-20 font-mono text-xs text-slate-700 bg-white border border-slate-200 p-1.5 rounded focus:outline-none dark:bg-slate-900 dark:border-slate-800"
-                          />
-                          <p className="text-[9px] text-slate-400 mt-1">ใช้เมื่อสไตล์เป็นสีกำหนดธีม</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl dark:bg-slate-950 dark:border-slate-800">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[11px] font-bold text-slate-500">สีท้ายไล่โทน (Gradient End)</label>
-                        <select
-                          value={settings.bgType}
-                          onChange={(e) => syncSettings({ ...settings, bgType: e.target.value as any })}
-                          className="text-[10px] font-bold text-slate-450 border border-slate-200 rounded p-0.5 bg-white dark:bg-slate-900 dark:border-slate-800"
-                        >
-                          <option value="gradient">แบบไล่เฉด</option>
-                          <option value="solid">สีพื้นนิ่ง</option>
-                        </select>
-                      </div>
+                    {/* RIGHT CONTENT PANEL */}
+                    <div className="flex-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm min-h-[500px]">
                       
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={settings.colorBgAppEnd}
-                          onChange={(e) => syncSettings({ ...settings, colorBgAppEnd: e.target.value })}
-                          disabled={settings.bgType === 'solid'}
-                          className={`w-10 h-10 border border-slate-300 rounded p-0 overflow-hidden ${settings.bgType === 'solid' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-                        />
-                        <div className="min-w-0">
-                          <input
-                            type="text"
-                            maxLength={7}
-                            value={settings.colorBgAppEnd}
-                            onChange={(e) => syncSettings({ ...settings, colorBgAppEnd: e.target.value })}
-                            disabled={settings.bgType === 'solid'}
-                            className={`w-20 font-mono text-xs text-slate-700 bg-white border border-slate-200 p-1.5 rounded focus:outline-none dark:bg-slate-900 dark:border-slate-800 ${settings.bgType === 'solid' ? 'bg-slate-100 text-slate-400' : ''}`}
-                          />
-                          <p className="text-[9px] text-slate-400 mt-1">
-                            {settings.bgType === 'solid' ? 'ปิดการใช้งาน' : 'ไล่ระดับสีจากซ้ายไปขวา'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Sidebar Colors Selector panel */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl dark:bg-slate-950 dark:border-slate-800">
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1.5">พื้นด้านหลังเมนูด้านซ้าย (Sidebar Background)</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={settings.colorSidebarBg}
-                          onChange={(e) => syncSettings({ ...settings, colorSidebarBg: e.target.value })}
-                          className="w-10 h-10 border border-slate-300 rounded cursor-pointer p-0 overflow-hidden"
-                        />
-                        <div className="min-w-0">
-                          <input
-                            type="text"
-                            maxLength={7}
-                            value={settings.colorSidebarBg}
-                            onChange={(e) => syncSettings({ ...settings, colorSidebarBg: e.target.value })}
-                            className="w-20 font-mono text-xs text-slate-700 bg-white border border-slate-200 p-1.5 rounded focus:outline-none dark:bg-slate-900 dark:border-slate-800"
-                          />
-                          <p className="text-[9px] text-slate-400 mt-1">ใช้กับสไตล์ไซด์บาร์ส่วนซ้าย</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl dark:bg-slate-950 dark:border-slate-800">
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1.5">ตัวหนังสือและไอคอนไซด์บาร์ (Sidebar Text)</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={settings.colorSidebarText}
-                          onChange={(e) => syncSettings({ ...settings, colorSidebarText: e.target.value })}
-                          className="w-10 h-10 border border-slate-300 rounded cursor-pointer p-0 overflow-hidden"
-                        />
-                        <div className="min-w-0">
-                          <input
-                            type="text"
-                            maxLength={7}
-                            value={settings.colorSidebarText}
-                            onChange={(e) => syncSettings({ ...settings, colorSidebarText: e.target.value })}
-                            className="w-20 font-mono text-xs text-slate-700 bg-white border border-slate-200 p-1.5 rounded focus:outline-none dark:bg-slate-900 dark:border-slate-800"
-                          />
-                          <p className="text-[9px] text-slate-400 mt-1">สีฟอนต์ปกติในเมนูด้านข้าง</p>
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-              </div>
-
-
-
-                            {/* Email Messaging integration panel */}
-              {sessionUser.userId === 'admin' && (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
-                  <Mail className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
-                  การแจ้งเตือนและการจัดส่งรายงานทางอีเมล (System Report Mailer)
-                </h3>
-                <p className="text-xs text-slate-400 font-semibold dark:text-slate-450">
-                  ตั้งค่าให้ระบบสามารถนำเสนอและแจ้งเตือนรายงานภารกิจผ่านทางอีเมลจำลอง หรือส่งตรงผ่านเซิร์ฟเวอร์ SMTP ของท่านจริงเป็นประจำวันโดยอัตโนมัติ
-                </p>
-
-                <div className="space-y-4 text-xs font-semibold text-slate-650">
-                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl dark:bg-slate-950">
-                    <div>
-                      <h4 className="font-bold text-slate-800 dark:text-slate-200">เปิดใช้งานระบบส่งรายงานทางอีเมล</h4>
-                      <p className="text-[10px] text-slate-400 font-normal">อนุญาตให้ประเมินผลและแจ้งเตือนผ่านช่องทางอีเมลเมลจำลอง/จริง</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => syncSettings({ ...settings, emailNotificationEnabled: !settings.emailNotificationEnabled })}
-                      className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none ${
-                        settings.emailNotificationEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${settings.emailNotificationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 mb-1 dark:text-slate-450">อีเมลปลายทางผู้รับรายงานด่วน (Executive Recipient)</label>
-                    <input
-                      type="email"
-                      placeholder="เช่น executive@company.com..."
-                      value={settings.emailRecipient || ''}
-                      onChange={(e) => syncSettings({ ...settings, emailRecipient: e.target.value })}
-                      className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
-                    />
-                  </div>
-
-                  {/* SMTP Server Configuration block */}
-                  <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-950/20 dark:border-slate-800 space-y-3.5">
-                    <div className="font-bold text-xs text-slate-800 dark:text-slate-250 border-b border-slate-100 pb-1.5 dark:border-slate-800 flex items-center justify-between">
-                      <span>⚙️ ข้อมูลเซิร์ฟเวอร์ส่งเมลจริง (SMTP Server Credentials)</span>
-                      <span className="text-[10px] font-normal text-slate-400">(สนับสนุน Gmail, SendGrid, Outlook, ฯลฯ)</span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-[11px]">
-                      <div>
-                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP Host / Server Address</label>
-                        <input
-                          type="text"
-                          placeholder="เช่น smtp.gmail.com"
-                          value={settings.smtpHost || ''}
-                          onChange={(e) => syncSettings({ ...settings, smtpHost: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP Port</label>
-                          <input
-                            type="number"
-                            placeholder="587"
-                            value={settings.smtpPort || ''}
-                            onChange={(e) => syncSettings({ ...settings, smtpPort: parseInt(e.target.value) || 587 })}
-                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">ระบบยิงเชื่อมต่อ</label>
-                          <select
-                            value={settings.smtpSecure ? 'true' : 'false'}
-                            onChange={(e) => syncSettings({ ...settings, smtpSecure: e.target.value === 'true' })}
-                            className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 font-bold"
-                          >
-                            <option value="false">STARTTLS (587)</option>
-                            <option value="true">SSL/TLS (465)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP User / Username</label>
-                        <input
-                          type="text"
-                          placeholder="เช่น executive@gmail.com"
-                          value={settings.smtpUser || ''}
-                          onChange={(e) => syncSettings({ ...settings, smtpUser: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">SMTP Password / App Password</label>
-                        <input
-                          type="password"
-                          placeholder="รหัสผ่านเชื่อม SMTP..."
-                          value={settings.smtpPass || ''}
-                          onChange={(e) => syncSettings({ ...settings, smtpPass: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-650 dark:text-slate-450 mb-1 font-bold">ชื่อ Display ผู้จัดส่ง (Sender Name)</label>
-                        <input
-                          type="text"
-                          placeholder="เช่น TaskFlow System"
-                          value={settings.smtpSenderName || ''}
-                          onChange={(e) => syncSettings({ ...settings, smtpSenderName: e.target.value })}
-                          className="w-full h-10 px-2.5 border border-slate-200 bg-white focus:bg-white dark:focus:bg-slate-950 rounded-lg text-xs text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-655 dark:text-slate-450 mb-1 font-bold">ส่งอีเมลโดยอัตโนมัติรายวัน (Auto-Send)</label>
-                        <div className="flex items-center justify-between h-10 px-3 bg-white border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-800">
-                          <span className="text-[10px] text-slate-400 font-normal">แอบส่งอัตโนมัติเมื่อล็อคอินเข้าครั้งแรกของวัน</span>
-                          <button
-                            type="button"
-                            onClick={() => syncSettings({ ...settings, autoSendEnabled: !settings.autoSendEnabled })}
-                            className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
-                              settings.autoSendEnabled ? 'bg-emerald-500' : 'bg-slate-350 dark:bg-slate-750'
-                            }`}
-                          >
-                            <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.autoSendEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block text-slate-600 dark:text-slate-450">รูปแบบโครงสร้างเทมเพลตเนื้อหารายงานสรุป</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const defaultFormalTemplate = 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}';
-                          syncSettings({ ...settings, emailMessageTemplate: defaultFormalTemplate });
-                        }}
-                        className="text-[10px] font-bold text-accent hover:underline"
-                        style={{ color: settings.colorAccent }}
-                      >
-                        🔄 รีเซ็ตเป็นค่าเริ่มต้น
-                      </button>
-                    </div>
-                    <textarea
-                      rows={5}
-                      value={settings.emailMessageTemplate || ''}
-                      onChange={(e) => syncSettings({ ...settings, emailMessageTemplate: e.target.value })}
-                      placeholder="ใช้รูปแบบ {date} ({tasks} สำหรับภารกิจ, {expenses} สำหรับบิลจ่าย, {appName} สำหรับชื่อระบบ)..."
-                      className="w-full p-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs font-mono text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                    />
-                    <div className="flex gap-2 text-[10px] text-slate-400 font-normal mt-1">
-                      <span>🏷️ คีย์เวิร์ดที่ใช้งานได้:</span>
-                      <code className="text-slate-500 bg-slate-100 px-1 rounded dark:bg-slate-950">{'{date}'}</code>
-                      <code className="text-slate-500 bg-slate-100 px-1 rounded dark:bg-slate-950">{'{tasks}'}</code>
-                      <code className="text-slate-500 bg-slate-100 px-1 rounded dark:bg-slate-950">{'{expenses}'}</code>
-                      <code className="text-slate-500 bg-slate-100 px-1 rounded dark:bg-slate-950">{'{appName}'}</code>
-                    </div>
-                  </div>
-
-                  {/* LIVE Email Preview */}
-                  <div className="border border-dashed border-slate-250 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-950/20 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold border-b border-slate-100 pb-2 dark:border-slate-800">
-                      <span>👁️ ตัวอย่างเนื้อหาอีเมลจริง (Live Responsive Preview)</span>
-                      <span className="text-accent underline" style={{ color: settings.colorAccent }}>To: {settings.emailRecipient || sessionUser.email || '(ระบุเพื่อเข้าถึง)'}</span>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-inner max-h-48 overflow-y-auto font-mono text-[11px] text-slate-700 whitespace-pre-wrap dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">
-                      {generateEmailContent()}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={testEmailNotification}
-                      className="h-11 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all dark:border-slate-850 dark:text-slate-300 flex items-center justify-center gap-1.5"
-                    >
-                      🧪 ทดสอบส่งจำลอง
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={sendEmailViaClient}
-                      className="h-11 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all dark:border-slate-850 dark:text-slate-300 flex items-center justify-center gap-1.5"
-                    >
-                      ✉️ ส่งทาง Mail Client
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => sendEmailViaSMTP(false)}
-                      className="h-11 text-white font-heavy text-xs rounded-xl shadow-md hover:brightness-95 active:scale-98 transition-all flex items-center justify-center gap-1.5"
-                      style={{ backgroundColor: settings.colorAccent }}
-                    >
-                      🚀 ยิงส่งด่วนผ่าน SMTP
-                    </button>
-                  </div>
-
-                  {emailResult.text && (
-                    <div className={`p-3 border rounded-xl text-center text-xs font-semibold animate-fade-in ${
-                      emailResult.type === 'ok' 
-                        ? 'bg-emerald-50 border-emerald-250 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/60 dark:text-emerald-450' 
-                        : emailResult.type === 'err'
-                          ? 'bg-rose-50 border-rose-250 text-rose-800 dark:bg-rose-950/20 dark:border-rose-900/60 dark:text-rose-450' 
-                          : 'bg-amber-50 border-amber-250 text-amber-800 animate-pulse dark:bg-amber-950/20 dark:border-amber-900/60 dark:text-amber-400'
-                    }`}>
-                      {emailResult.text}
-                    </div>
-                  )}
-
-                </div>
-              </div>
-              )}
-
-              {/* PDF & Print Settings Panel */}
-              {sessionUser.userId === 'admin' && (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
-                  <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-400 font-bold text-sm">🖨️</span>
-                  <span>ตั้งค่าการจัดรูปแบบรายงาน PDF & การสั่งพิมพ์ (Print & PDF Customizer)</span>
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold dark:text-slate-400 text-left">
-                  คุณท่านสามารถกำหนดหัวข้อรายงาน ย่อยของชื่อเรื่อง เลือกดีไซน์/แพทเทิร์น และเปิด-ปิดส่วนท้าย เพื่อให้เอกสารที่ได้ออกมาเป็นระบบ อ่านง่าย เข้าใจอย่างมีประสิทธิภาพ และเป็นทางการสูงสุด
-                </p>
-
-                <div className="space-y-4 text-xs font-semibold text-slate-650">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">หัวข้อรายงานหลัก (Report Title)</label>
-                      <input
-                        type="text"
-                        placeholder="เช่น รายงานสรุปงานและบันทึกค่าใช้จ่าย"
-                        value={settings.printTitle || ''}
-                        onChange={(e) => syncSettings({ ...settings, printTitle: e.target.value })}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">คำจ่าหน้าย่อย/สโลแกน (Report Subtitle/Header)</label>
-                      <input
-                        type="text"
-                        placeholder="เช่น ระบบบัญชีและบันทึกติดตามงานเพื่อสุขภาพทางการเงิน"
-                        value={settings.printSubtitle || ''}
-                        onChange={(e) => syncSettings({ ...settings, printSubtitle: e.target.value })}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">แพทเทิร์น/เทมเพลตรูปแบบ Layout (Report Pattern)</label>
-                      <select
-                        value={settings.printTemplatePattern || 'formal'}
-                        onChange={(e) => syncSettings({ ...settings, printTemplatePattern: e.target.value as any })}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-bold"
-                      >
-                        <option value="formal">👔 ทางการ (Formal Document Layout - มีตราประทับและกรอบเส้นตาราง)</option>
-                        <option value="standard">📊 มาตรฐาน (Modern Slate - มีเสาไฮไลต์หัวข้อและสีสันสดใส)</option>
-                        <option value="compact">📄 ประหยัดกระดาษป้อน (Compact Spacing - ตัวหนังสือกะทัดรัด สรุปสั้น)</option>
-                        <option value="creative">🎨 สร้างสรรค์ (Creative Pastel Theme - ขอบโค้งมน ตารางแบบอบอุ่น)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">รายละเอียดหมายเหตุระบุด้านล่าง (Footer Memo Text)</label>
-                      <input
-                        type="text"
-                        placeholder="เช่น เอกสารสรุปส่วนบุคคลสร้างขึ้นด้วยความเคารพอย่างสูง"
-                        value={settings.printFooterText || ''}
-                        onChange={(e) => syncSettings({ ...settings, printFooterText: e.target.value })}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl dark:bg-slate-950 border border-slate-100 dark:border-slate-850">
-                    <div className="text-left">
-                      <h4 className="font-bold text-slate-800 dark:text-slate-200">แสดงกล่องช่องเซ็นชื่อท้ายรายงาน (Signature Blocks)</h4>
-                      <p className="text-[10px] text-slate-400 font-normal">เพิ่มตารางและเส้นประสำหรับการลงชื่อกำกับอย่างเป็นทางการที่ท้ายหน้า PDF</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => syncSettings({ ...settings, printShowSignatures: settings.printShowSignatures === false ? true : false })}
-                      className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none ${
-                        settings.printShowSignatures !== false ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${settings.printShowSignatures !== false ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              )}
-
-              {/* Sound & Notification Settings Panel */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100 text-left">
-                  <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-sm">🔔</span>
-                  <span>ระบบเสียงและการแจ้งเตือน (Notification Sound & Customizer)</span>
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold dark:text-slate-400 text-left">
-                  คุณท่านสามารถเปิดใช้งานระบบสังเคราะห์คลื่นเสียงแจ้งเตือนอัตโนมัติ (Web Audio Synth Level-2) ทดสอบระดับความดัง และปรับเลือกพฤติกรรมแจ้งเตือนต่างๆ ให้มีความลงตัวและเรียบร้อยสูงสุด
-                </p>
-
-                <div className="space-y-4 text-xs font-semibold text-slate-650">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Enable Sounds Toggle */}
-                    <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl dark:bg-slate-950 border border-slate-100 dark:border-slate-850">
-                      <div className="text-left pr-2">
-                        <h4 className="font-bold text-slate-850 dark:text-slate-200">เปิดระบบเสียงเอฟเฟกต์ (Enable Audio Feedback)</h4>
-                        <p className="text-[10px] text-slate-450 font-normal">เปิด/ปิดการ สังเคราะห์คลื่นเสียงประกอบเมื่อทำกิจกรรมงานต่างๆ</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => syncSettings({ ...settings, soundEnabled: settings.soundEnabled === false ? true : false })}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-                          settings.soundEnabled !== false ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.soundEnabled !== false ? 'translate-x-6' : 'translate-x-0'}`} />
-                      </button>
-                    </div>
-
-                    {/* Choose audio theme */}
-                    <div>
-                      <label className="block text-slate-600 mb-1.5 dark:text-slate-450 text-left">รูปแบบเสียงหลักของแอปพลิเคชัน (Main App Sound)</label>
-                      <select
-                        value={settings.soundType || 'chime'}
-                        onChange={(e) => syncSettings({ ...settings, soundType: e.target.value as any })}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-bold"
-                      >
-                        <option value="chime">🔔 Chime (ระฆังแก้วคริสตัลสูง ดึงดูดสมาธิ)</option>
-                        <option value="success">🎉 Success (อาร์เพจจิโอ 4 โน้ตแห่งความสำเร็จรื่นเริง)</option>
-                        <option value="alert">🚨 Alert (ไซเรนดับเบิล พาร์เชียลคู่ เร่งด่วนจัดจ้าน)</option>
-                        <option value="bell">⛪ Cathedral Bell (เสียงระฆังโบสถ์โบราณ อบอุ่นกังวานลึก)</option>
-                        <option value="pop">🫧 Organic Pop (ฟองสบู่น้ำเด้งเบา ดนตรีน่ารักกะทัดรัด)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Volume setting */}
-                    <div className="space-y-1.5 text-left bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-100 dark:border-slate-850">
-                      <div className="flex justify-between items-center">
-                        <label className="block text-slate-600 dark:text-slate-450">ความกังวานและเกนระดับเสียง (Sound Volume)</label>
-                        <span className="text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.5 rounded-md font-extrabold">{settings.soundVolume ?? 80}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="100"
-                        step="5"
-                        value={settings.soundVolume ?? 80}
-                        onChange={(e) => syncSettings({ ...settings, soundVolume: Number(e.target.value) })}
-                        className="w-full accent-rose-500 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-800"
-                      />
-                    </div>
-
-                    {/* Test Audio Button */}
-                    <div className="flex items-center justify-end">
-                      <button
-                        type="button"
-                        onClick={() => playNotificationSound(settings.soundType || 'chime', settings.soundVolume ?? 80)}
-                        className="w-full h-12 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400"
-                      >
-                        <span className="text-sm animate-pulse">🔊</span>
-                        <span>ยิงพลังเสียงทดสอบเสียงปัจจุบัน (Test Sound)</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Sound Trigger Behaviours */}
-                  <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-100 dark:border-slate-850 text-left space-y-3">
-                    <h4 className="font-extrabold text-slate-705 dark:text-slate-300 text-xs flex items-center gap-1.5">
-                      <span>⚙️</span>
-                      <span>เลือกเงื่อนไขสถานการณ์เล่นเสียงแจ้งเตือน (Detailed Sound Rules)</span>
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                      <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-900/50 transition-all">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">เสียงเมื่อจบภารกิจ / ชำระสะสม</span>
-                          <span className="text-[10px] text-slate-450 font-normal">เล่นเอฟเฟกต์ "Success" เมื่อปิดเฉลิมฉลองงานหรือบิลบอร์ดสำเร็จ</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.soundOnComplete !== false}
-                          onChange={(e) => syncSettings({ ...settings, soundOnComplete: e.target.checked })}
-                          className="w-4.5 h-4.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 accent-rose-500"
-                        />
-                      </label>
-
-                      <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-900/50 transition-all">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">เสียงเมื่อเพิ่มเป้าหมายหรือค่าใช้จ่าย</span>
-                          <span className="text-[10px] text-slate-450 font-normal">เล่นเสียง "Pop/Chime" ทันทีที่จดงานลงในแบบฟอร์มสำเร็จ</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.soundOnAdd !== false}
-                          onChange={(e) => syncSettings({ ...settings, soundOnAdd: e.target.checked })}
-                          className="w-4.5 h-4.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 accent-rose-500"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Built-in warning notes */}
-                  <div className="flex items-start gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-xl border border-indigo-100/30">
-                    <span className="text-xs">💡</span>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-450 font-normal text-left leading-relaxed">
-                      <strong>เกร็ดความรู้:</strong> หากกำหนดเวลาส่ง (Due Time) ของภารกิจมาถึงวันนี้ตามเป้าหมายของหน้าแรก ระบบจะยิงเสียงสัญญาณเร่งด่วน 🚨 และหน้าจอจะสไลด์ข้อความแจ้งเตือนสีโรสแดงด้านขวาล่างทันทีแบบ Real-time เพื่อพยุงความก้าวหน้าของคุณท่านให้บรรลุเป้าหมายสูงสุดได้อย่างสมบูรณ์แบบ
-                    </p>
-                  </div>
-
-                  {/* Web Push Notification Board */}
-                  <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-850 text-left space-y-3">
-                    <h4 className="font-extrabold text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1.5 justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <span>📲</span>
-                        <span>ระบบแจ้งเตือนบนเบราว์เซอร์เครื่องนี้ (Web Notification Permissions)</span>
-                      </span>
-                      <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950/65 dark:text-indigo-300 px-1.5 py-0.5 rounded-md font-extrabold">รุ่นอัจฉริยะ</span>
-                    </h4>
-
-                    <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800/80 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-0.5">
-                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200">สถานะการอนุญาตสื่อสารบนอุปกรณ์นี้</p>
-                          <p className="text-[10px] text-slate-400 font-normal">เบราว์เซอร์จะต้องได้รับอนุญาตสิทธิ์ (Permission) ก่อนจึงจะพุชหน้าต่างลอยได้</p>
-                        </div>
-
-                        <div>
-                          {browserPermission === 'granted' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/40">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                              <span>อนุญาตสิทธิ์สำเร็จ (Granted)</span>
-                            </span>
-                          ) : browserPermission === 'denied' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/40">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                              <span>สิทธิ์ถูกบล็อก (Denied by Browser)</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/40">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                              <span>ยังไม่ได้เปิดสิทธิ์ (Default / Waiting)</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                        {browserPermission !== 'granted' ? (
-                          <button
-                            type="button"
-                            onClick={handleRequestNotificationPermission}
-                            className={`w-full h-10 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
-                              browserPermission === 'denied'
-                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300'
-                                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-100 dark:shadow-none'
-                            } focus:outline-none`}
-                          >
-                            <span>🔑</span>
-                            <span>{browserPermission === 'denied' ? 'รีเซ็ต/เปิดสิทธิ์บนแถบที่อยู่แว่นเบราว์เซอร์' : 'กดยืนยันสิทธิ์ขอแจ้งเตือนบนเครื่องนี้'}</span>
-                          </button>
-                        ) : (
-                          <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-850">
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">เปิดพฤติกรรมแจ้งเตือนในระบบ</span>
-                            <button
-                              type="button"
-                              onClick={() => syncSettings({ ...settings, nativeNotificationsEnabled: settings.nativeNotificationsEnabled === false ? true : false })}
-                              className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-                                settings.nativeNotificationsEnabled !== false ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
-                              }`}
-                            >
-                              <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.nativeNotificationsEnabled !== false ? 'translate-x-[18px]' : 'translate-x-0'}`} />
-                            </button>
+                      {/* STATUS CLOUD SYNC BANNER */}
+                      <div className="mb-6 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 p-4 border border-emerald-500/20 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 dark:from-emerald-950/20 dark:via-teal-950/20 dark:to-blue-950/20 dark:border-emerald-800/30">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500 text-white animate-pulse text-xs">
+                            ⚡
                           </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={handleTestNotification}
-                          disabled={browserPermission !== 'granted'}
-                          className="w-full h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 focus:outline-none"
-                        >
-                          <span>🧪</span>
-                          <span>ทดสอบยิงพุชข้อความลอย (Test Notification)</span>
-                        </button>
-                      </div>
-
-                      {browserPermission === 'denied' && (
-                        <p className="text-[10px] text-rose-500 bg-rose-50/50 dark:bg-rose-950/10 p-2 rounded-lg leading-relaxed text-left font-semibold">
-                          📌 <strong>วิธีแก้ไขสิทธิ์แจ้งเตือนถูกบล็อก:</strong> หากต้องการใช้การแจ้งเตือนพุช คุณต้องคลิกไอคอนรูปกุญแจหรือแม่กุญแจทางด้านซ้ายสุดของช่องพิมพ์ URL เว็บไซต์ในโปรแกรมเบราว์เซอร์นี้ แล้วปรับสถานะ "การแจ้งเตือน (Notifications)" ให้เป็น "อนุญาต (Allow)" เพื่อปลดล็อกในระดับความปลอดภัยเบราว์เซอร์ครับ
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-start gap-2 p-3 bg-rose-50/20 dark:bg-rose-950/10 rounded-xl border border-rose-100/10">
-                      <span className="text-xs">📢</span>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-450 font-normal text-left leading-relaxed">
-                        <strong>แนะนำสำหรับห้องนวัตกรรม AI Studio:</strong> การทำงานเป็นแอปพลิเคชันพรีวิวในหน้าจอนี้ผ่าน Sandbox Frame อาจมีนโยบายความคุ้มกันความปลอดภัยบล็อกหน้าต่างแจ้งเตือน หากทำรายการกดยืนยันแล้วไม่ได้การตอบสนอง แนะนำให้ทำตามวิธีสากลโดยคลิกปุ่ม <strong>"เปิดแท็บใหม่ (Open in a new tab)"</strong> ที่มุมขวาบนของพรีวิวนี้ เพื่อรันแอปเป็นแบบแยกหน้าต่างจริง แค่นี้เครื่องก็จะยินยอมให้สิทธิ์และค้างส่งพุชแจ้งเตือนได้เหมือนโปรแกรมนอกเลยครับ!
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Clever AI Assistant Settings Panel */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100 text-left">
-                  <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-400 font-bold text-sm">🤖</span>
-                  <span>ระบบเลขาเอไออัจฉริยะ (Nong Chalat AI Personal Assistant Command)</span>
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold dark:text-slate-400 text-left">
-                  คุณท่านสามารถเปิดหรือปิดการแสดงผลเลขาอัจฉริยะ "น้องฉลาด" ได้ที่นี่ ซึ่งเลขา AI จะช่วยประเมินและประมวลผลคำสั่ง ทั้งลงบันทึกข้อมูล ปรับแต่ง แก้ไข ลบ ค้นหา และคำนวณแทนคนทำจริง
-                </p>
-
-                <div className="space-y-4 text-xs font-semibold text-slate-650">
-                  <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl dark:bg-slate-950 border border-slate-100 dark:border-slate-850">
-                    <div className="text-left pr-2">
-                      <h4 className="font-bold text-slate-850 dark:text-slate-200">เปิดการใช้งานเลขา AI "น้องฉลาด" บนหน้าจอหลัก (Show AI Assistant UI)</h4>
-                      <p className="text-[10px] text-slate-450 font-normal">แสดงปุ่มลอยน้องฉลาดขนาดเคลื่อนย้ายได้สำหรับป้อนส่งคำสั่งแบบสนทนาด่วน</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => syncSettings({ ...settings, aiAssistantEnabled: settings.aiAssistantEnabled === false ? true : false })}
-                      className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-                        settings.aiAssistantEnabled !== false ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-200 ${settings.aiAssistantEnabled !== false ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Custom Menu Links integration panel */}
-              {sessionUser.userId === 'admin' && (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 dark:bg-slate-900 dark:border-slate-800">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
-                  <Link className="w-4.5 h-4.5 text-accent" style={{ color: settings.colorAccent }} />
-                  การจัดการเมนูแถบสไลด์และลิงก์ภายนอก (Custom Navigation Links)
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold dark:text-slate-400">
-                  คุณท่านสามารถเพิ่มปุ่มลิงก์เมนูย่อยเพื่อเชื่อมโยงไปยังหน้าเว็บภายนอกที่ต้องการใช้งานบ่อย ๆ ซึ่งจะปรากฏบนแถบด้านข้าง (3 ขีด) โดยอัตโนมัติ เพื่อให้เข้าถึงระบบงานอื่นได้โดยไม่ต้องละสายตาไปจากเบราว์เซอร์
-                </p>
-
-                <div className="space-y-4 text-xs font-semibold text-slate-650">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-600 mb-1 dark:text-slate-450">ชื่อเมนูแสดงผล (เช่น ระเบียบการ, ระบบหลังบ้าน)</label>
-                      <input
-                        type="text"
-                        placeholder="ป้อนชื่อปุ่มเมนู..."
-                        value={newLinkTitle}
-                        onChange={(e) => setNewLinkTitle(e.target.value)}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-600 mb-1 dark:text-slate-450">URL ลิงก์เชื่อมโยงไปยังหน้าเว็บ</label>
-                      <input
-                        type="text"
-                        placeholder="เช่น en.wikipedia.org หรือ thairath.co.th..."
-                        value={newLinkUrl}
-                        onChange={(e) => setNewLinkUrl(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddMenuLink(); }}
-                        className="w-full h-11 px-3 border border-slate-200 bg-slate-50 focus:bg-white dark:focus:bg-slate-900 rounded-lg text-sm text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-slate-600 dark:text-slate-450">เลือกไอคอนสัญลักษณ์ของเมนู (Icon Preset)</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                      {CUSTOM_LINK_ICONS.map((ico) => {
-                        const IconComp = ico.component;
-                        const isSelected = newLinkIcon === ico.name;
-                        return (
-                          <button
-                            key={ico.name}
-                            type="button"
-                            onClick={() => setNewLinkIcon(ico.name)}
-                            className={`h-11 px-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-[10px] font-bold ${
-                              isSelected 
-                                ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900 shadow-sm' 
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-150 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400'
-                            }`}
-                            style={isSelected ? { borderColor: settings.colorAccent, backgroundColor: settings.bgType === 'solid' ? settings.colorAccent : undefined } : {}}
-                          >
-                            <IconComp className="w-4 h-4 flex-shrink-0" />
-                            <span className="truncate max-w-full text-[9px]">{ico.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* กำหนดรูปแบบการเปิดลิงก์ */}
-                  <div className="p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4">
-                    <div className="text-left flex-1">
-                      <label className="block text-slate-850 dark:text-slate-200 font-bold text-xs mb-1">
-                        🚀 บังคับเปิดในหน้าต่างใหม่และแสดงหน้าทางเลือก (Bypass Iframe Embed)
-                      </label>
-                      <p className="text-[10px] text-slate-450 font-normal">
-                        แนะนำเปิดโหมดนี้สำหรับเว็บไซต์ที่มีระบบความปลอดภัยปฏิเสธแสดงผลในเฟรม (เช่น Google, Facebook, Line, หรือเว็บภายนอกทั่วไป) เพื่ออำนวยความสะดวกในการเปิดในแท็บใหม่และมีปุ่มย้อนกลับมาที่เว็บบอร์ดหลักได้ทันที
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setNewLinkOpenDirectly(!newLinkOpenDirectly)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ${
-                        newLinkOpenDirectly ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        newLinkOpenDirectly ? 'translate-x-6' : 'translate-x-1'
-                      }`} />
-                    </button>
-                  </div>
-
-                  {/* กำหนดขอบเขตสิทธิ์การมองเห็นลิงก์นี้ */}
-                  <div className="space-y-3 p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-2xl">
-                    <div className="text-left">
-                      <label className="block text-slate-850 dark:text-slate-200 font-bold text-xs mb-1">
-                        🎯 กำหนดบัญชีผู้ที่สามารถเข้าถึง/แสดงเมนูลิงก์นี้
-                      </label>
-                      <p className="text-[10px] text-slate-450 font-normal">
-                        สามารถกำหนดให้ลิงก์นี้แสดงเฉพาะในหน้าเมนูนำทางของสมาชิกรายใดรายหนึ่ง หรือแสดงให้ทุกคนในระบบมองเห็นเหมือนกันทั้งหมด
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewLinkVisibility('all');
-                          setNewLinkAllowedUsers([]);
-                        }}
-                        className={`flex-1 h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                          newLinkVisibility === 'all'
-                            ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900 shadow-xs'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300'
-                        }`}
-                      >
-                        <span>🌍 แสดงให้บัญชีผู้ใช้ทุกคน (All Accounts)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNewLinkVisibility('specific')}
-                        className={`flex-1 h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                          newLinkVisibility === 'specific'
-                            ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900 shadow-xs'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300'
-                        }`}
-                      >
-                        <span>👥 ระบุบัญชีผู้ใช้เจาะจง (Specific User Accounts)</span>
-                      </button>
-                    </div>
-
-                    {newLinkVisibility === 'specific' && (
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2 text-left">
-                          <div>
-                            <label className="block text-slate-600 dark:text-slate-400 font-bold text-xs">
-                              คลิกเลือกรายชื่อผู้ใช้งานที่อนุญาตให้แสดงเมนูนี้:
-                            </label>
-                            <p className="text-[10px] text-slate-400 font-normal mt-0.5">
-                              💡 บัญชีผู้ดูแลระบบ (admin) จะมองเห็นเมนูนี้ตลอดเวลาโดยอัตโนมัติ (ไม่ต้องเลือก)
-                            </p>
-                          </div>
-                          
-                          <div className="flex gap-2.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const allNonAdminIds = allUsersList
-                                  .filter(u => u.userId !== 'admin')
-                                  .map(u => u.userId);
-                                setNewLinkAllowedUsers(allNonAdminIds);
-                              }}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md text-[10px] font-bold transition-all"
-                            >
-                              ✓ เลือกทุกคน
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setNewLinkAllowedUsers([])}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md text-[10px] font-bold transition-all"
-                            >
-                              ✗ ล้างทั้งหมด
-                            </button>
+                          <div className="text-left">
+                            <h4 className="text-[11px] font-black text-emerald-800 dark:text-emerald-400">ระบบซิงก์ข้อมูลคลาวด์แบบเรียลไทม์สมบูรณ์แบบ (Cloud & Cross-Device Live Sync Enabled)</h4>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">การแก้ไขการตั้งค่าใดๆ ในบัญชีเดียวกันบนอุปกรณ์/เบราว์เซอร์นี้ จะเปลี่ยนตามทั้งหมดบนหน้าจอของอุปกรณ์อื่นทันที</p>
                           </div>
                         </div>
-
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {allUsersList.filter(u => u.userId !== 'admin').map((u) => {
-                            const isSelected = newLinkAllowedUsers.includes(u.userId);
-                            return (
-                              <button
-                                key={u.userId}
-                                type="button"
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setNewLinkAllowedUsers(newLinkAllowedUsers.filter(id => id !== u.userId));
-                                  } else {
-                                    setNewLinkAllowedUsers([...newLinkAllowedUsers, u.userId]);
-                                  }
-                                }}
-                                className={`px-3 py-1.5 rounded-full border text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                  isSelected
-                                    ? 'bg-indigo-500 border-indigo-500 text-white shadow-xs'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300'
-                                }`}
-                                style={isSelected ? { backgroundColor: settings.colorAccent, borderColor: settings.colorAccent } : {}}
-                              >
-                                <span>👤 {u.userId}</span>
-                                {isSelected && <span className="text-[10px]">✓</span>}
-                              </button>
-                            );
-                          })}
-                          {allUsersList.filter(u => u.userId !== 'admin').length === 0 && (
-                            <span className="text-[10.5px] text-slate-400 italic">ไม่พบประวัติผู้ใช้งานคนอื่นในฐานระบบขณะนี้</span>
-                          )}
+                        <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-750 dark:text-emerald-400 px-2.5 py-1 rounded-full text-[9px] font-black">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                          ระบบเชื่อมต่ออยู่ (Cloud Live)
                         </div>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex justify-end gap-2">
-                    {editingLinkId && (
-                      <button
-                        type="button"
-                        onClick={handleCancelEditMenuLink}
-                        className="h-10 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 font-bold text-xs rounded-lg transition-all"
-                      >
-                        ยกเลิกแก้ไข
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleAddMenuLink}
-                      className="h-10 px-5 text-white font-bold text-xs rounded-lg shadow-md hover:brightness-95 transition-all flex items-center justify-center gap-1.5"
-                      style={{ backgroundColor: settings.colorAccent }}
-                    >
-                      {editingLinkId ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" /> บันทึกการแก้ไขลิงก์
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3.5 h-3.5" /> เพิ่มลิงก์เมนูเชื่อมระบบ
-                        </>
-                      )}
-                    </button>
-                  </div>
+                      {/* SUB-TAB: BRANDING */}
+                      {settingsSubTab === 'branding' && (
+                        <div className="space-y-6 animate-fade-in text-left">
+                          {/* Section 1: Brand Identity */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>🖼️</span> อัตลักษณ์ระบบ & ข้อมูลแอปหลัก (App Brand Identity)
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">ชื่อระบบงานแอปพลิเคชัน (App Name)</label>
+                                <input
+                                  type="text"
+                                  value={(tempSettings || settings).appName || ''}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, appName: e.target.value });
+                                  }}
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white focus:border-accent dark:focus:border-accent dark:focus:bg-slate-900 rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">คำอธิบายหรือคำนิยามระบบ (App Description)</label>
+                                <input
+                                  type="text"
+                                  value={(tempSettings || settings).appDesc || ''}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, appDesc: e.target.value });
+                                  }}
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white focus:border-accent dark:focus:border-accent dark:focus:bg-slate-900 rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                />
+                              </div>
+                            </div>
 
-                  {/* Links List */}
-                  <div className="space-y-2 pt-2">
-                    <label className="block text-slate-600 dark:text-slate-450">รายการลิงก์เมนูที่ติดตั้งในระบบขณะนี้ ({(settings.customMenuLinks || []).length})</label>
-                    
-                    {(settings.customMenuLinks || []).length === 0 ? (
-                      <div className="p-6 border border-dashed border-slate-200 bg-slate-50/50 rounded-xl text-center text-slate-400 dark:bg-slate-950/20 dark:border-slate-800">
-                        ไม่มีลิงก์เมนูเพิ่มเติมชั่วคราว คุณท่านสามารถเลือกสัญลักษณ์ ป้อนหัวข้อและลิงก์เพื่อติดตั้งด้านบน
-                      </div>
-                    ) : (
-                      <div className="border border-slate-100 rounded-xl divide-y divide-slate-100 dark:border-slate-800 dark:divide-slate-800 max-h-72 overflow-y-auto">
-                        {(settings.customMenuLinks || []).map((link, idx) => {
-                          const LinkIconComp = getCustomLinkIconComponent(link.iconName || 'Link');
-                          return (
-                            <div key={link.id} className="p-3 bg-slate-50/40 hover:bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:bg-slate-950/20 dark:hover:bg-slate-950/40 font-mono">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0 dark:bg-slate-900 dark:border-slate-800 shadow-xs">
-                                  <LinkIconComp className="w-4 h-4" style={{ color: settings.colorAccent }} />
-                                </div>
-                                <div className="min-w-0 text-left">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{link.title}</h4>
-                                    <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-full ${
-                                      link.visibility === 'specific'
-                                        ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400'
-                                        : 'bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400'
-                                    }`}>
-                                      {link.visibility === 'specific' 
-                                        ? `👥 เฉพาะบัญชี: ${(link.allowedUsers || []).join(', ') || 'ไม่มีใครมองเห็น'}` 
-                                        : '🌍 ทุกคนมองเห็น'}
-                                    </span>
-                                    {link.openDirectly && (
-                                      <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">
-                                        🚀 เปิดแท็บใหม่ (Bypass)
-                                      </span>
+                            {/* Logo Upload Box */}
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 mb-1.5 dark:text-slate-400">อัปโหลดรูปภาพโลโก้ หรือ ป้อนลิงก์ URL (Logo Image File / URL)</label>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                                <div className="md:col-span-2">
+                                  <div
+                                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const file = e.dataTransfer.files?.[0];
+                                      if (file && tempSettings) {
+                                        const reader = new FileReader();
+                                        reader.onload = (event) => {
+                                          if (event.target?.result) {
+                                            setTempSettings({ ...tempSettings, appLogoUrl: event.target.result as string });
+                                          }
+                                        };
+                                        reader.readAsDataURL(file);
+                                      }
+                                    }}
+                                    className="border border-dashed border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-950/25 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer relative"
+                                    onClick={() => {
+                                      const fileInput = document.getElementById('logo-file-input');
+                                      if (fileInput) fileInput.click();
+                                    }}
+                                  >
+                                    <input
+                                      id="logo-file-input"
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && tempSettings) {
+                                          const reader = new FileReader();
+                                          reader.onload = (event) => {
+                                            if (event.target?.result) {
+                                              setTempSettings({ ...tempSettings, appLogoUrl: event.target.result as string });
+                                            }
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                    />
+                                    {(tempSettings || settings).appLogoUrl ? (
+                                      <div className="flex items-center gap-3 w-full">
+                                        <div className="w-12 h-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                          <img
+                                            src={(tempSettings || settings).appLogoUrl}
+                                            alt="Uploaded Logo Preview"
+                                            referrerPolicy="no-referrer"
+                                            className="max-w-full max-h-full object-contain rounded-md"
+                                          />
+                                        </div>
+                                        <div className="min-w-0 flex-1 text-left">
+                                          <p className="text-[10px] font-black text-slate-800 dark:text-slate-200 truncate">มีไฟล์โลโก้ติดตั้งอยู่</p>
+                                          <p className="text-[9px] text-slate-400 font-medium truncate">คลิกที่นี่หรือลากรูปใหม่เพื่อเปลี่ยน</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (tempSettings) setTempSettings({ ...tempSettings, appLogoUrl: '' });
+                                          }}
+                                          className="text-[10px] font-black text-rose-500 hover:text-rose-650 bg-rose-50 dark:bg-rose-950/40 px-2 py-1 rounded-lg active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          ลบโลโก้
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-1">
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">🖼️ ลากรูปภาพวางตรงนี้ หรือคลิกเพื่ออัปโหลด</p>
+                                        <p className="text-[9px] text-slate-400 mt-0.5">PNG, JPG, SVG, WebP</p>
+                                      </div>
                                     )}
                                   </div>
-                                  <p className="text-[10px] text-slate-400 font-mono truncate max-w-sm mt-0.5">{link.url}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] text-slate-400 font-bold">หรือป้อน URL โลโก้:</label>
+                                  <input
+                                    type="text"
+                                    placeholder="https://example.com/logo.png"
+                                    value={(tempSettings || settings).appLogoUrl || ''}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, appLogoUrl: e.target.value });
+                                    }}
+                                    className="w-full h-10 px-3 border border-slate-200 bg-white dark:bg-slate-950 rounded-lg text-[11px] text-slate-850 dark:border-slate-800 dark:text-slate-250 font-medium"
+                                  />
                                 </div>
                               </div>
-                              
-                              <div className="flex items-center justify-end gap-2">
-                                {/* Sorting Arrows */}
-                                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 dark:bg-slate-900 dark:border-slate-800 flex-shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => moveMenuLinkUp(idx)}
-                                    disabled={idx === 0}
-                                    className={`p-1.5 rounded-md transition-all ${
-                                      idx === 0 
-                                        ? 'opacity-30 cursor-not-allowed text-slate-300 dark:text-slate-700' 
-                                        : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-950 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                    title="จัดลำดับขึ้น (เลื่อนขึ้น)"
-                                  >
-                                    <ArrowUp className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="text-[10px] font-mono text-slate-400 px-1 dark:text-slate-500">{idx + 1}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => moveMenuLinkDown(idx)}
-                                    disabled={idx === (settings.customMenuLinks || []).length - 1}
-                                    className={`p-1.5 rounded-md transition-all ${
-                                      idx === (settings.customMenuLinks || []).length - 1
-                                        ? 'opacity-30 cursor-not-allowed text-slate-300 dark:text-slate-700' 
-                                        : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-950 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                    title="จัดลำดับลง (เลื่อนลง)"
-                                  >
-                                    <ArrowDown className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                            </div>
+                          </div>
 
+                          {/* Section 2: Colors */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>🎨</span> จานสีกำหนดเองทั้งหน้าต่าง (Theme Color Customizer)
+                            </h4>
+                            
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 mb-2 dark:text-slate-400">เลือกชุดจานสีพรีเซ็ตสำเร็จรูป (Theme Presets)</label>
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                {THEME_PRESETS.map(preset => {
+                                  const isActive = (tempSettings || settings).themePreset === preset.id;
+                                  return (
+                                    <button
+                                      key={preset.id}
+                                      type="button"
+                                      onClick={() => applyThemePreset(preset.id)}
+                                      className={`p-2.5 rounded-xl border text-left text-[11px] font-bold transition-all relative overflow-hidden cursor-pointer ${
+                                        isActive 
+                                          ? 'border-accent bg-accent/5 ring-1 ring-accent' 
+                                          : 'border-slate-200 bg-white hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950'
+                                      }`}
+                                      style={isActive ? { '--accent': (tempSettings || settings).colorAccent } as React.CSSProperties : {}}
+                                    >
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: preset.colorAccent }} />
+                                        <span className="truncate text-slate-700 dark:text-slate-300">{preset.nameTh}</span>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-blue-50/70 border border-blue-150 rounded-xl flex items-center justify-between dark:bg-blue-950/20 dark:border-blue-900/60">
+                              <div className="text-left">
+                                <h4 className="text-[11px] font-bold text-blue-800 dark:text-blue-400">โหมดคำนวณสีอัตโนมัติ (Harmonious Mode)</h4>
+                                <p className="text-[9px] text-blue-600 dark:text-blue-400/80">ระบบจะช่วยคำนวณและปรับโทนปุ่มโฮเวอร์รวมถึงส่วนต่างๆ ให้เข้ากับสีเน้นหลักโดยอัตโนมัติ</p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={harmoniousMode}
+                                onChange={(e) => setHarmoniousMode(e.target.checked)}
+                                className="w-4 h-4 cursor-pointer accent-blue-600"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                              {/* Color 1 */}
+                              <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">สีเน้นหลักระบบ (Primary Accent)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(tempSettings || settings).colorAccent}
+                                    onChange={(e) => handleAccentColorChangeInput(e.target.value)}
+                                    className="w-8 h-8 border border-slate-350 rounded cursor-pointer p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={(tempSettings || settings).colorAccent}
+                                    onChange={(e) => handleAccentColorChangeInput(e.target.value)}
+                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Color 2 */}
+                              <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">ปุ่มโฮเวอร์ (Hover Accent)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(tempSettings || settings).colorAccentHover}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorAccentHover: e.target.value });
+                                    }}
+                                    disabled={harmoniousMode}
+                                    className={`w-8 h-8 border border-slate-350 rounded p-0 ${harmoniousMode ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'}`}
+                                  />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={(tempSettings || settings).colorAccentHover}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorAccentHover: e.target.value });
+                                    }}
+                                    disabled={harmoniousMode}
+                                    className={`w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 ${harmoniousMode ? 'text-slate-400' : 'dark:text-slate-300'}`}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Color 3 */}
+                              <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">พื้นหลังแอป (App Background)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(tempSettings || settings).colorBgAppStart}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorBgAppStart: e.target.value });
+                                    }}
+                                    className="w-8 h-8 border border-slate-350 rounded cursor-pointer p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={(tempSettings || settings).colorBgAppStart}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorBgAppStart: e.target.value });
+                                    }}
+                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Color 4 */}
+                              <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-[10px] font-bold text-slate-400">สีท้ายไล่โทน (Gradient End)</label>
+                                  <select
+                                    value={(tempSettings || settings).bgType || 'gradient'}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, bgType: e.target.value as any });
+                                    }}
+                                    className="text-[9px] font-bold text-slate-450 border border-slate-200 rounded bg-white dark:bg-slate-900 dark:border-slate-800"
+                                  >
+                                    <option value="gradient">ไล่เฉด</option>
+                                    <option value="solid">สีเดียว</option>
+                                  </select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(tempSettings || settings).colorBgAppEnd}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorBgAppEnd: e.target.value });
+                                    }}
+                                    disabled={(tempSettings || settings).bgType === 'solid'}
+                                    className={`w-8 h-8 border border-slate-350 rounded p-0 ${(tempSettings || settings).bgType === 'solid' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={(tempSettings || settings).colorBgAppEnd}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorBgAppEnd: e.target.value });
+                                    }}
+                                    disabled={(tempSettings || settings).bgType === 'solid'}
+                                    className={`w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 ${(tempSettings || settings).bgType === 'solid' ? 'text-slate-400' : 'dark:text-slate-300'}`}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Color 5 */}
+                              <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">พื้นหลังเมนูด้านซ้าย (Sidebar Bg)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(tempSettings || settings).colorSidebarBg}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorSidebarBg: e.target.value });
+                                    }}
+                                    className="w-8 h-8 border border-slate-350 rounded cursor-pointer p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={(tempSettings || settings).colorSidebarBg}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorSidebarBg: e.target.value });
+                                    }}
+                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Color 6 */}
+                              <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">ฟอนต์และไอคอนเมนูด้านซ้าย (Sidebar Text)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(tempSettings || settings).colorSidebarText}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorSidebarText: e.target.value });
+                                    }}
+                                    className="w-8 h-8 border border-slate-350 rounded cursor-pointer p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    maxLength={7}
+                                    value={(tempSettings || settings).colorSidebarText}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, colorSidebarText: e.target.value });
+                                    }}
+                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Section 3: Background & Dark Mode */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">สไตล์การแสดงผลพื้นหลังเว็บไซต์ (Background Style)</label>
+                              <select
+                                value={(tempSettings || settings).bgStyle || 'theme-custom'}
+                                onChange={(e) => {
+                                  if (tempSettings) setTempSettings({ ...tempSettings, bgStyle: e.target.value as any });
+                                }}
+                                className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                              >
+                                <option value="theme-custom">ไล่สีระดับกรมท่าหมุนตามโทนสีแบรนด์ (Recommended)</option>
+                                <option value="default">สีเทา Minimal ปกติ</option>
+                                <option value="indigo">เฉดสีฟ้าม่วงออโรร่าพรีเมียม (Indigo)</option>
+                                <option value="slate">เฉดสีเทากระเบื้องเรียบหรู (Slate)</option>
+                                <option value="custom">ใช้รูปภาพกำหนดเองผ่านลิงก์เว็บ URL</option>
+                              </select>
+
+                              {(tempSettings || settings).bgStyle === 'custom' && (
+                                <div className="mt-2.5">
+                                  <label className="block text-[10px] text-slate-400 font-bold mb-1">ลิงก์รูปภาพพื้นหลังเว็บไซต์ URL:</label>
+                                  <input
+                                    type="text"
+                                    value={(tempSettings || settings).customBgUrl || ''}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, customBgUrl: e.target.value });
+                                    }}
+                                    placeholder="https://images.unsplash.com/..."
+                                    className="w-full h-10 px-3 border border-slate-200 bg-white rounded-lg text-xs text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col justify-center bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl p-4">
+                              <div className="flex items-center justify-between">
+                                <div className="text-left">
+                                  <p className="text-xs font-bold text-slate-700 dark:text-slate-350">🌙 โหมดธีมมืดและเน้นสายตา (Dark Mode Theme)</p>
+                                  <p className="text-[9px] text-slate-400">สลับดีไซน์ของทั้งระบบเป็นเฉดสีมืดถนอมสายตาสำหรับการทำงานเวลากลางคืน</p>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={(tempSettings || settings).darkMode || false}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, darkMode: e.target.checked });
+                                  }}
+                                  className="w-4.5 h-4.5 cursor-pointer accent-accent"
+                                  style={{ '--accent': (tempSettings || settings).colorAccent } as React.CSSProperties}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SUB-TAB: ACCOUNT & SECURITY */}
+                      {settingsSubTab === 'account' && (
+                        <div className="space-y-6 animate-fade-in text-left">
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>🔐</span> ข้อมูลเข้าสู่ระบบหลักบัญชีเจ้าของเครื่อง (Main Account Security)
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 dark:text-slate-400">ชื่อผู้ใช้งานเพื่อล็อกอิน (Admin Username)</label>
+                                <input
+                                  type="text"
+                                  value={editUsername}
+                                  onChange={(e) => setEditUsername(e.target.value)}
+                                  placeholder="เช่น admin"
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-mono"
+                                />
+                                <p className="text-[9px] text-slate-400 mt-1">ใช้กรอกในช่องยูเซอร์เนมเข้าสู่เว็บไซต์ในการล็อกอินครั้งถัดไป</p>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 dark:text-slate-400">รหัสผ่านลับปลดล็อก (Secret Password - 6 หลัก)</label>
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  value={editPassword}
+                                  onChange={(e) => setEditPassword(e.target.value)}
+                                  placeholder="เช่น 123456"
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-mono"
+                                />
+                                <p className="text-[9px] text-slate-400 mt-1">รหัสต้องประกอบด้วยตัวเลข <span className="font-bold text-amber-500">6 หลักเท่านั้น</span> เพื่อความปลอดภัยขั้นสูงสุด</p>
+                              </div>
+                            </div>
+
+                            {profileMessage && (
+                              <div className={`p-3.5 rounded-xl text-xs flex items-center gap-2 ${
+                                profileMessage.type === 'ok' 
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900' 
+                                  : 'bg-rose-50 text-rose-800 border border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900'
+                              }`}>
+                                <span className="text-sm">{profileMessage.type === 'ok' ? '✅' : '⚠️'}</span>
+                                <span className="font-semibold">{profileMessage.text}</span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-end pt-1">
+                              <button
+                                type="button"
+                                disabled={profileSaving}
+                                onClick={() => handleUpdateAccount(editUsername, editPassword)}
+                                className="flex items-center gap-2 px-5 h-11 rounded-lg text-xs font-black text-white hover:opacity-95 active:scale-95 transition-all cursor-pointer shadow-md shadow-accent/15"
+                                style={{ backgroundColor: (tempSettings || settings).colorAccent }}
+                              >
+                                {profileSaving ? (
+                                  <>
+                                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                    กำลังบันทึกบัญชี...
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>💾</span>
+                                    บันทึกชื่อผู้ใช้ & รหัสผ่านลับใหม่
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>🔒</span> พินจำกัดสิทธิ์เข้าหน้าต่างตั้งค่า (Settings View Access PIN)
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 dark:text-slate-400">รหัสล็อกควบคุมหน้าตั้งค่าปัจจุบัน (พินเริ่มต้น 0000)</label>
+                                <input
+                                  type="text"
+                                  maxLength={12}
+                                  value={(tempSettings || settings).settingsPassword || '0000'}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, settingsPassword: e.target.value.trim() });
+                                  }}
+                                  placeholder="เช่น 0000"
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-mono"
+                                />
+                                <p className="text-[9px] text-slate-400 mt-1">รหัส PIN นี้จำเป็นต้องกดยืนยันบันทึกแถบสีดำด้านล่างสุดของจอเพื่อบันทึกเซฟขึ้นคลาวด์</p>
+                              </div>
+                              <div className="flex items-center bg-amber-50/50 p-4 border border-amber-100 rounded-xl dark:bg-amber-950/10 dark:border-amber-900/30">
+                                <div className="text-amber-800 dark:text-amber-400 text-[10px] leading-relaxed font-semibold">
+                                  💡 <strong>คำแนะนำความปลอดภัย:</strong> รหัสล็อคควบคุมนี้จะช่วยป้องกันไม่ให้บุคคลภายนอกแอบเข้ามาคลิกปรับแต่งแบรนด์หรือสแกนลบข้อมูลเป้าหมายของคุณได้ สามารถปรับเปลี่ยนพินได้อย่างอิสระ
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SUB-TAB: NOTIFICATIONS */}
+                      {settingsSubTab === 'notifications' && (
+                        <div className="space-y-6 animate-fade-in text-left">
+                          {/* Audio & Sounds Card */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>🔔</span> ระบบเสียงสังเคราะห์ & เอฟเฟกต์แอปพลิเคชัน (App Audio Feedback)
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
+                                <div>
+                                  <h5 className="text-[11px] font-bold text-slate-800 dark:text-slate-200">เปิดระบบเสียงเอฟเฟกต์ (Audio Feedback)</h5>
+                                  <p className="text-[9px] text-slate-450 font-normal">เปิด/ปิดเสียงประมวลผลเอฟเฟกต์สังเคราะห์ในกิจกรรมต่างๆ</p>
+                                </div>
                                 <button
                                   type="button"
-                                  onClick={() => { setActiveTab(`link_${link.id}`); }}
-                                  className="h-7 px-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-500 transition-all dark:hover:bg-slate-900 dark:border-slate-800 dark:text-slate-400 flex items-center gap-1 flex-shrink-0 bg-white dark:bg-slate-900"
-                                >
-                                  ดูบอร์ดลิงก์
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditMenuLinkStart(link.id)}
-                                  className={`p-1.5 rounded-lg transition-all ${
-                                    editingLinkId === link.id
-                                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
-                                      : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700 dark:hover:bg-slate-800'
+                                  onClick={() => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, soundEnabled: (tempSettings.soundEnabled === false) ? true : false });
+                                  }}
+                                  className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 flex-shrink-0 ${
+                                    (tempSettings || settings).soundEnabled !== false ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
                                   }`}
-                                  title="แก้ไขลิงก์"
                                 >
-                                  <Edit className="w-4 h-4" />
+                                  <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${(tempSettings || settings).soundEnabled !== false ? 'translate-x-6' : 'translate-x-0'}`} />
                                 </button>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">สไตล์โทนเสียงเอฟเฟกต์หลัก (Primary App Sound)</label>
+                                <select
+                                  value={(tempSettings || settings).soundType || 'chime'}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, soundType: e.target.value as any });
+                                  }}
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                >
+                                  <option value="chime">🔔 Chime (ระฆังคริสตัลสูง ดึงดูดความสนใจ)</option>
+                                  <option value="success">🎉 Success (ดนตรี 4 ตัวโน้ตเสียงแห่งความสำเร็จ)</option>
+                                  <option value="alert">🚨 Alert (เสียงเตือนคู่ ไซเรนดับเบิ้ลเร่งด่วน)</option>
+                                  <option value="bell">⛪ Cathedral Bell (เสียงระฆังโบสถ์กังวานลึกอบอุ่น)</option>
+                                  <option value="pop">🫧 Organic Pop (เสียงน้ำกระเด็นฟองสบู่เบาๆน่ารัก)</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-1 bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">ระดับเสียงเอฟเฟกต์ (Sound Volume)</label>
+                                  <span className="text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-400 px-1.5 py-0.5 rounded font-extrabold">{(tempSettings || settings).soundVolume ?? 80}%</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="10"
+                                  max="100"
+                                  step="5"
+                                  value={(tempSettings || settings).soundVolume ?? 80}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, soundVolume: Number(e.target.value) });
+                                  }}
+                                  className="w-full accent-rose-500 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-800"
+                                />
+                              </div>
+
+                              <div className="flex items-center">
                                 <button
                                   type="button"
-                                  onClick={() => handleRemoveMenuLink(link.id)}
-                                  className="p-1.5 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg transition-all dark:hover:bg-rose-950/40"
-                                  title="ลบลิงก์"
+                                  onClick={() => playNotificationSound((tempSettings || settings).soundType || 'chime', (tempSettings || settings).soundVolume ?? 80)}
+                                  className="w-full h-11 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-extrabold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400 cursor-pointer"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <span>🔊 ทดสอบส่งเสียงแจ้งเตือนปัจจุบัน (Test Sound)</span>
                                 </button>
                               </div>
                             </div>
-                          );
-                        })}
+
+                            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                              <h5 className="font-bold text-slate-700 dark:text-slate-350 text-[11px]">⚙️ ตั้งค่าเงื่อนไขการส่งเสียง (Audio Rules):</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-950/50 transition-all">
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">เสียงเมื่อปิดงานสำเร็จ</span>
+                                    <span className="text-[9px] text-slate-400">เล่นเสียงความยินดีเมื่อติ๊กงานสำเร็จหรือชำระสะสม</span>
+                                  </div>
+                                  <input
+                                    type="checkbox"
+                                    checked={(tempSettings || settings).soundOnComplete !== false}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, soundOnComplete: e.target.checked });
+                                    }}
+                                    className="w-4 h-4 text-rose-600 focus:ring-rose-500 accent-rose-500 cursor-pointer"
+                                  />
+                                </label>
+
+                                <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-950/50 transition-all">
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">เสียงเมื่อคลิกเพิ่มรายการใหม่</span>
+                                    <span className="text-[9px] text-slate-400">เล่นเสียง Pop เบาๆ ทันทีที่จดงานหรือบันทึกค่าใช้จ่ายใหม่</span>
+                                  </div>
+                                  <input
+                                    type="checkbox"
+                                    checked={(tempSettings || settings).soundOnAdd !== false}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, soundOnAdd: e.target.checked });
+                                    }}
+                                    className="w-4 h-4 text-rose-600 focus:ring-rose-500 accent-rose-500 cursor-pointer"
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Email SMTP Section */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>📧</span> ระบบจัดส่งรายงานด่วนทางอีเมลคลาวด์ (System SMTP Mailer)
+                            </h4>
+
+                            <div className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
+                              <div>
+                                <h5 className="text-[11px] font-bold text-slate-800 dark:text-slate-200">เปิดระบบจัดส่งรายงานทางอีเมล</h5>
+                                <p className="text-[9px] text-slate-450 font-normal">อนุญาตให้ส่งเมลสรุปงาน/บัญชี ไปยังผู้บริหารเมื่อสิ้นสุดสัปดาห์</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (tempSettings) setTempSettings({ ...tempSettings, emailNotificationEnabled: !tempSettings.emailNotificationEnabled });
+                                }}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 flex-shrink-0 ${
+                                  (tempSettings || settings).emailNotificationEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                                }`}
+                              >
+                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${(tempSettings || settings).emailNotificationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">อีเมลปลายทางผู้รับรายงาน (Executive Recipient)</label>
+                              <input
+                                type="email"
+                                placeholder="executive@company.com"
+                                value={(tempSettings || settings).emailRecipient || ''}
+                                onChange={(e) => {
+                                  if (tempSettings) setTempSettings({ ...tempSettings, emailRecipient: e.target.value });
+                                }}
+                                className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                              />
+                            </div>
+
+                            {/* Collapsible/Group SMTP detail fields inside nice white sub-card */}
+                            <div className="border border-slate-150 rounded-xl p-4 bg-white dark:bg-slate-900 dark:border-slate-800 space-y-3">
+                              <div className="font-bold text-[11px] text-slate-800 dark:text-slate-250 border-b border-slate-100 pb-1.5 dark:border-slate-800/80 flex items-center justify-between">
+                                <span>⚙️ ข้อมูลเซิร์ฟเวอร์ส่งเมล (SMTP Credentials)</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 font-bold mb-1">SMTP Host / Address</label>
+                                  <input
+                                    type="text"
+                                    placeholder="smtp.gmail.com"
+                                    value={(tempSettings || settings).smtpHost || ''}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, smtpHost: e.target.value });
+                                    }}
+                                    className="w-full h-10 px-3 border border-slate-200 bg-slate-50 rounded-lg text-xs text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 font-bold mb-1">Port</label>
+                                    <input
+                                      type="number"
+                                      placeholder="587"
+                                      value={(tempSettings || settings).smtpPort || ''}
+                                      onChange={(e) => {
+                                        if (tempSettings) setTempSettings({ ...tempSettings, smtpPort: parseInt(e.target.value) || 587 });
+                                      }}
+                                      className="w-full h-10 px-3 border border-slate-200 bg-slate-50 rounded-lg text-xs text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 font-bold mb-1">SSL/TLS</label>
+                                    <select
+                                      value={(tempSettings || settings).smtpSecure ? 'true' : 'false'}
+                                      onChange={(e) => {
+                                        if (tempSettings) setTempSettings({ ...tempSettings, smtpSecure: e.target.value === 'true' });
+                                      }}
+                                      className="w-full h-10 px-2.5 border border-slate-200 bg-slate-50 rounded-lg text-xs text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-bold"
+                                    >
+                                      <option value="false">STARTTLS</option>
+                                      <option value="true">SSL (Implicit)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 font-bold mb-1">บัญชีผู้ใช้ SMTP User/Email</label>
+                                  <input
+                                    type="text"
+                                    placeholder="your-email@gmail.com"
+                                    value={(tempSettings || settings).smtpUser || ''}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, smtpUser: e.target.value });
+                                    }}
+                                    className="w-full h-10 px-3 border border-slate-200 bg-slate-50 rounded-lg text-xs text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-mono"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 font-bold mb-1">รหัสผ่านสำหรับส่งเมล (App Password)</label>
+                                  <input
+                                    type="password"
+                                    placeholder="••••••••••••••••"
+                                    value={(tempSettings || settings).smtpPass || ''}
+                                    onChange={(e) => {
+                                      if (tempSettings) setTempSettings({ ...tempSettings, smtpPass: e.target.value });
+                                    }}
+                                    className="w-full h-10 px-3 border border-slate-200 bg-slate-50 rounded-lg text-xs text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 font-mono"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Browser Push Notification permission indicator */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-3">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-1.5 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>📲</span> แจ้งเตือนผ่านหน้าเว็บเบราว์เซอร์เครื่องนี้ (Web Push Permissions)
+                            </h4>
+                            <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="text-left">
+                                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">สถานะสิทธิ์บนเบราว์เซอร์เครื่องนี้:</p>
+                                  <p className="text-[9px] text-slate-400">ต้องกดอนุญาตสิทธิ์ในครั้งแรกระบบจึงจะเด้งข้อความแจ้งเตือนได้</p>
+                                </div>
+                                <div>
+                                  {browserPermission === 'granted' ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                      <span>อนุญาตสิทธิ์สำเร็จ (Granted)</span>
+                                    </span>
+                                  ) : browserPermission === 'denied' ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200/50">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                      <span>สิทธิ์ถูกระงับ (Denied)</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/50">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                      <span>รอการอนุญาตสิทธิ์ (Pending)</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                                {browserPermission !== 'granted' ? (
+                                  <button
+                                    type="button"
+                                    onClick={handleRequestNotificationPermission}
+                                    className={`w-full h-10 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                      browserPermission === 'denied'
+                                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                                    }`}
+                                  >
+                                    <span>🔑 กดยืนยันขออนุญาตสิทธิ์แจ้งเตือน</span>
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-850">
+                                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">เปิดแจ้งเตือนเว็บพุช</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (tempSettings) setTempSettings({ ...tempSettings, nativeNotificationsEnabled: (tempSettings.nativeNotificationsEnabled === false) ? true : false });
+                                      }}
+                                      className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-200 flex-shrink-0 ${
+                                        (tempSettings || settings).nativeNotificationsEnabled !== false ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
+                                      }`}
+                                    >
+                                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${(tempSettings || settings).nativeNotificationsEnabled !== false ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                                    </button>
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={handleTestNotification}
+                                  disabled={browserPermission !== 'granted'}
+                                  className="w-full h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-850 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+                                >
+                                  <span>🧪 ทดสอบส่งหน้าต่างพุชข้อความลอย (Test Notification)</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SUB-TAB: REPORTS & LINKS */}
+                      {settingsSubTab === 'reports_links' && (
+                        <div className="space-y-6 animate-fade-in text-left">
+                          {/* Print Styling Card */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>🖨️</span> รูปแบบรายงานสรุป PDF & ตราสารใบเสร็จ (Print & PDF Styling)
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">หัวข้อหลักบนหน้าเอกสาร (Report Document Title)</label>
+                                <input
+                                  type="text"
+                                  placeholder="เช่น รายงานสรุปผลงานและค่าใช้จ่ายประจำสัปดาห์"
+                                  value={(tempSettings || settings).printTitle || ''}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, printTitle: e.target.value });
+                                  }}
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">คำสโลแกน / จ่าหน้ารองลงมา (Report Subtitle / Header)</label>
+                                <input
+                                  type="text"
+                                  placeholder="เช่น ระบบบัญชีส่วนบุคคลและติดตามเป้าหมายบริษัท"
+                                  value={(tempSettings || settings).printSubtitle || ''}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, printSubtitle: e.target.value });
+                                  }}
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">รูปแบบการออกแบบดีไซน์หน้ากระดาษ (PDF Layout Pattern)</label>
+                                <select
+                                  value={(tempSettings || settings).printTemplatePattern || 'formal'}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, printTemplatePattern: e.target.value as any });
+                                  }}
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                >
+                                  <option value="formal">👔 ทางการ (Formal Corporate Template - กรอบและตราประทับ)</option>
+                                  <option value="standard">📊 มาตรฐาน (Modern Slate Accent - มีเสาไฮไลต์ไล่โทนสี)</option>
+                                  <option value="compact">📄 กะทัดรัด (Compact Spacing - ตัวหนังสือเล็กประหยัดกระดาษ)</option>
+                                  <option value="creative">🎨 สร้างสรรค์ (Creative Pastel Theme - ขอบตารางโค้งมนสีพาสเทล)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-1 dark:text-slate-400">หมายเหตุด้านท้ายหน้ากระดาษ (Report Footer Memo)</label>
+                                <input
+                                  type="text"
+                                  placeholder="เช่น เอกสารประเมินสรุปสถิติคลาวด์อัตโนมัติ"
+                                  value={(tempSettings || settings).printFooterMemo || ''}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, printFooterMemo: e.target.value });
+                                  }}
+                                  className="w-full h-11 px-3 border border-slate-200 bg-white rounded-lg text-xs font-bold text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Custom external navigation links Card */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
+                            <div>
+                              <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                                <span>🔗</span> ลิงก์เชื่อมโยงภายนอก & ปุ่มเมนูเสริมแถบสไลด์ (External Navigation Links)
+                              </h4>
+                              <p className="text-[10px] text-slate-450 mt-1.5">เพิ่มเมนูย่อยเพื่อลิงก์ไปยังเว็บภายนอก ซึ่งจะเปิดในแท็บใหม่ทันที และปรากฏที่เมนูแถบข้าง (3 ขีด) โดยอัตโนมัติ</p>
+                            </div>
+
+                            <div className="space-y-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 p-4 rounded-xl">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[10px] text-slate-500 font-bold mb-1">ชื่อปุ่มเมนูที่แสดงผล (เช่น สถิติบริษัท, เว็บหลัก)</label>
+                                  <input
+                                    type="text"
+                                    placeholder="ป้อนชื่อปุ่มเมนู..."
+                                    value={newLinkTitle}
+                                    onChange={(e) => setNewLinkTitle(e.target.value)}
+                                    className="w-full h-10 px-3 border border-slate-200 bg-slate-50 rounded-lg text-xs font-medium text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-slate-500 font-bold mb-1">URL ลิงก์เชื่อมโยงไปยังหน้าเว็บ</label>
+                                  <input
+                                    type="text"
+                                    placeholder="เช่น google.com หรือ wikipedia.org..."
+                                    value={newLinkUrl}
+                                    onChange={(e) => setNewLinkUrl(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddMenuLink(); }}
+                                    className="w-full h-10 px-3 border border-slate-200 bg-slate-50 rounded-lg text-xs font-medium text-slate-850 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-250"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <span className="text-[10px] text-slate-400 font-bold">ไอคอน:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {[
+                                      { name: 'Globe', icon: '🌐' },
+                                      { name: 'Link', icon: '🔗' },
+                                      { name: 'Briefcase', icon: '💼' },
+                                      { name: 'TrendingUp', icon: '📈' },
+                                      { name: 'BookOpen', icon: '📖' },
+                                      { name: 'ShoppingBag', icon: '🛍️' }
+                                    ].map(item => (
+                                      <button
+                                        key={item.name}
+                                        type="button"
+                                        onClick={() => setNewLinkIcon(item.name as any)}
+                                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all border cursor-pointer ${
+                                          newLinkIcon === item.name
+                                            ? 'border-accent bg-accent/10'
+                                            : 'border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950/40'
+                                        }`}
+                                        style={newLinkIcon === item.name ? { borderColor: (tempSettings || settings).colorAccent } : {}}
+                                      >
+                                        {item.icon}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={handleAddMenuLink}
+                                  className="h-10 px-5 text-xs font-black text-white rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer w-full sm:w-auto"
+                                  style={{ backgroundColor: (tempSettings || settings).colorAccent }}
+                                >
+                                  <span>{editingLinkId ? '💾 อัปเดตลิงก์ย่อย' : '➕ เพิ่มเมนูลิงก์ใหม่'}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Links list */}
+                            <div className="space-y-2">
+                              <h5 className="text-[11px] font-bold text-slate-500">รายการเมนูปุ่มลิงก์เสริมที่มีอยู่ขณะนี้ ({(tempSettings || settings).customMenuLinks?.length || 0} ลิงก์):</h5>
+                              {!(tempSettings || settings).customMenuLinks || (tempSettings || settings).customMenuLinks.length === 0 ? (
+                                <div className="p-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl text-center text-slate-400 font-medium">
+                                  🏖️ ยังไม่มีลิงก์ภายนอกเสริมที่ติดตั้งไว้ สามารถกดเพิ่มจากแบบฟอร์มด้านบนได้เลยค่ะ
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {((tempSettings || settings).customMenuLinks || []).map((link, idx) => {
+                                    return (
+                                      <div
+                                        key={link.id}
+                                        className="p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl flex items-center justify-between gap-3 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all"
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-950 flex items-center justify-center border border-slate-100 dark:border-slate-850 flex-shrink-0 text-sm">
+                                            {link.iconName === 'Globe' ? '🌐' : link.iconName === 'Link' ? '🔗' : link.iconName === 'Briefcase' ? '💼' : link.iconName === 'TrendingUp' ? '📈' : link.iconName === 'BookOpen' ? '📖' : link.iconName === 'ShoppingBag' ? '🛍️' : '📄'}
+                                          </div>
+                                          <div className="min-w-0 text-left">
+                                            <p className="text-xs font-black text-slate-850 dark:text-slate-100 truncate">{link.title}</p>
+                                            <p className="text-[10px] text-slate-400 font-mono font-medium truncate">{link.url}</p>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => moveMenuLinkUp(link.id)}
+                                            disabled={idx === 0}
+                                            className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-850 disabled:opacity-30 rounded transition-all dark:hover:bg-slate-800 cursor-pointer text-[10px]"
+                                            title="เลื่อนขึ้น"
+                                          >
+                                            ▲
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => moveMenuLinkDown(link.id)}
+                                            disabled={idx === ((tempSettings || settings).customMenuLinks || []).length - 1}
+                                            className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-850 disabled:opacity-30 rounded transition-all dark:hover:bg-slate-800 cursor-pointer text-[10px]"
+                                            title="เลื่อนลง"
+                                          >
+                                            ▼
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleEditMenuLinkStart(link)}
+                                            className="p-1 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-all dark:hover:bg-blue-950/40 cursor-pointer text-[10px]"
+                                            title="แก้ไข"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveMenuLink(link.id)}
+                                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-650 rounded transition-all dark:hover:bg-rose-950/40 cursor-pointer text-[10px]"
+                                            title="ลบ"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      </div>
+
+                    {/* BOTTOM STICKY CONTROL BAR */}
+                    {tempSettings && JSON.stringify(tempSettings) !== JSON.stringify(settings) && (
+                      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl shadow-2xl p-4 flex items-center justify-between gap-6 border border-slate-850 backdrop-blur-md max-w-2xl w-[92%] animate-fade-in">
+                        <div className="flex items-center gap-2">
+                          <span className="text-amber-400 animate-pulse text-sm">⚠️</span>
+                          <span className="text-xs font-bold text-slate-200">คุณมีรายการตั้งค่าที่ยังไม่ได้บันทึก</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleResetAllSettings}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 transition-all text-[11px] font-extrabold rounded-xl cursor-pointer text-slate-300"
+                          >
+                            ยกเลิก
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveAllSettings}
+                            className="px-5 py-2 active:scale-95 transition-all text-[11px] font-black rounded-xl text-white shadow-md cursor-pointer shadow-accent/25"
+                            style={{ backgroundColor: (tempSettings || settings).colorAccent }}
+                          >
+                            ยืนยันเพื่อบันทึก
+                          </button>
+                        </div>
                       </div>
                     )}
-                  </div>
-                </div>
-              </div>
-              )}
 
-            </div>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
       </div>
 
