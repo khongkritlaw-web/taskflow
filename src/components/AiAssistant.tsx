@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bot, X, Send, CornerDownLeft, Sparkles, AlertCircle, RefreshCw, Layers } from 'lucide-react';
-import { Task, Expense } from '../types';
+import { Bot, X, Send, CornerDownLeft, Sparkles, AlertCircle, RefreshCw, Layers, Mic, MicOff } from 'lucide-react';
+import { Task, Expense, AppSettings } from '../types';
 import { playNotificationSound } from '../lib/soundUtils';
 
 interface AiAssistantProps {
@@ -13,6 +13,7 @@ interface AiAssistantProps {
   soundEnabled?: boolean;
   soundVolume?: number;
   soundType?: string;
+  settings?: AppSettings;
 }
 
 interface Message {
@@ -31,11 +32,13 @@ export default function AiAssistant({
   onExecuteActions,
   soundEnabled = true,
   soundVolume = 80,
-  soundType = 'chime'
+  soundType = 'chime',
+  settings
 }: AiAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -52,6 +55,56 @@ export default function AiAssistant({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('เบราว์เซอร์ของคุณไม่รองรับการสั่งงานด้วยเสียงค่ะ แนะนำให้ใช้งานบน Google Chrome, Safari หรือ Microsoft Edge นะคะ');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'th-TH';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          alert('กรุณาอนุญาตการเข้าถึงไมโครโฟนเพื่อส่งเสียงสั่งงานน้องฉลาดด้วยนะคะคุณท่าน');
+        } else {
+          alert('ขออภัยค่ะ มีข้อผิดพลาดในระบบตรวจจับเสียง กรุณาลองใหม่อีกครั้งนะคะ');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.onresult = (event: any) => {
+        const text = event.results[0][0].transcript;
+        if (text) {
+          setPrompt(prev => prev ? prev + ' ' + text : text);
+        }
+      };
+
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      setIsListening(false);
+    }
+  };
 
   const handleSendCommand = async (customPrompt?: string) => {
     const textToSend = (customPrompt || prompt).trim();
@@ -80,7 +133,8 @@ export default function AiAssistant({
           tasks,
           expenses,
           categories,
-          todayStr
+          todayStr,
+          settings
         })
       });
 
@@ -133,123 +187,106 @@ export default function AiAssistant({
     { label: '👀 หางานด่วนวันนี้', text: 'มีงานด่วนหรือภารกิจใดที่ครบกำหนดวันนี้บ้าง สรุปให้ตรวจหน่อย' }
   ];
 
+  const themeAccent = settings?.colorAccent || '#4f46e5';
+
   return (
     <>
-      {/* Floating Draggable Trigger Badge */}
+      {/* Floating Trigger Badge */}
       <motion.div
         ref={widgetRef}
-        drag
-        dragMomentum={false}
-        dragElastic={0.1}
-        className="fixed z-[10000] cursor-grab active:cursor-grabbing pointer-events-auto"
-        initial={{ right: 24, bottom: 230 }}
-        style={{ touchAction: 'none' }}
+        className="fixed bottom-6 right-6 z-[999]"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
       >
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-colors duration-200 focus:outline-none ${
-            isOpen 
-              ? 'bg-rose-500 hover:bg-rose-600 text-white' 
-              : 'bg-indigo-600 dark:bg-purple-600 hover:bg-indigo-700 dark:hover:bg-purple-700 text-white border-2 border-indigo-400 dark:border-purple-400'
-          }`}
-          title={isOpen ? 'ปิดเลขา AI' : 'คุยกับ น้องฉลาด เลขา AI เคลื่อนที่ได้'}
+          className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none transition-all duration-300 hover:scale-110 relative cursor-pointer"
+          style={{ backgroundColor: themeAccent }}
+          title="ปรึกษาน้องฉลาด (เลขา AI ส่วนตัว)"
         >
           {isOpen ? (
             <X className="w-6 h-6 animate-spin-once" />
           ) : (
-            <div className="relative">
+            <>
               <Bot className="w-7 h-7" />
-              <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-950 animate-ping" />
-              <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-950" />
-            </div>
+              <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-bounce">
+                AI
+              </span>
+            </>
           )}
-        </motion.button>
+        </button>
       </motion.div>
 
-      {/* Expanded Dialog Panel */}
+      {/* Expandable Chat Panel */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-[9998] pointer-events-none flex items-center justify-center p-4">
+          <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 w-full sm:w-[420px] h-full sm:h-[600px] z-[9998] flex flex-col justify-end pointer-events-none p-0 sm:p-2">
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 30 }}
-              className="w-full max-w-md h-[550px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto scale-100"
+              initial={{ opacity: 0, y: 100, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 100, scale: 0.95 }}
+              transition={{ duration: 0.25 }}
+              className="bg-white dark:bg-slate-900 w-full h-[85vh] sm:h-full rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-150 dark:border-slate-800 flex flex-col overflow-hidden pointer-events-auto animate-fade-in"
             >
-              {/* Header */}
-              <div className="p-4 bg-gradient-to-r from-indigo-650 via-indigo-600 to-purple-600 text-white flex items-center justify-between shadow-md">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center border border-white/20 shadow-inner">
-                    <Bot className="w-5 h-5 text-indigo-100" />
+              {/* Chat Header */}
+              <div
+                className="p-4 flex items-center justify-between text-white"
+                style={{ backgroundColor: themeAccent }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-white animate-pulse" />
                   </div>
                   <div className="text-left">
-                    <h3 className="font-extrabold text-sm tracking-wide flex items-center gap-1.5">
-                      <span>น้องฉลาด (Nong Chalat AI)</span>
-                      <span className="text-[10px] bg-emerald-400/30 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold animate-pulse">ออนไลน์</span>
+                    <h3 className="text-xs font-black tracking-wide flex items-center gap-1">
+                      น้องฉลาด (Nong Chalat AI) <Sparkles className="w-3.5 h-3.5 fill-current text-amber-300" />
                     </h3>
-                    <p className="text-[10px] text-white/80 font-semibold truncate max-w-[200px]">
-                      เลขาอัจฉริยะประมวลบิล & ภารกิจขัดสนทนา
-                    </p>
+                    <p className="text-[9px] text-white/80 font-medium">ผู้ประมวลระบบงาน การเงิน และพฤติกรรมเลขาผู้บริหาร</p>
                   </div>
                 </div>
                 <button
-                  type="button"
                   onClick={() => setIsOpen(false)}
-                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 hover:text-white transition-all flex items-center justify-center text-indigo-100 focus:outline-none"
-                  title="พับเก็บแผงความรู้"
+                  className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Chat messages viewport */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/40">
-                {messages.map((msg) => {
-                  const isAi = msg.sender === 'assistant';
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex gap-2.5 ${isAi ? 'justify-start' : 'justify-end'}`}
-                    >
-                      {isAi && (
-                        <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 flex-shrink-0 flex items-center justify-center font-bold text-xs shadow-sm border border-indigo-200/20">
-                          🤖
-                        </div>
-                      )}
-                      
-                      <div className="max-w-[80%] flex flex-col gap-1">
-                        <div
-                          className={`p-3 rounded-2xl text-xs font-semibold text-left leading-relaxed shadow-sm ${
-                            isAi
-                              ? msg.isError 
-                                ? 'bg-rose-50 text-rose-800 dark:bg-rose-955/20 dark:text-rose-300 border border-rose-100 dark:border-rose-900/40'
-                                : 'bg-white text-slate-750 dark:bg-slate-850 dark:text-slate-200 border border-slate-100 dark:border-slate-800'
-                              : 'bg-indigo-600 text-white'
-                          }`}
-                        >
-                          {msg.text}
-                        </div>
-                        <span className={`text-[9px] font-normal text-slate-400 px-1 ${!isAi ? 'text-right' : 'text-left'}`}>
-                          {msg.timestamp}
-                        </span>
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-slate-950/30">
+                {messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
+                  >
+                    <div className="max-w-[85%] flex flex-col">
+                      <div
+                        className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed shadow-sm text-left ${
+                          m.sender === 'user'
+                            ? 'bg-slate-800 text-white dark:bg-indigo-650 rounded-tr-none'
+                            : m.isError
+                            ? 'bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-950/30 dark:border-rose-950 dark:text-rose-300 rounded-tl-none'
+                            : 'bg-white text-slate-850 dark:bg-slate-850 dark:text-slate-100 border border-slate-100 dark:border-slate-800/80 rounded-tl-none'
+                        }`}
+                        style={m.sender === 'user' ? { backgroundColor: themeAccent } : {}}
+                      >
+                        {m.text}
                       </div>
+                      <span className={`text-[9px] text-slate-400 mt-1 font-mono ${m.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                        {m.timestamp}
+                      </span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
 
                 {loading && (
-                  <div className="flex gap-2.5 justify-start">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-605 flex-shrink-0 flex items-center justify-center font-bold text-xs animate-bounce">
-                      🤖
-                    </div>
-                    <div className="bg-white dark:bg-slate-850 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-650 animate-bounce delay-75" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-650 animate-bounce delay-150" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-650 animate-bounce delay-300" />
+                  <div className="flex justify-start animate-pulse">
+                    <div className="bg-white dark:bg-slate-850 border border-slate-100 dark:border-slate-800 p-3.5 rounded-2xl rounded-tl-none flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce delay-75" style={{ backgroundColor: themeAccent }} />
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce delay-150" style={{ backgroundColor: themeAccent }} />
+                        <span className="w-1.5 h-1.5 rounded-full animate-bounce delay-300" style={{ backgroundColor: themeAccent }} />
                       </div>
                       <span className="text-[10px] text-slate-400 font-extrabold animate-pulse">น้องฉลาดกำลังคิดคำนวณและประมวลผล...</span>
                     </div>
@@ -289,22 +326,42 @@ export default function AiAssistant({
                   }}
                   className="flex items-center gap-2"
                 >
+                  <button
+                    type="button"
+                    onClick={startSpeechRecognition}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                      isListening
+                        ? 'bg-rose-500 text-white animate-pulse shadow-md shadow-rose-200 dark:shadow-none'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400'
+                    }`}
+                    title={isListening ? "กำลังฟังเสียงของคุณท่าน... คลิกเพื่อปิดไมค์" : "สั่งงานด้วยเสียง (พูดภาษาไทย)"}
+                    disabled={loading}
+                  >
+                    {isListening ? (
+                      <MicOff className="w-4 h-4 text-white" />
+                    ) : (
+                      <Mic className="w-4 h-4" />
+                    )}
+                  </button>
+
                   <input
                     type="text"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="ป้อนคำสั่งลบ เพิ่ม ค้นหา บอกน้องฉลาดได้เลยค่ะ..."
+                    placeholder={isListening ? "🎙️ กำลังฟังเสียง... พูดได้เลยค่ะ" : "ป้อนคำสั่งลบ เพิ่ม ค้นหา บอกน้องฉลาดได้เลยค่ะ..."}
                     className="flex-1 h-11 px-3 border border-slate-200 bg-slate-50 dark:bg-slate-950 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white"
                     disabled={loading}
                   />
+                  
                   <button
                     type="submit"
                     disabled={loading || !prompt.trim()}
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                       prompt.trim() && !loading
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                        ? 'text-white hover:opacity-90 shadow-sm font-bold'
                         : 'bg-slate-100 text-slate-400 dark:bg-slate-800'
                     }`}
+                    style={prompt.trim() && !loading ? { backgroundColor: themeAccent } : {}}
                     title="ส่งคำสั่งให้น้องฉลาด"
                   >
                     <Send className="w-4 h-4" />

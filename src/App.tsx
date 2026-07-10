@@ -1568,6 +1568,14 @@ export default function App() {
             }
             break;
           }
+          case 'update_settings': {
+            const updatedSettings = {
+              ...settings,
+              ...payload
+            };
+            syncSettings(updatedSettings);
+            break;
+          }
           default:
             console.warn('Unknown AI Action Type:', type);
         }
@@ -3688,6 +3696,30 @@ export default function App() {
                               </div>
                             </div>
                           </div>
+
+                          {/* Section 4: AI Floating Button Toggle */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4 mt-4 text-left">
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
+                              <span>🧠</span> ปุ่มลอยเอไอประมวลผล & สั่งการ (Nong Chalat AI Floating Button)
+                            </h4>
+                            <div className="flex flex-col justify-center bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl p-4">
+                              <div className="flex items-center justify-between">
+                                <div className="text-left">
+                                  <p className="text-xs font-bold text-slate-700 dark:text-slate-350">🤖 เปิดใช้งานปุ่มลอยเลขา AI เฉพาะบัญชีแอดมิน/ผู้ช่วย (Enable Admin AI Button)</p>
+                                  <p className="text-[9px] text-slate-400">แสดงปุ่มลอยสำหรับบัญชีแอดมินหรือผู้ช่วย เพื่อรับสั่งงานด้วยเสียง/พิมพ์ สอบถามข้อมูล หรือสับเปลี่ยนสีสันเว็บดลบันดาล</p>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={(tempSettings || settings).aiAssistantEnabled !== false}
+                                  onChange={(e) => {
+                                    if (tempSettings) setTempSettings({ ...tempSettings, aiAssistantEnabled: e.target.checked });
+                                  }}
+                                  className="w-4.5 h-4.5 cursor-pointer accent-accent"
+                                  style={{ '--accent': (tempSettings || settings).colorAccent } as React.CSSProperties}
+                                />
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -4541,6 +4573,21 @@ export default function App() {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* Nong Chalat AI Assistant Button - Visible to admin/assistant, toggled in settings */}
+      {(sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && settings.aiAssistantEnabled !== false && (
+        <AiAssistant
+          tasks={tasks}
+          expenses={expenses}
+          categories={settings.categories}
+          todayStr={getThailandTodayStr()}
+          onExecuteActions={handleExecuteAiActions}
+          soundEnabled={settings.soundEnabled}
+          soundVolume={settings.soundVolume}
+          soundType={settings.soundType}
+          settings={settings}
+        />
+      )}
     </div>
   );
 }
