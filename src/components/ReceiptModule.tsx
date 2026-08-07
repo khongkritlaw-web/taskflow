@@ -133,6 +133,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
   const [filterType, setFilterType] = useState<string>('all');
   const [selectedReceiptForPreview, setSelectedReceiptForPreview] = useState<ReceiptDoc | null>(null);
   const [isPreviewUnsaved, setIsPreviewUnsaved] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [themeStyle, setThemeStyle] = useState<'navy' | 'slate' | 'emerald' | 'monochrome'>('navy');
 
@@ -474,7 +475,41 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
 
   const handleDeleteReceipt = (id: string) => {
     if (confirm('คุณต้องการลบข้อมูลใบเสร็จนี้ถาวรใช่หรือไม่?')) {
-      setReceipts(receipts.filter(r => r.id !== id));
+      setReceipts(prev => prev.filter(r => r.id !== id));
+      setSelectedIds(prev => prev.filter(sId => sId !== id));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    const filteredIds = filteredReceipts.map(r => r.id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.includes(id));
+    
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    if (confirm(`คุณต้องการลบประวัติใบเสร็จที่เลือกจำนวน ${selectedIds.length} รายการถาวรใช่หรือไม่?`)) {
+      setReceipts(prev => prev.filter(r => !selectedIds.includes(r.id)));
+      setSelectedIds([]);
+    }
+  };
+
+  const handleDeleteAllHistory = () => {
+    if (receipts.length === 0) return;
+    if (confirm(`⚠️ ยืนยันลบประวัติเอกสารใบเสร็จทั้งหมดจำนวน ${receipts.length} รายการ ถาวรหรือไม่? (ไม่สามารถกู้คืนได้)`)) {
+      setReceipts([]);
+      setSelectedIds([]);
     }
   };
 
@@ -1197,6 +1232,65 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             </div>
           </div>
 
+          {/* Bulk Selection & Deletion Bar */}
+          {receipts.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSelectAllFiltered}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 font-bold text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
+                >
+                  <input 
+                    type="checkbox" 
+                    checked={filteredReceipts.length > 0 && filteredReceipts.every(r => selectedIds.includes(r.id))}
+                    onChange={() => {}}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer pointer-events-none"
+                  />
+                  <span>เลือกทั้งหมด ({filteredReceipts.length})</span>
+                </button>
+
+                {selectedIds.length > 0 && (
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-lg border border-indigo-500/20">
+                    เลือกอยู่ {selectedIds.length} รายการ
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedIds.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelected}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>ลบรายการที่เลือก ({selectedIds.length})</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIds([])}
+                      className="px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-medium cursor-pointer"
+                    >
+                      ยกเลิกการเลือก
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleDeleteAllHistory}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-900/60 bg-rose-50/60 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 font-bold transition-all cursor-pointer active:scale-95"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>ลบประวัติทั้งหมด ({receipts.length})</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {filteredReceipts.length === 0 ? (
             <div className="py-16 text-center space-y-3">
               <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
@@ -1214,6 +1308,15 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
                 <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
                   <tr>
+                    <th className="px-3 py-3 w-10 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={filteredReceipts.length > 0 && filteredReceipts.every(r => selectedIds.includes(r.id))}
+                        onChange={handleSelectAllFiltered}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        title="เลือกทั้งหมด / ยกเลิกทั้งหมด"
+                      />
+                    </th>
                     <th className="px-4 py-3">เลขที่เอกสาร</th>
                     <th className="px-4 py-3">ประเภท</th>
                     <th className="px-4 py-3">ผู้รับบริการ / ลูกค้า</th>
@@ -1224,61 +1327,79 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {filteredReceipts.map(r => (
-                    <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/50 transition-all">
-                      <td className="px-4 py-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{r.receiptNo}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{getDocTypeName(r.docType).split('(')[0]}</td>
-                      <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{r.customerName}</td>
-                      <td className="px-4 py-3 font-mono">{r.issueDate}</td>
-                      <td className="px-4 py-3 font-mono font-black text-emerald-500">{r.grandTotal?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                          r.status === 'void' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                        }`}>
-                          {r.status === 'void' ? 'ยกเลิก (Void)' : 'สมบูรณ์'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handlePrint(r)}
-                            title="พิมพ์ / ดู PDF"
-                            className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-all cursor-pointer"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </button>
+                  {filteredReceipts.map(r => {
+                    const isSelected = selectedIds.includes(r.id);
+                    return (
+                      <tr 
+                        key={r.id} 
+                        className={`transition-all ${
+                          isSelected 
+                            ? 'bg-indigo-50/60 dark:bg-indigo-950/40' 
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-950/50'
+                        }`}
+                      >
+                        <td className="px-3 py-3 text-center">
+                          <input 
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(r.id)}
+                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{r.receiptNo}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{getDocTypeName(r.docType).split('(')[0]}</td>
+                        <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{r.customerName}</td>
+                        <td className="px-4 py-3 font-mono">{r.issueDate}</td>
+                        <td className="px-4 py-3 font-mono font-black text-emerald-500">{r.grandTotal?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            r.status === 'void' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                          }`}>
+                            {r.status === 'void' ? 'ยกเลิก (Void)' : 'สมบูรณ์'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handlePrint(r)}
+                              title="พิมพ์ / ดู PDF"
+                              className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-all cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleEditReceipt(r)}
-                            title="แก้ไข"
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all cursor-pointer"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEditReceipt(r)}
+                              title="แก้ไข"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleVoidReceipt(r.id)}
-                            title="ยกเลิกใบเสร็จ"
-                            className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 hover:bg-rose-100 transition-all cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleVoidReceipt(r.id)}
+                              title="ยกเลิกใบเสร็จ"
+                              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 hover:bg-rose-100 transition-all cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteReceipt(r.id)}
-                            title="ลบ"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-all cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReceipt(r.id)}
+                              title="ลบ"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-all cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
