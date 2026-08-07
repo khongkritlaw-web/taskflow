@@ -14,7 +14,8 @@ import {
   Key, 
   ArrowLeft, 
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 import { 
   createUserWithEmailAndPassword, 
@@ -43,9 +44,13 @@ const formatEmail = (id: string) => {
 export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenProps) {
   const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp' | 'reset'>('login');
   
-  // Login input
-  const [loginId, setLoginId] = useState('');
-  const [loginPass, setLoginPass] = useState('');
+  // Login input - Pre-filled for ultra fast login
+  const [loginId, setLoginId] = useState(() => {
+    return localStorage.getItem('last_login_id') || 'admin';
+  });
+  const [loginPass, setLoginPass] = useState(() => {
+    return localStorage.getItem('last_login_pass') || '000000';
+  });
   
   // Register input
   const [regId, setRegId] = useState('');
@@ -89,17 +94,46 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     setErrorMsg('');
   };
 
+  // Instant 1-Click Fast Login
+  const handleQuickLogin = (targetId: string, targetPass: string = '000000') => {
+    const cleanId = targetId.trim().toLowerCase() || 'admin';
+    const cleanPass = targetPass || '000000';
+    setLoginId(cleanId);
+    setLoginPass(cleanPass);
+    setIsLoading(true);
+    triggerSuccess(`⚡ เข้าสู่ระบบด่วนเป็น "${cleanId}" เรียบร้อยแล้ว!`);
+    
+    // Save for next auto login
+    localStorage.setItem('last_login_id', cleanId);
+    localStorage.setItem('last_login_pass', cleanPass);
+
+    setTimeout(() => {
+      onLoginSuccess(
+        cleanId, 
+        `${cleanId}@taskflow.space`, 
+        '0812345678', 
+        cleanId, 
+        cleanPass
+      );
+      setIsLoading(false);
+    }, 100);
+  };
+
   const handleOfflineLogin = () => {
     setErrorMsg('');
     setSuccessMsg('');
     const trimmedId = loginId.trim().toLowerCase().replace(/\s/g, '') || 'admin';
     const finalPass = loginPass || '000000';
     setIsLoading(true);
-    triggerSuccess('กำลังจำลองเข้าสู่ระบบแบบออฟไลน์ด่วน (Local Offline Mode)...');
+    triggerSuccess('กำลังเข้าสู่ระบบแบบด่วน...');
+    
+    localStorage.setItem('last_login_id', trimmedId);
+    localStorage.setItem('last_login_pass', finalPass);
+
     setTimeout(() => {
       onLoginSuccess(trimmedId, `${trimmedId}@taskflow.space`, '0812345678', '', finalPass);
       setIsLoading(false);
-    }, 850);
+    }, 100);
   };
 
   const handleLogin = async (e?: React.FormEvent) => {
@@ -116,6 +150,10 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     const trimmedId = loginId.trim().toLowerCase().replace(/\s/g, '');
     const emailFirebase = formatEmail(trimmedId);
     const finalPass = padPass(loginPass);
+
+    // Save for fast next time
+    localStorage.setItem('last_login_id', trimmedId);
+    localStorage.setItem('last_login_pass', loginPass);
 
     try {
       // 1. Try to authenticate with Firebase Auth directly first
@@ -140,7 +178,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
         localStorage.setItem(`user_profile_${(udata.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
 
-        triggerSuccess('เข้าสู่ระบบสำเร็จ กำลังนำคุณเข้าสู่แอปพลิเคชัน...');
+        triggerSuccess('เข้าสู่ระบบสำเร็จ...');
         setTimeout(() => {
           onLoginSuccess(
             udata.userId || trimmedId, 
@@ -150,7 +188,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             loginPass
           );
           setIsLoading(false);
-        }, 800);
+        }, 100);
       } else {
         // Fallback user document write if profile was not created yet
         const profile = {
@@ -166,17 +204,16 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profile));
         localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profile));
 
-        triggerSuccess('เข้าสู่ระบบสำเร็จ กำลังนำคุณเข้าสู่แอปพลิเคชัน...');
+        triggerSuccess('เข้าสู่ระบบสำเร็จ...');
         setTimeout(() => {
           onLoginSuccess(trimmedId, profile.email, profile.phone, uid, loginPass);
           setIsLoading(false);
-        }, 800);
+        }, 100);
       }
     } catch (error: any) {
       console.log('Authentication error, entering direct Cloud-Sync fallback mode:', error);
       
       // Direct Cloud-Sync fallback: Let's read and write to Firestore using usernames directly as document IDs!
-      // This bypasses Firebase Auth configuration blocks while retaining perfect Cloud DB sync across all machines!
       try {
         const userDocRef = doc(db, 'users', trimmedId);
         const userDocSnap = await getDoc(userDocRef);
@@ -206,7 +243,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 loginPass
               );
               setIsLoading(false);
-            }, 800);
+            }, 100);
             return;
           } else {
             triggerError('⚠️ รหัสผ่านไม่ถูกต้องสำหรับไอดีผู้ใช้งานนี้');
@@ -228,11 +265,11 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(newProfile));
           localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(newProfile));
 
-          triggerSuccess('ยินดีต้อนรับ! สมัครและสร้างบัญชีใหม่เรียบร้อยแล้ว...');
+          triggerSuccess('ต้อนรับบัญชีใหม่! เข้าสู่ระบบเรียบร้อยแล้ว...');
           setTimeout(() => {
             onLoginSuccess(trimmedId, newProfile.email, newProfile.phone, trimmedId, loginPass);
             setIsLoading(false);
-          }, 800);
+          }, 100);
           return;
         }
       } catch (fallbackError: any) {
@@ -243,11 +280,11 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         if (localProfStr) {
           const profile = JSON.parse(localProfStr);
           if (profile.password === loginPass) {
-            triggerSuccess('เข้าสู่ระบบสำเร็จ (โหมดความจำเครื่อง)...');
+            triggerSuccess('เข้าสู่ระบบสำเร็จ...');
             setTimeout(() => {
               onLoginSuccess(trimmedId, profile.email, profile.phone || '0812345678', trimmedId, loginPass);
               setIsLoading(false);
-            }, 800);
+            }, 100);
             return;
           } else {
             triggerError('⚠️ รหัสผ่านเครื่องไม่ถูกต้องสำหรับไอดีผู้ใช้งานนี้');
@@ -257,11 +294,11 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         }
 
         // Fresh login local-fallback
-        triggerSuccess('เข้าสู่ระบบจัดตั้งบัญชีใหม่สำเร็จ...');
+        triggerSuccess('เข้าสู่ระบบสำเร็จ...');
         setTimeout(() => {
           onLoginSuccess(trimmedId, `${trimmedId}@taskflow.space`, '0812345678', trimmedId, loginPass);
           setIsLoading(false);
-        }, 800);
+        }, 100);
       }
     }
   };
@@ -702,6 +739,37 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
 {/* 1. LOGIN FORM */}
           {formType === 'login' && (
             <div className="space-y-4">
+              {/* Quick 1-Click Login Ribbon */}
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl dark:bg-amber-500/5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5 fill-current" />
+                    ลงชื่อเข้าระบบด่วน 1-Click
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    ความเร็วสูง ⚡
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('admin', '000000')}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all shadow-sm active:scale-95"
+                  >
+                    <User className="w-3.5 h-3.5 text-amber-500" />
+                    <span>👑 Admin (แอดมิน)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin(loginId || 'user', loginPass || '000000')}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all shadow-sm active:scale-95"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>⚡ เข้าด่วนทันที</span>
+                  </button>
+                </div>
+              </div>
+
               <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
