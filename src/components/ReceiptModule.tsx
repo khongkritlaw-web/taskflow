@@ -625,10 +625,10 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="w-full md:w-auto grid grid-cols-2 md:flex items-center gap-2">
             <button
               onClick={() => { handleResetForm(); setActiveSubTab('create'); }}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeSubTab === 'create'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                   : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
@@ -640,14 +640,14 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
 
             <button
               onClick={() => setActiveSubTab('history')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeSubTab === 'history'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                   : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <FileText className="w-4 h-4" />
-              <span>ประวัติใบเสร็จ ({receipts.length})</span>
+              <span>ประวัติ ({receipts.length})</span>
             </button>
           </div>
         </div>
@@ -1115,65 +1115,136 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               {/* Items List */}
               <div className="space-y-3">
                 {items.map((item, idx) => (
-                  <div 
-                    key={item.id}
-                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 grid grid-cols-12 gap-2 items-center"
-                  >
-                    <div className="col-span-1 text-center font-mono text-xs font-bold text-slate-400">
-                      {idx + 1}
+                  <div key={item.id}>
+                    {/* Desktop View (sm:grid) */}
+                    <div className="hidden sm:grid grid-cols-12 gap-2 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 items-center">
+                      <div className="col-span-1 text-center font-mono text-xs font-bold text-slate-400">
+                        {idx + 1}
+                      </div>
+
+                      <div className="col-span-5">
+                        <input
+                          type="text"
+                          placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
+                          value={item.description}
+                          onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
+                          className="w-full h-9 px-3 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="จำนวน"
+                          value={item.quantity}
+                          onChange={(e) => handleUpdateItem(item.id, 'quantity', e.target.value)}
+                          className="w-full h-9 px-2 text-center text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div className="col-span-1">
+                        <input
+                          type="text"
+                          placeholder="หน่วย"
+                          value={item.unit}
+                          onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
+                          className="w-full h-9 px-2 text-center text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="ราคา/หน่วย"
+                          value={item.unitPrice}
+                          onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
+                          className="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div className="col-span-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id)}
+                          disabled={items.length <= 1}
+                          className="p-2 text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="col-span-11 sm:col-span-5">
-                      <input
-                        type="text"
-                        placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
-                        value={item.description}
-                        onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
-                        className="w-full h-9 px-3 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                      />
-                    </div>
+                    {/* Mobile View (sm:hidden) */}
+                    <div className="sm:hidden p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                        <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(item.id)}
+                            disabled={items.length <= 1}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg disabled:opacity-30 cursor-pointer"
+                            title="ลบรายการ"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
 
-                    <div className="col-span-4 sm:col-span-2">
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="จำนวน"
-                        value={item.quantity}
-                        onChange={(e) => handleUpdateItem(item.id, 'quantity', e.target.value)}
-                        className="w-full h-9 px-2 text-center text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                      />
-                    </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">รายละเอียดรายการ</label>
+                        <input
+                          type="text"
+                          placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
+                          value={item.description}
+                          onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
+                          className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
 
-                    <div className="col-span-3 sm:col-span-1">
-                      <input
-                        type="text"
-                        placeholder="หน่วย"
-                        value={item.unit}
-                        onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
-                        className="w-full h-9 px-2 text-center text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                      />
-                    </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">จำนวน</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="1"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateItem(item.id, 'quantity', e.target.value)}
+                            className="w-full h-9 px-2 text-center text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
 
-                    <div className="col-span-4 sm:col-span-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="ราคา/หน่วย"
-                        value={item.unitPrice}
-                        onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
-                        className="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                      />
-                    </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">หน่วย</label>
+                          <input
+                            type="text"
+                            placeholder="รายการ"
+                            value={item.unit}
+                            onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
+                            className="w-full h-9 px-2 text-center text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
 
-                    <div className="col-span-1 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(item.id)}
-                        disabled={items.length <= 1}
-                        className="p-2 text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ราคา/หน่วย</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={item.unitPrice}
+                            onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
+                            className="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1413,6 +1484,37 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               </button>
             </div>
           </div>
+
+          {/* Floating Mobile Action Bar (lg:hidden) */}
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md p-3 border-t border-slate-800 text-white shadow-2xl flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">ยอดสุทธิ (Grand Total)</span>
+              <span className="text-base sm:text-lg font-black font-mono text-emerald-400 truncate block">
+                {grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={handlePreviewOnly}
+                className="h-10 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
+                title="ตัวอย่าง A4"
+              >
+                <Eye className="w-4 h-4 text-indigo-400" />
+                <span className="hidden xs:inline">ดูตัวอย่าง</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveReceipt}
+                className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>บันทึก & พรีวิว</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1528,105 +1630,206 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
-                <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-                  <tr>
-                    <th className="px-3 py-3 w-10 text-center">
-                      <input 
-                        type="checkbox"
-                        checked={filteredReceipts.length > 0 && filteredReceipts.every(r => selectedIds.includes(r.id))}
-                        onChange={handleSelectAllFiltered}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                        title="เลือกทั้งหมด / ยกเลิกทั้งหมด"
-                      />
-                    </th>
-                    <th className="px-4 py-3">เลขที่เอกสาร</th>
-                    <th className="px-4 py-3">ประเภท</th>
-                    <th className="px-4 py-3">ผู้รับบริการ / ลูกค้า</th>
-                    <th className="px-4 py-3">วันที่ออก</th>
-                    <th className="px-4 py-3">ยอดรวมสุทธิ</th>
-                    <th className="px-4 py-3">สถานะ</th>
-                    <th className="px-4 py-3 text-center">จัดการ / พิมพ์</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {filteredReceipts.map(r => {
-                    const isSelected = selectedIds.includes(r.id);
-                    return (
-                      <tr 
-                        key={r.id} 
-                        className={`transition-all ${
-                          isSelected 
-                            ? 'bg-indigo-50/60 dark:bg-indigo-950/40' 
-                            : 'hover:bg-slate-50 dark:hover:bg-slate-950/50'
-                        }`}
-                      >
-                        <td className="px-3 py-3 text-center">
+            <>
+              {/* Mobile Card List View (md:hidden) */}
+              <div className="block md:hidden space-y-3">
+                {filteredReceipts.map(r => {
+                  const isSelected = selectedIds.includes(r.id);
+                  return (
+                    <div 
+                      key={r.id} 
+                      className={`p-4 rounded-xl border text-xs space-y-3 transition-all ${
+                        isSelected 
+                          ? 'bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-300 dark:border-indigo-800' 
+                          : 'bg-white dark:bg-slate-950/80 border-slate-200 dark:border-slate-800 shadow-xs'
+                      }`}
+                    >
+                      {/* Top Bar: Checkbox, Receipt No & Status */}
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2.5">
                           <input 
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleSelect(r.id)}
                             className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                           />
-                        </td>
-                        <td className="px-4 py-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{r.receiptNo}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{getDocTypeName(r.docType).split('(')[0]}</td>
-                        <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{r.customerName}</td>
-                        <td className="px-4 py-3 font-mono">{r.issueDate}</td>
-                        <td className="px-4 py-3 font-mono font-black text-emerald-500">{r.grandTotal?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                            r.status === 'void' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
-                          }`}>
-                            {r.status === 'void' ? 'ยกเลิก (Void)' : 'สมบูรณ์'}
+                          <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                            {r.receiptNo}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handlePrint(r)}
-                              title="พิมพ์ / ดู PDF"
-                              className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-all cursor-pointer"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                          r.status === 'void' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {r.status === 'void' ? 'ยกเลิก (Void)' : 'สมบูรณ์'}
+                        </span>
+                      </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleEditReceipt(r)}
-                              title="แก้ไข"
-                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all cursor-pointer"
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                            </button>
+                      {/* Details */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">ลูกค้า / ผู้ชำระเงิน</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{r.customerName || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">ประเภทเอกสาร</span>
+                          <span className="font-medium text-slate-700 dark:text-slate-300">{getDocTypeName(r.docType).split('(')[0]}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">วันที่ออก</span>
+                          <span className="font-mono text-slate-700 dark:text-slate-300">{r.issueDate}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">ยอดรวมสุทธิ</span>
+                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                            {r.grandTotal?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                          </span>
+                        </div>
+                      </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleVoidReceipt(r.id)}
-                              title="ยกเลิกใบเสร็จ"
-                              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 hover:bg-rose-100 transition-all cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                      {/* Touch Action Buttons */}
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-4 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handlePrint(r)}
+                          className="py-2 px-2 rounded-lg bg-indigo-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>พิมพ์ A4</span>
+                        </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteReceipt(r.id)}
-                              title="ลบ"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-all cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        <button
+                          type="button"
+                          onClick={() => handleEditReceipt(r)}
+                          className="py-2 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[10px] flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>แก้ไข</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleVoidReceipt(r.id)}
+                          className="py-2 px-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-[10px] flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>ยกเลิก</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteReceipt(r.id)}
+                          className="py-2 px-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-rose-500 font-bold text-[10px] flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>ลบ</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table View (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                  <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+                    <tr>
+                      <th className="px-3 py-3 w-10 text-center">
+                        <input 
+                          type="checkbox"
+                          checked={filteredReceipts.length > 0 && filteredReceipts.every(r => selectedIds.includes(r.id))}
+                          onChange={handleSelectAllFiltered}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          title="เลือกทั้งหมด / ยกเลิกทั้งหมด"
+                        />
+                      </th>
+                      <th className="px-4 py-3">เลขที่เอกสาร</th>
+                      <th className="px-4 py-3">ประเภท</th>
+                      <th className="px-4 py-3">ผู้รับบริการ / ลูกค้า</th>
+                      <th className="px-4 py-3">วันที่ออก</th>
+                      <th className="px-4 py-3">ยอดรวมสุทธิ</th>
+                      <th className="px-4 py-3">สถานะ</th>
+                      <th className="px-4 py-3 text-center">จัดการ / พิมพ์</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {filteredReceipts.map(r => {
+                      const isSelected = selectedIds.includes(r.id);
+                      return (
+                        <tr 
+                          key={r.id} 
+                          className={`transition-all ${
+                            isSelected 
+                              ? 'bg-indigo-50/60 dark:bg-indigo-950/40' 
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-950/50'
+                          }`}
+                        >
+                          <td className="px-3 py-3 text-center">
+                            <input 
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelect(r.id)}
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </td>
+                          <td className="px-4 py-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{r.receiptNo}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{getDocTypeName(r.docType).split('(')[0]}</td>
+                          <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{r.customerName}</td>
+                          <td className="px-4 py-3 font-mono">{r.issueDate}</td>
+                          <td className="px-4 py-3 font-mono font-black text-emerald-500">{r.grandTotal?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                              r.status === 'void' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'
+                            }`}>
+                              {r.status === 'void' ? 'ยกเลิก (Void)' : 'สมบูรณ์'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handlePrint(r)}
+                                title="พิมพ์ / ดู PDF"
+                                className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-all cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleEditReceipt(r)}
+                                title="แก้ไข"
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleVoidReceipt(r.id)}
+                                title="ยกเลิกใบเสร็จ"
+                                className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 hover:bg-rose-100 transition-all cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteReceipt(r.id)}
+                                title="ลบ"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-all cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1642,31 +1845,31 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden text-left shadow-2xl"
             >
               {/* Modal Top Control Bar */}
-              <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-4 bg-slate-950 flex-shrink-0">
+              <div className="p-3 sm:p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                  <Printer className="w-5 h-5 text-indigo-400" />
-                  <div>
-                    <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                      <span>ตัวอย่างเอกสารขนาด A4 ก่อนสั่งพิมพ์</span>
+                  <Printer className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="text-xs sm:text-sm font-extrabold text-white flex flex-wrap items-center gap-2">
+                      <span>ตัวอย่างเอกสาร A4 ก่อนสั่งพิมพ์</span>
                       {isPreviewUnsaved && (
                         <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
                           <AlertCircle className="w-3 h-3 text-amber-400" />
-                          ยังไม่บันทึกประวัติ (จะบันทึกเมื่อสั่งพิมพ์)
+                          ยังไม่บันทึกประวัติ
                         </span>
                       )}
                     </h3>
-                    <p className="text-[10px] text-slate-400 font-mono">เลขที่: {selectedReceiptForPreview.receiptNo}</p>
+                    <p className="text-[10px] text-slate-400 font-mono truncate">เลขที่: {selectedReceiptForPreview.receiptNo}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => handlePrint(selectedReceiptForPreview)}
-                    className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                    className="flex-1 sm:flex-none h-10 sm:h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95"
                   >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>{isPreviewUnsaved ? 'สั่งพิมพ์และบันทึกเอกสาร (A4)' : 'สั่งพิมพ์ / บันทึก PDF (A4)'}</span>
+                    <Printer className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                    <span>{isPreviewUnsaved ? 'สั่งพิมพ์และบันทึก (A4)' : 'สั่งพิมพ์ / บันทึก PDF (A4)'}</span>
                   </button>
 
                   <button
@@ -1675,7 +1878,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                       setSelectedReceiptForPreview(null);
                       setIsPreviewUnsaved(false);
                     }}
-                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer flex-shrink-0"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1683,10 +1886,10 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               </div>
 
               {/* Printable A4 Document Sheet View */}
-              <div className="p-4 sm:p-8 overflow-y-auto flex-1 bg-slate-800/50 flex justify-center">
+              <div className="p-2 sm:p-8 overflow-y-auto overflow-x-auto flex-1 bg-slate-800/50 flex justify-center items-start">
                 <div 
                   id="printable-a4-receipt"
-                  className="bg-white text-slate-900 p-6 sm:p-10 rounded-sm shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-xs space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden"
+                  className="bg-white text-slate-900 p-4 sm:p-10 rounded-sm shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-xs space-y-4 sm:space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden"
                   style={{ color: '#0f172a' }}
                 >
                   {/* Background Watermark Layer */}
