@@ -1686,7 +1686,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               <div className="p-4 sm:p-8 overflow-y-auto flex-1 bg-slate-800/50 flex justify-center">
                 <div 
                   id="printable-a4-receipt"
-                  className="bg-white text-slate-900 p-8 sm:p-12 rounded-sm shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-xs space-y-6 border border-slate-300 relative font-sans leading-normal overflow-hidden"
+                  className="bg-white text-slate-900 p-6 sm:p-10 rounded-sm shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-xs space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden"
                   style={{ color: '#0f172a' }}
                 >
                   {/* Background Watermark Layer */}
@@ -1838,7 +1838,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   </div>
 
                   {/* Signature Section */}
-                  <div className="pt-12 grid grid-cols-2 gap-12 text-center text-xs">
+                  <div className="pt-8 sm:pt-10 grid grid-cols-2 gap-8 sm:gap-12 text-center text-xs">
                     <div className="space-y-8">
                       <div className="h-12 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
                         <span className="text-slate-400 text-[10px]">ลงนาม / Signature</span>

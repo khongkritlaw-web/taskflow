@@ -85,28 +85,49 @@ select:-webkit-autofill:focus {
 
 /* A4 PRINT CSS RULES */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html, body {
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   body * {
     visibility: hidden !important;
   }
+
   #printable-a4-receipt, #printable-a4-receipt * {
     visibility: visible !important;
   }
+
   #printable-a4-receipt {
-    position: absolute !important;
-    left: 0 !important;
+    position: fixed !important;
     top: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    left: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
     margin: 0 !important;
-    padding: 15mm !important;
+    padding: 10mm 15mm !important;
     box-shadow: none !important;
     border: none !important;
     background: #ffffff !important;
     color: #000000 !important;
-  }
-  @page {
-    size: A4 portrait;
-    margin: 0;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    page-break-inside: avoid !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    break-inside: avoid !important;
   }
 }
 
