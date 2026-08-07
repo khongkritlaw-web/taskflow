@@ -22,9 +22,26 @@
   --radius: 12px;
 }
 
+html, body, #root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
 body {
   font-family: var(--font-sans);
   transition: background 0.3s, color 0.3s;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
 }
 
 ::-webkit-scrollbar {
