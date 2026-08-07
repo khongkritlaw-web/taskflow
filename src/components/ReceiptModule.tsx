@@ -152,6 +152,32 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
   const [issuerPhone, setIssuerPhone] = useState('02-123-4567');
   const [issuerEmail, setIssuerEmail] = useState(settings.emailRecipient || 'contact@firm.com');
   const [issuerLogoUrl, setIssuerLogoUrl] = useState(settings.appLogoUrl || '');
+  const [showLogo, setShowLogo] = useState(true);
+
+  // Watermark Settings
+  const [showWatermark, setShowWatermark] = useState(true);
+  const [watermarkType, setWatermarkType] = useState<'text' | 'image'>('text');
+  const [watermarkText, setWatermarkText] = useState('สำนักงานกฎหมาย / OFFICIAL RECEIPT');
+  const [watermarkImageUrl, setWatermarkImageUrl] = useState('');
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.12);
+
+  // Helper for image upload (Logo / Watermark)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('ขนาดไฟล์ต้องไม่เกิน 2MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          callback(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Customer Info
   const [customerName, setCustomerName] = useState('');
@@ -335,6 +361,12 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       issuerPhone,
       issuerEmail,
       issuerLogoUrl,
+      showLogo,
+      showWatermark,
+      watermarkType,
+      watermarkText,
+      watermarkImageUrl,
+      watermarkOpacity,
       customerName,
       customerTaxId,
       customerBranch,
@@ -418,6 +450,12 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setIssuerPhone(doc.issuerPhone || '');
     setIssuerEmail(doc.issuerEmail || '');
     setIssuerLogoUrl(doc.issuerLogoUrl || '');
+    setShowLogo(doc.showLogo !== undefined ? doc.showLogo : true);
+    setShowWatermark(doc.showWatermark !== undefined ? doc.showWatermark : true);
+    setWatermarkType(doc.watermarkType || 'text');
+    setWatermarkText(doc.watermarkText || 'สำนักงานกฎหมาย / OFFICIAL RECEIPT');
+    setWatermarkImageUrl(doc.watermarkImageUrl || '');
+    setWatermarkOpacity(doc.watermarkOpacity !== undefined ? doc.watermarkOpacity : 0.12);
 
     setCustomerName(doc.customerName);
     setCustomerTaxId(doc.customerTaxId || '');
@@ -463,6 +501,12 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setDiscountValue(0);
     setVatType('no_vat');
     setWithholdingTaxPercent(0);
+    setShowLogo(true);
+    setShowWatermark(true);
+    setWatermarkType('text');
+    setWatermarkText(issuerName || 'สำนักงานกฎหมาย / OFFICIAL RECEIPT');
+    setWatermarkImageUrl(issuerLogoUrl || '');
+    setWatermarkOpacity(0.12);
     setNotes('ขอบคุณที่ใช้บริการ / กรุณาเก็บเอกสารนี้ไว้เป็นหลักฐาน');
   };
 
@@ -788,6 +832,186 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                       onChange={(e) => setIssuerEmail(e.target.value)}
                       className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
                     />
+                  </div>
+                </div>
+
+                {/* Logo & Watermark Sub-Card */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      โลโก้บริษัท & ลายน้ำเอกสาร
+                    </span>
+                  </div>
+
+                  {/* Logo Config */}
+                  <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>แสดงโลโก้บริษัทบนเอกสาร</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={showLogo} 
+                          onChange={(e) => setShowLogo(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <span className="ml-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                          {showLogo ? 'เปิด' : 'ปิด'}
+                        </span>
+                      </label>
+                    </div>
+
+                    {showLogo && (
+                      <div className="space-y-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center gap-2.5">
+                          {issuerLogoUrl ? (
+                            <div className="relative group w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 flex items-center justify-center flex-shrink-0">
+                              <img src={issuerLogoUrl} alt="Logo preview" className="max-w-full max-h-full object-contain" />
+                              <button
+                                type="button"
+                                onClick={() => setIssuerLogoUrl('')}
+                                className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                title="ลบรูปโลโก้"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-400 flex-shrink-0">
+                              <Upload className="w-4 h-4" />
+                            </div>
+                          )}
+
+                          <div className="flex-1 space-y-1">
+                            <label className="px-2.5 py-1 rounded-lg bg-indigo-100/80 dark:bg-indigo-950/80 hover:bg-indigo-200 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-all inline-flex items-center gap-1">
+                              <Upload className="w-3 h-3" />
+                              <span>{issuerLogoUrl ? 'เปลี่ยนโลโก้' : 'อัปโหลดรูปภาพโลโก้'}</span>
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                onChange={(e) => handleImageUpload(e, (url) => setIssuerLogoUrl(url))} 
+                              />
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="หรือวาง URL รูปภาพโลโก้" 
+                              value={issuerLogoUrl}
+                              onChange={(e) => setIssuerLogoUrl(e.target.value)}
+                              className="w-full h-7 px-2 text-[10px] rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Watermark Config */}
+                  <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>แสดงลายน้ำพื้นหลังเอกสาร (Watermark)</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={showWatermark} 
+                          onChange={(e) => setShowWatermark(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-500"></div>
+                        <span className="ml-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                          {showWatermark ? 'เปิด' : 'ปิด'}
+                        </span>
+                      </label>
+                    </div>
+
+                    {showWatermark && (
+                      <div className="space-y-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className="font-bold text-slate-600 dark:text-slate-400">ชนิดลายน้ำ:</span>
+                          <button
+                            type="button"
+                            onClick={() => setWatermarkType('text')}
+                            className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
+                              watermarkType === 'text' 
+                                ? 'bg-amber-500 text-white' 
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            ข้อความ (Text)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWatermarkType('image')}
+                            className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
+                              watermarkType === 'image' 
+                                ? 'bg-amber-500 text-white' 
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            โลโก้/รูปภาพ (Image)
+                          </button>
+                        </div>
+
+                        {watermarkType === 'text' ? (
+                          <div>
+                            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">ข้อความลายน้ำ</label>
+                            <input 
+                              type="text" 
+                              value={watermarkText} 
+                              onChange={(e) => setWatermarkText(e.target.value)}
+                              placeholder="ตัวอย่าง: สำนักงานกฎหมาย / OFFICIAL RECEIPT" 
+                              className="w-full h-7 px-2 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <label className="px-2.5 py-1 rounded-lg bg-amber-100/80 dark:bg-amber-950/80 hover:bg-amber-200 dark:hover:bg-amber-900 text-amber-700 dark:text-amber-400 font-bold text-[10px] border border-amber-200 dark:border-amber-800 cursor-pointer transition-all inline-flex items-center gap-1">
+                                <Upload className="w-3 h-3" />
+                                <span>อัปโหลดรูปภาพลายน้ำ</span>
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={(e) => handleImageUpload(e, (url) => setWatermarkImageUrl(url))} 
+                                />
+                              </label>
+                              <span className="text-[9px] text-slate-400">(หากไม่ใส่ จะใช้โลโก้บริษัท)</span>
+                            </div>
+                            <input 
+                              type="text" 
+                              placeholder="หรือวาง URL รูปภาพลายน้ำ" 
+                              value={watermarkImageUrl}
+                              onChange={(e) => setWatermarkImageUrl(e.target.value)}
+                              className="w-full h-7 px-2 text-[10px] rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="flex justify-between text-[9px] font-bold text-slate-500 mb-0.5">
+                            <span>ความเข้มลายน้ำ (Opacity)</span>
+                            <span>{Math.round(watermarkOpacity * 100)}%</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0.04" 
+                            max="0.35" 
+                            step="0.01" 
+                            value={watermarkOpacity} 
+                            onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
+                            className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1462,22 +1686,53 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               <div className="p-4 sm:p-8 overflow-y-auto flex-1 bg-slate-800/50 flex justify-center">
                 <div 
                   id="printable-a4-receipt"
-                  className="bg-white text-slate-900 p-8 sm:p-12 rounded-sm shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-xs space-y-6 border border-slate-300 relative font-sans leading-normal"
+                  className="bg-white text-slate-900 p-8 sm:p-12 rounded-sm shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-xs space-y-6 border border-slate-300 relative font-sans leading-normal overflow-hidden"
                   style={{ color: '#0f172a' }}
                 >
+                  {/* Background Watermark Layer */}
+                  {selectedReceiptForPreview.showWatermark !== false && (
+                    <div 
+                      className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden z-0 select-none"
+                      style={{ opacity: selectedReceiptForPreview.watermarkOpacity ?? 0.12 }}
+                    >
+                      {selectedReceiptForPreview.watermarkType === 'image' && (selectedReceiptForPreview.watermarkImageUrl || selectedReceiptForPreview.issuerLogoUrl) ? (
+                        <img 
+                          src={selectedReceiptForPreview.watermarkImageUrl || selectedReceiptForPreview.issuerLogoUrl} 
+                          alt="Watermark" 
+                          className="max-w-[340px] max-h-[340px] object-contain grayscale"
+                        />
+                      ) : (
+                        <div className="transform -rotate-30 text-center px-4">
+                          <span className="text-3xl sm:text-4xl font-black uppercase tracking-widest text-slate-800 border-4 border-slate-800 px-6 sm:px-8 py-3 sm:py-4 rounded-xl inline-block whitespace-nowrap">
+                            {selectedReceiptForPreview.watermarkText || selectedReceiptForPreview.issuerName || 'OFFICIAL RECEIPT'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Header: Issuer Logo & Doc Title */}
-                  <div className="flex justify-between items-start gap-4 pb-6 border-b-2 border-slate-900">
-                    <div className="space-y-1 max-w-md">
-                      <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
-                        {selectedReceiptForPreview.issuerName}
-                      </h2>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        {selectedReceiptForPreview.issuerAddress}
-                      </p>
-                      <div className="flex items-center gap-3 text-[10px] text-slate-600 font-medium pt-1">
-                        <span>เลขภาษี: {selectedReceiptForPreview.issuerTaxId || '-'}</span>
-                        <span>({selectedReceiptForPreview.issuerBranch || 'สำนักงานใหญ่'})</span>
-                        <span>โทร: {selectedReceiptForPreview.issuerPhone}</span>
+                  <div className="flex justify-between items-start gap-4 pb-6 border-b-2 border-slate-900 relative z-10">
+                    <div className="flex items-start gap-3.5 max-w-md">
+                      {selectedReceiptForPreview.showLogo !== false && selectedReceiptForPreview.issuerLogoUrl && (
+                        <img 
+                          src={selectedReceiptForPreview.issuerLogoUrl} 
+                          alt="Company Logo" 
+                          className="w-16 h-16 object-contain rounded-md border border-slate-200 p-0.5 bg-white flex-shrink-0"
+                        />
+                      )}
+                      <div className="space-y-1">
+                        <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
+                          {selectedReceiptForPreview.issuerName}
+                        </h2>
+                        <p className="text-[11px] text-slate-600 leading-snug">
+                          {selectedReceiptForPreview.issuerAddress}
+                        </p>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-600 font-medium pt-1">
+                          <span>เลขภาษี: {selectedReceiptForPreview.issuerTaxId || '-'}</span>
+                          <span>({selectedReceiptForPreview.issuerBranch || 'สำนักงานใหญ่'})</span>
+                          <span>โทร: {selectedReceiptForPreview.issuerPhone}</span>
+                        </div>
                       </div>
                     </div>
 

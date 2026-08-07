@@ -151,6 +151,14 @@ export interface ReceiptDoc {
   issuerPhone?: string;
   issuerEmail?: string;
   issuerLogoUrl?: string;
+  showLogo?: boolean;
+
+  // Watermark details
+  showWatermark?: boolean;
+  watermarkType?: 'text' | 'image';
+  watermarkText?: string;
+  watermarkImageUrl?: string;
+  watermarkOpacity?: number;
 
   // Customer details
   customerName: string;
