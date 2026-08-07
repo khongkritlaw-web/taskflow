@@ -25,6 +25,16 @@ export default function CalendarModule({
   accentColor
 }: CalendarModuleProps) {
   const { showAlert, showConfirm } = useDialog();
+
+  const getThailandTodayStr = () => {
+    return new Intl.DateTimeFormat('fr-CA', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+  };
+
   const [currentDate, setCurrentDate] = useState<Date>(() => {
     return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
   });
@@ -33,11 +43,22 @@ export default function CalendarModule({
   const [selectedDayStr, setSelectedDayStr] = useState<string>('');
   const [selectedDayHoliday, setSelectedDayHoliday] = useState<string>('');
 
-  // Print Configuration States
+  // Professional Print Configuration States
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printDocType, setPrintDocType] = useState<'monthly-grid' | 'agenda-timetable' | 'executive-summary' | 'daily-focus'>('monthly-grid');
   const [printMonth, setPrintMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [printYear, setPrintYear] = useState(String(new Date().getFullYear()));
-  const [printIncludeList, setPrintIncludeList] = useState(true);
+  const [printSingleDate, setPrintSingleDate] = useState<string>(getThailandTodayStr());
+  const [printTaskStatus, setPrintTaskStatus] = useState<'all' | 'pending' | 'completed'>('all');
+  const [printIncludeTasks, setPrintIncludeTasks] = useState(true);
+  const [printIncludeExpenses, setPrintIncludeExpenses] = useState(true);
+  const [printIncludeHolidays, setPrintIncludeHolidays] = useState(true);
+  const [printIncludeSignatures, setPrintIncludeSignatures] = useState(true);
+  const [printIncludeNotes, setPrintIncludeNotes] = useState(true);
+  const [printOrientation, setPrintOrientation] = useState<'landscape' | 'portrait'>('landscape');
+  const [printTheme, setPrintTheme] = useState<'official' | 'slate' | 'emerald' | 'monochrome'>('official');
+  const [printHeaderTitle, setPrintHeaderTitle] = useState('แผนผังตารางกำหนดการปฏิบัติงานและการนัดหมาย');
+  const [printOrgName, setPrintOrgName] = useState('');
 
   // Payment Slip Upload Modal states
   const [isPaySlipModalOpen, setIsPaySlipModalOpen] = useState(false);
@@ -85,15 +106,6 @@ export default function CalendarModule({
     } else {
       setCurrentDate(new Date(val, currentMonth, 1));
     }
-  };
-
-  const getThailandTodayStr = () => {
-    return new Intl.DateTimeFormat('fr-CA', {
-      timeZone: 'Asia/Bangkok',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(new Date());
   };
 
   const todayStr = getThailandTodayStr();
@@ -274,123 +286,693 @@ export default function CalendarModule({
     setSelectedDayTasks(dayTasks);
   };
 
-  const handlePrintCalendar = () => {
+  const generateCalendarPrintHtml = () => {
     const targetMonthNum = parseInt(printMonth);
     const targetYearNum = parseInt(printYear);
-    
-    const firstDayIdx = new Date(targetYearNum, targetMonthNum - 1, 1).getDay();
-    const totalDaysInMonth = new Date(targetYearNum, targetMonthNum, 0).getDate();
-    
-    const printCells: Array<{ day: number | null; dateStr: string; tasks: Task[]; expenses: ReturnType<typeof getExpensesForDate>; holiday: string }> = [];
-    
-    // Empty prefix cells
-    for (let i = 0; i < firstDayIdx; i++) {
-      printCells.push({ day: null, dateStr: '', tasks: [], expenses: [], holiday: '' });
-    }
-    
-    // Real days
-    for (let d = 1; d <= totalDaysInMonth; d++) {
-      const dStr = `${targetYearNum}-${String(targetMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const shortKey = `${String(targetMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const hName = holidays[dStr] || fixedHolidaysPattern[shortKey] || '';
-      const dayTasks = tasks.filter(t => t.dueDate === dStr);
-      const dayExps = getExpensesForDate(dStr);
-      printCells.push({ day: d, dateStr: dStr, tasks: dayTasks, expenses: dayExps, holiday: hName });
-    }
-    
-    // Empty suffix cells to snap perfectly to 7-columns layout
-    while (printCells.length % 7 !== 0) {
-      printCells.push({ day: null, dateStr: '', tasks: [], expenses: [], holiday: '' });
-    }
-    
-    // Group cells into weeks
-    const weeksList: Array<typeof printCells> = [];
-    for (let i = 0; i < printCells.length; i += 7) {
-      weeksList.push(printCells.slice(i, i + 7));
-    }
-    
-    const monthNameTh = monthNames[targetMonthNum - 1];
+    const monthNameTh = monthNames[targetMonthNum - 1] || 'มกราคม';
     const yearTh = targetYearNum + 543;
 
-    // Filter list of schedules in this month
-    const scheduledTasks = tasks.filter(t => t.dueDate && t.dueDate.substring(0, 7) === `${printYear}-${printMonth}`)
-      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+    // Primary Colors according to printTheme
+    let themePrimary = '#1e3a8a';
+    let themeHeaderBg = '#1e3a8a';
+    let themeThBg = '#f1f5f9';
+    let themeBorder = '#1e3a8a';
 
-    const htmlLayout = `
+    if (printTheme === 'slate') {
+      themePrimary = '#0f172a';
+      themeHeaderBg = '#0f172a';
+      themeThBg = '#f8fafc';
+      themeBorder = '#334155';
+    } else if (printTheme === 'emerald') {
+      themePrimary = '#065f46';
+      themeHeaderBg = '#065f46';
+      themeThBg = '#ecfdf5';
+      themeBorder = '#047857';
+    } else if (printTheme === 'monochrome') {
+      themePrimary = '#000000';
+      themeHeaderBg = '#000000';
+      themeThBg = '#f3f4f6';
+      themeBorder = '#000000';
+    }
+
+    // Date filtering prefix
+    const monthPrefix = `${printYear}-${printMonth}`;
+    
+    // Filter Tasks
+    let filteredTasks = tasks.filter(t => {
+      if (printDocType === 'daily-focus') {
+        return t.dueDate === printSingleDate;
+      }
+      return t.dueDate && t.dueDate.substring(0, 7) === monthPrefix;
+    });
+
+    if (printTaskStatus === 'pending') {
+      filteredTasks = filteredTasks.filter(t => t.status !== 'completed');
+    } else if (printTaskStatus === 'completed') {
+      filteredTasks = filteredTasks.filter(t => t.status === 'completed');
+    }
+
+    filteredTasks.sort((a, b) => {
+      const dateCmp = (a.dueDate || '').localeCompare(b.dueDate || '');
+      if (dateCmp !== 0) return dateCmp;
+      return (a.dueTime || '').localeCompare(b.dueTime || '');
+    });
+
+    // Filter Expenses
+    let filteredExpenses: Array<{
+      parentName: string;
+      amount: number;
+      paid: boolean;
+      dueDate: string;
+      isInstallment: boolean;
+      installmentNo?: number;
+      totalInstallments?: number;
+      cat: string;
+    }> = [];
+
+    if (printIncludeExpenses) {
+      expenses.forEach(e => {
+        if (e.isInstallment && e.installments) {
+          e.installments.forEach(inst => {
+            const matches = printDocType === 'daily-focus'
+              ? inst.dueDate === printSingleDate
+              : inst.dueDate && inst.dueDate.substring(0, 7) === monthPrefix;
+            if (matches) {
+              filteredExpenses.push({
+                parentName: e.name,
+                amount: inst.amount,
+                paid: inst.paid,
+                dueDate: inst.dueDate,
+                isInstallment: true,
+                installmentNo: inst.installmentNo,
+                totalInstallments: e.totalInstallments,
+                cat: e.cat
+              });
+            }
+          });
+        } else {
+          const matches = printDocType === 'daily-focus'
+            ? e.dueDate === printSingleDate
+            : e.dueDate && e.dueDate.substring(0, 7) === monthPrefix;
+          if (matches) {
+            filteredExpenses.push({
+              parentName: e.name,
+              amount: e.amount,
+              paid: e.paid,
+              dueDate: e.dueDate,
+              isInstallment: false,
+              cat: e.cat
+            });
+          }
+        }
+      });
+      filteredExpenses.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    }
+
+    const formattedPrintDate = new Date().toLocaleDateString('th-TH', {
+      day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+
+    let documentTitleText = printHeaderTitle || 'แผนผังตารางกำหนดการปฏิบัติงานและการนัดหมาย';
+    let documentSubText = printOrgName ? `หน่วยงาน / สังกัด: ${printOrgName}` : `เอกสารออกโดยระบบบริหารจัดการตารางงานส่วนบุคคล`;
+
+    if (printDocType === 'monthly-grid') {
+      documentSubText += ` — ประจำเดือน ${monthNameTh} พ.ศ. ${yearTh}`;
+    } else if (printDocType === 'agenda-timetable') {
+      documentTitleText = `ตารางเวลาและกำหนดการปฏิบัติงาน (Timetable & Agenda)`;
+      documentSubText += ` — ประจำเดือน ${monthNameTh} พ.ศ. ${yearTh}`;
+    } else if (printDocType === 'executive-summary') {
+      documentTitleText = `รายงานสรุปผู้บริหาร แผนงานและค่างวดชำระประจำเดือน`;
+      documentSubText += ` — ประจำเดือน ${monthNameTh} พ.ศ. ${yearTh}`;
+    } else if (printDocType === 'daily-focus') {
+      const parts = printSingleDate.split('-');
+      const dTh = parts.length === 3 ? `${parseInt(parts[2])} ${monthNames[parseInt(parts[1]) - 1]} พ.ศ. ${parseInt(parts[0]) + 543}` : printSingleDate;
+      documentTitleText = `กำหนดการปฏิบัติงานและภารกิจประจำวัน (Daily Schedule)`;
+      documentSubText += ` — ประจำวันที่ ${dTh}`;
+    }
+
+    const signatureBlockHtml = printIncludeSignatures ? `
+      <div class="signature-box-row">
+        <div class="sign-box">
+          <div class="sign-line"></div>
+          <p style="font-weight: 700; font-size: 11px; margin: 0; color: #1e293b;">ลงชื่อ..........................................................</p>
+          <p style="font-weight: 600; font-size: 10px; margin: 3px 0 0 0; color: #475569;">(..........................................................)</p>
+          <p style="font-size: 9.5px; color:#64748b; margin-top: 2px;">ตำแหน่ง: ผู้จัดทำตารางปฏิบัติงาน</p>
+        </div>
+        <div class="sign-box">
+          <div class="sign-line"></div>
+          <p style="font-weight: 700; font-size: 11px; margin: 0; color: #1e293b;">ลงชื่อ..........................................................</p>
+          <p style="font-weight: 600; font-size: 10px; margin: 3px 0 0 0; color: #475569;">(..........................................................)</p>
+          <p style="font-size: 9.5px; color:#64748b; margin-top: 2px;">ตำแหน่ง: ผู้ตรวจสอบ / อนุมัติแผนงาน</p>
+        </div>
+      </div>
+    ` : '';
+
+    let bodyContentHtml = '';
+
+    if (printDocType === 'monthly-grid') {
+      const firstDayIdx = new Date(targetYearNum, targetMonthNum - 1, 1).getDay();
+      const totalDaysInMonth = new Date(targetYearNum, targetMonthNum, 0).getDate();
+      const printCells: Array<{ day: number | null; dateStr: string; tasks: Task[]; expenses: typeof filteredExpenses; holiday: string }> = [];
+
+      for (let i = 0; i < firstDayIdx; i++) {
+        printCells.push({ day: null, dateStr: '', tasks: [], expenses: [], holiday: '' });
+      }
+
+      for (let d = 1; d <= totalDaysInMonth; d++) {
+        const dStr = `${targetYearNum}-${String(targetMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const shortKey = `${String(targetMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const hName = printIncludeHolidays ? (holidays[dStr] || fixedHolidaysPattern[shortKey] || '') : '';
+        const dayTasks = filteredTasks.filter(t => t.dueDate === dStr);
+        const dayExps = filteredExpenses.filter(e => e.dueDate === dStr);
+        printCells.push({ day: d, dateStr: dStr, tasks: dayTasks, expenses: dayExps, holiday: hName });
+      }
+
+      while (printCells.length % 7 !== 0) {
+        printCells.push({ day: null, dateStr: '', tasks: [], expenses: [], holiday: '' });
+      }
+
+      const weeksList: Array<typeof printCells> = [];
+      for (let i = 0; i < printCells.length; i += 7) {
+        weeksList.push(printCells.slice(i, i + 7));
+      }
+
+      bodyContentHtml = `
+        <table class="cal-table">
+          <thead>
+            <tr>
+              <th style="color:#dc2626; width:14.2%;">อาทิตย์ (SUN)</th>
+              <th style="width:14.2%;">จันทร์ (MON)</th>
+              <th style="width:14.2%;">อังคาร (TUE)</th>
+              <th style="width:14.2%;">พุธ (WED)</th>
+              <th style="width:14.2%;">พฤหัสฯ (THU)</th>
+              <th style="width:14.2%;">ศุกร์ (FRI)</th>
+              <th style="color:#2563eb; width:14.2%;">เสาร์ (SAT)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${weeksList.map(week => `
+              <tr>
+                ${week.map(cell => {
+                  if (cell.day === null) {
+                    return `<td style="background-color: #f8fafc;"></td>`;
+                  }
+                  return `
+                    <td>
+                      <span class="day-number">${cell.day}</span>
+                      ${cell.holiday ? `<span class="holiday-tag">🎉 ${cell.holiday}</span>` : ''}
+                      
+                      ${cell.tasks.slice(0, 3).map(t => `
+                        <div class="task-strip ${t.status === 'completed' ? 'completed' : ''}">
+                          ${t.dueTime ? `⏰${t.dueTime} ` : ''}${t.title}
+                        </div>
+                      `).join('')}
+                      
+                      ${cell.tasks.length > 3 ? `
+                        <div style="font-size: 7.5px; color:#64748b; font-weight:bold; padding-left:2px;">+อีก ${cell.tasks.length - 3} งาน...</div>
+                      ` : ''}
+
+                      ${cell.expenses.slice(0, 2).map(e => `
+                        <div class="expense-strip ${e.paid ? 'completed' : ''}">
+                          💰 ฿${e.amount.toLocaleString('th-TH')} ${e.parentName}
+                        </div>
+                      `).join('')}
+
+                      ${cell.expenses.length > 2 ? `
+                        <div style="font-size: 7.5px; color:#7c3aed; font-weight:bold; padding-left:2px;">+อีก ${cell.expenses.length - 2} บิล...</div>
+                      ` : ''}
+                    </td>
+                  `;
+                }).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        ${printIncludeTasks ? `
+          <div class="sub-title">📌 บัญชีตารางงานและภารกิจนัดหมายทั้งหมดในรอบเดือน (Monthly Task Roster)</div>
+          <table class="sched-table">
+            <thead>
+              <tr>
+                <th style="width: 7%; text-align: center;">ลำดับ</th>
+                <th style="width: 15%;">กำหนดส่ง / เวลา</th>
+                <th style="width: 43%;">ชื่องานนัดหมาย / รายละเอียด</th>
+                <th style="width: 18%;">หมวดหมู่</th>
+                <th style="width: 17%;">สถานะดำเนินงาน</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredTasks.length === 0 ? `
+                <tr><td colspan="5" style="text-align: center; padding: 20px; color:#64748b;"><i>- ไม่มีรายการงานภารกิจในช่วงเวลานี้ -</i></td></tr>
+              ` : filteredTasks.map((t, idx) => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+                  <td>${t.dueDate ? t.dueDate.split('-').reverse().join('/') : '-'} ${t.dueTime ? `<br/>⏰ ${t.dueTime}` : ''}</td>
+                  <td>
+                    <strong>${t.title}</strong>
+                    ${printIncludeNotes && t.desc ? `<br/><span style="font-size:9px;color:#64748b;">(${t.desc})</span>` : ''}
+                  </td>
+                  <td>${t.category}</td>
+                  <td style="font-weight: 600; color: ${t.status === 'completed' ? '#047857' : '#b45309'}">
+                    ${t.status === 'completed' ? '✅ เสร็จสิ้นแล้ว' : '⏳ รอดำเนินการ'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        ${printIncludeExpenses && filteredExpenses.length > 0 ? `
+          <div class="sub-title">💰 บัญชีรายการบิลและค่างวดชำระรอบเดือน (Monthly Bills & Payments)</div>
+          <table class="sched-table">
+            <thead>
+              <tr>
+                <th style="width: 7%; text-align: center;">ลำดับ</th>
+                <th style="width: 15%;">กำหนดชำระ</th>
+                <th style="width: 43%;">รายการบิล / ค่างวด</th>
+                <th style="width: 18%;">จำนวนเงิน</th>
+                <th style="width: 17%;">สถานะการชำระ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredExpenses.map((e, idx) => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
+                  <td>${e.dueDate.split('-').reverse().join('/')}</td>
+                  <td>
+                    <strong>${e.parentName}</strong>
+                    ${e.isInstallment ? `<br/><span style="font-size:9px;color:#7c3aed;">(งวดที่ ${e.installmentNo}/${e.totalInstallments})</span>` : ''}
+                  </td>
+                  <td style="font-family: monospace; font-weight: bold;">฿${e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                  <td style="font-weight: 600; color: ${e.paid ? '#047857' : '#dc2626'}">
+                    ${e.paid ? '✅ ชำระแล้ว' : '⏳ รอชำระเงิน'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+      `;
+    } else if (printDocType === 'agenda-timetable') {
+      const groupedByDate: Record<string, { tasks: Task[]; expenses: typeof filteredExpenses; holiday: string }> = {};
+
+      filteredTasks.forEach(t => {
+        const d = t.dueDate || 'Unscheduled';
+        if (!groupedByDate[d]) {
+          const shortKey = d.length === 10 ? `${d.substring(5, 7)}-${d.substring(8, 10)}` : '';
+          const hName = printIncludeHolidays && d.length === 10 ? (holidays[d] || fixedHolidaysPattern[shortKey] || '') : '';
+          groupedByDate[d] = { tasks: [], expenses: [], holiday: hName };
+        }
+        groupedByDate[d].tasks.push(t);
+      });
+
+      if (printIncludeExpenses) {
+        filteredExpenses.forEach(e => {
+          const d = e.dueDate || 'Unscheduled';
+          if (!groupedByDate[d]) {
+            const shortKey = d.length === 10 ? `${d.substring(5, 7)}-${d.substring(8, 10)}` : '';
+            const hName = printIncludeHolidays && d.length === 10 ? (holidays[d] || fixedHolidaysPattern[shortKey] || '') : '';
+            groupedByDate[d] = { tasks: [], expenses: [], holiday: hName };
+          }
+          groupedByDate[d].expenses.push(e);
+        });
+      }
+
+      const sortedDates = Object.keys(groupedByDate).sort();
+
+      bodyContentHtml = `
+        <div class="summary-kpi-bar">
+          <div class="kpi-box">
+            <div class="kpi-num">${filteredTasks.length}</div>
+            <div class="kpi-label">ภารกิจนัดหมายทั้งหมด</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-num" style="color: #047857;">${filteredTasks.filter(t => t.status === 'completed').length}</div>
+            <div class="kpi-label">เสร็จสิ้นแล้ว</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-num" style="color: #b45309;">${filteredTasks.filter(t => t.status !== 'completed').length}</div>
+            <div class="kpi-label">รอดำเนินการ</div>
+          </div>
+          ${printIncludeExpenses ? `
+            <div class="kpi-box">
+              <div class="kpi-num" style="color: #7c3aed;">฿${filteredExpenses.reduce((s, e) => s + e.amount, 0).toLocaleString('th-TH')}</div>
+              <div class="kpi-label">ยอดบิลค่างวดรวม</div>
+            </div>
+          ` : ''}
+        </div>
+
+        ${sortedDates.length === 0 ? `
+          <div style="text-align:center; padding: 40px; color:#64748b; font-style:italic;">
+            - ไม่พบรายการนัดหมายหรือภารกิจในช่วงเวลานี้ -
+          </div>
+        ` : sortedDates.map(dStr => {
+          const item = groupedByDate[dStr];
+          const parts = dStr.split('-');
+          const formattedD = parts.length === 3 ? `${parseInt(parts[2])} ${monthNames[parseInt(parts[1]) - 1]} พ.ศ. ${parseInt(parts[0]) + 543}` : dStr;
+
+          return `
+            <div class="date-group-block">
+              <div class="date-header">
+                <span>🗓️ วันที่ ${formattedD}</span>
+                ${item.holiday ? `<span class="holiday-pill">🎉 ${item.holiday}</span>` : ''}
+              </div>
+
+              <table class="sched-table" style="margin-bottom: 12px;">
+                <thead>
+                  <tr>
+                    <th style="width: 12%;">เวลา</th>
+                    <th style="width: 48%;">รายการภารกิจ / บิลค่าใช้จ่าย</th>
+                    <th style="width: 18%;">หมวดหมู่</th>
+                    <th style="width: 22%; text-align: center;">การตรวจสอบ (Checklist)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${item.tasks.map(t => `
+                    <tr>
+                      <td style="font-weight: bold; color: ${themePrimary};">
+                        ${t.dueTime ? `⏰ ${t.dueTime}` : 'ตลอดวัน'}
+                      </td>
+                      <td>
+                        <strong>${t.title}</strong>
+                        ${printIncludeNotes && t.desc ? `<br/><span style="font-size:9px;color:#64748b;">${t.desc}</span>` : ''}
+                      </td>
+                      <td>${t.category}</td>
+                      <td style="text-align: center;">
+                        <span style="display: inline-block; width: 14px; height: 14px; border: 1.5px solid #475569; vertical-align: middle; margin-right: 4px; border-radius: 2px;"></span>
+                        <span style="font-size: 10px; font-weight: bold; color: ${t.status === 'completed' ? '#047857' : '#475569'}">
+                          ${t.status === 'completed' ? '✅ เสร็จแล้ว' : '⏳ รอทำ'}
+                        </span>
+                      </td>
+                    </tr>
+                  `).join('')}
+
+                  ${item.expenses.map(e => `
+                    <tr style="background-color: #faf5ff;">
+                      <td style="font-weight: bold; color: #7c3aed;">💰 บิลชำระ</td>
+                      <td>
+                        <strong>${e.parentName}</strong>
+                        ${e.isInstallment ? `<span style="font-size:9px; color:#7c3aed;"> (งวด ${e.installmentNo}/${e.totalInstallments})</span>` : ''}
+                      </td>
+                      <td style="font-family: monospace; font-weight: bold;">฿${e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                      <td style="text-align: center; font-weight: bold; color: ${e.paid ? '#047857' : '#dc2626'}">
+                        ${e.paid ? '✅ ชำระแล้ว' : '⏳ รอชำระ'}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }).join('')}
+      `;
+    } else if (printDocType === 'executive-summary') {
+      const totalTasks = filteredTasks.length;
+      const completedTasks = filteredTasks.filter(t => t.status === 'completed').length;
+      const pendingTasks = totalTasks - completedTasks;
+      const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      const totalExp = filteredExpenses.reduce((s, e) => s + e.amount, 0);
+      const paidExp = filteredExpenses.filter(e => e.paid).reduce((s, e) => s + e.amount, 0);
+      const pendingExp = totalExp - paidExp;
+
+      bodyContentHtml = `
+        <div class="summary-kpi-bar">
+          <div class="kpi-box">
+            <div class="kpi-num" style="color: ${themePrimary};">${totalTasks}</div>
+            <div class="kpi-label">ภารกิจในความรับผิดชอบ</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-num" style="color: #047857;">${completionRate}%</div>
+            <div class="kpi-label">อัตราความสำเร็จ (${completedTasks}/${totalTasks})</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-num" style="color: #b45309;">${pendingTasks}</div>
+            <div class="kpi-label">คงเหลือรอดำเนินการ</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-num" style="color: #7c3aed;">฿${totalExp.toLocaleString('th-TH')}</div>
+            <div class="kpi-label">งบประมาณค่างวดชำระรวม</div>
+          </div>
+        </div>
+
+        <div class="sub-title">📊 รายงานสรุปสถานะการปฏิบัติงานจำแนกตามหมวดหมู่</div>
+        <table class="sched-table">
+          <thead>
+            <tr>
+              <th>หมวดหมู่ภารกิจ</th>
+              <th style="text-align: center;">จำนวนทั้งหมด</th>
+              <th style="text-align: center;">เสร็จสิ้นแล้ว</th>
+              <th style="text-align: center;">รอดำเนินการ</th>
+              <th style="text-align: center;">สัดส่วนความสำเร็จ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(() => {
+              const cats: Record<string, { total: number; done: number }> = {};
+              filteredTasks.forEach(t => {
+                const c = t.category || 'ทั่วไป';
+                if (!cats[c]) cats[c] = { total: 0, done: 0 };
+                cats[c].total++;
+                if (t.status === 'completed') cats[c].done++;
+              });
+
+              const catNames = Object.keys(cats);
+              if (catNames.length === 0) {
+                return `<tr><td colspan="5" style="text-align:center; padding:15px; color:#64748b;">- ไม่มีข้อมูลงาน -</td></tr>`;
+              }
+
+              return catNames.map(c => {
+                const item = cats[c];
+                const pct = Math.round((item.done / item.total) * 100);
+                return `
+                  <tr>
+                    <td><strong>${c}</strong></td>
+                    <td style="text-align: center;">${item.total}</td>
+                    <td style="text-align: center; color: #047857; font-weight: bold;">${item.done}</td>
+                    <td style="text-align: center; color: #b45309; font-weight: bold;">${item.total - item.done}</td>
+                    <td style="text-align: center; font-weight: bold; color: ${themePrimary};">${pct}%</td>
+                  </tr>
+                `;
+              }).join('');
+            })()}
+          </tbody>
+        </table>
+
+        ${printIncludeExpenses ? `
+          <div class="sub-title">💳 รายงานสถานะรายการภาระค่าใช้จ่ายและค่างวด</div>
+          <table class="sched-table">
+            <thead>
+              <tr>
+                <th style="width: 40%;">ประเภทสถานะการชำระ</th>
+                <th style="width: 30%; text-align: right;">จำนวนเงินรวม</th>
+                <th style="width: 30%; text-align: center;">สัดส่วนเทียบงบรวม</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="color: #047857; font-weight: bold;">✅ ชำระเงินเรียบร้อยแล้ว (Paid)</td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #047857;">฿${paidExp.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: center; font-weight: bold;">${totalExp > 0 ? Math.round((paidExp / totalExp) * 100) : 0}%</td>
+              </tr>
+              <tr>
+                <td style="color: #dc2626; font-weight: bold;">⏳ ค้างชำระ / รอชำระ (Unpaid)</td>
+                <td style="text-align: right; font-family: monospace; font-weight: bold; color: #dc2626;">฿${pendingExp.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: center; font-weight: bold;">${totalExp > 0 ? Math.round((pendingExp / totalExp) * 100) : 0}%</td>
+              </tr>
+            </tbody>
+          </table>
+        ` : ''}
+      `;
+    } else if (printDocType === 'daily-focus') {
+      const parts = printSingleDate.split('-');
+      const formattedD = parts.length === 3 ? `${parseInt(parts[2])} ${monthNames[parseInt(parts[1]) - 1]} พ.ศ. ${parseInt(parts[0]) + 543}` : printSingleDate;
+
+      bodyContentHtml = `
+        <div style="background-color: ${themeThBg}; border-left: 5px solid ${themePrimary}; padding: 12px 18px; margin-bottom: 20px; border-radius: 4px;">
+          <h2 style="margin:0 0 4px 0; font-size: 16px; font-weight: 800; color: ${themePrimary};">
+            📅 ตารางนัดหมายและภารกิจประจำวัน: ${formattedD}
+          </h2>
+          <p style="margin:0; font-size: 11px; color: #475569;">
+            สรุปเวลานัดหมาย กิจกรรมที่ต้องปฏิบัติ และบิลค่างวดชำระประจำวัน
+          </p>
+        </div>
+
+        <div class="sub-title">⏰ ตารางเวลากิจกรรมและงานปฏิบัติการ (Daily Task Schedule)</div>
+        <table class="sched-table">
+          <thead>
+            <tr>
+              <th style="width: 12%;">เวลา</th>
+              <th style="width: 45%;">ชื่องานปฏิบัติการ / นัดหมาย</th>
+              <th style="width: 18%;">หมวดหมู่</th>
+              <th style="width: 25%; text-align: center;">ผลการปฏิบัติงาน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredTasks.length === 0 ? `
+              <tr><td colspan="4" style="text-align: center; padding: 25px; color:#64748b;"><i>- ไม่มีบันทึกกิจกรรมงานสำหรับวันนี้ -</i></td></tr>
+            ` : filteredTasks.map(t => `
+              <tr>
+                <td style="font-weight: bold; color: ${themePrimary};">${t.dueTime ? `⏰ ${t.dueTime}` : 'ตลอดวัน'}</td>
+                <td>
+                  <strong>${t.title}</strong>
+                  ${printIncludeNotes && t.desc ? `<br/><span style="font-size:9.5px;color:#64748b;">${t.desc}</span>` : ''}
+                </td>
+                <td>${t.category}</td>
+                <td style="text-align: center; font-weight: bold; color: ${t.status === 'completed' ? '#047857' : '#b45309'}">
+                  ${t.status === 'completed' ? '✅ ดำเนินการแล้ว' : '⏳ รอการดำเนินงาน'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        ${printIncludeExpenses && filteredExpenses.length > 0 ? `
+          <div class="sub-title">💰 บัญชีค่างวดและบิลต้องชำระประจำวันนี้</div>
+          <table class="sched-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">ประเภท</th>
+                <th style="width: 45%;">รายการบิล / ค่างวด</th>
+                <th style="width: 23%;">จำนวนเงิน</th>
+                <th style="width: 20%; text-align: center;">สถานะ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredExpenses.map(e => `
+                <tr style="background-color: #faf5ff;">
+                  <td style="font-weight: bold; color:#7c3aed;">บิลชำระ</td>
+                  <td><strong>${e.parentName}</strong> ${e.isInstallment ? `(งวดที่ ${e.installmentNo}/${e.totalInstallments})` : ''}</td>
+                  <td style="font-family: monospace; font-weight: bold;">฿${e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                  <td style="text-align: center; font-weight: bold; color: ${e.paid ? '#047857' : '#dc2626'}">
+                    ${e.paid ? '✅ ชำระแล้ว' : '⏳ รอชำระ'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        <div style="margin-top: 30px; border: 1px border-slate-300; padding: 12px; border-radius: 4px; background-color: #fafbfc;">
+          <strong style="font-size: 11px; color:#1e293b;">📝 บันทึกเพิ่มเติม / หมายเหตุการปฏิบัติงานประจำวัน:</strong>
+          <div style="min-height: 50px; border-bottom: 1px dotted #cbd5e1; margin-top: 8px;"></div>
+          <div style="min-height: 30px; border-bottom: 1px dotted #cbd5e1; margin-top: 8px;"></div>
+        </div>
+      `;
+    }
+
+    return `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8" />
-        <title>แผนผังตารางกำหนดการปฏิบัติงาน ประจำเดือน ${monthNameTh} พ.ศ. ${yearTh}</title>
+        <title>${documentTitleText}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap');
+          @page {
+            size: A4 ${printOrientation};
+            margin: 12mm 10mm;
+          }
           body {
             font-family: 'Sarabun', sans-serif;
             color: #1e293b;
             margin: 0;
-            padding: 30px;
+            padding: 20px;
             font-size: 11px;
             background-color: #ffffff;
-            line-height: 1.4;
+            line-height: 1.45;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           .title-section {
             text-align: center;
-            border-bottom: 2px solid #1e293b;
-            padding-bottom: 12px;
-            margin-bottom: 20px;
+            border-bottom: 2.5px double ${themeBorder};
+            padding-bottom: 10px;
+            margin-bottom: 15px;
           }
           .title-section h1 {
             font-size: 18px;
             margin: 0 0 4px 0;
             font-weight: 800;
+            color: ${themePrimary};
+            letter-spacing: -0.2px;
           }
           .title-section p {
-            font-size: 11px;
-            color: #64748b;
+            font-size: 10.5px;
+            color: #475569;
             margin: 0;
           }
           .info-meta {
             margin-bottom: 15px;
-            font-size: 11px;
+            font-size: 10.5px;
             display: flex;
             justify-content: space-between;
+            background-color: ${themeThBg};
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
           }
-          /* Calendar Grid table styled for A4 */
+          .summary-kpi-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+          }
+          .kpi-box {
+            flex: 1;
+            border: 1px solid #cbd5e1;
+            background-color: #f8fafc;
+            padding: 8px 10px;
+            border-radius: 4px;
+            text-align: center;
+          }
+          .kpi-num {
+            font-size: 16px;
+            font-weight: 800;
+            font-family: monospace;
+          }
+          .kpi-label {
+            font-size: 9.5px;
+            color: #64748b;
+            font-weight: 600;
+            margin-top: 2px;
+          }
           .cal-table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
           }
           .cal-table th {
-            border: 1px solid #1e293b;
-            padding: 6px;
-            font-size: 11px;
+            border: 1px solid #334155;
+            padding: 5px;
+            font-size: 10.5px;
             font-weight: bold;
-            background-color: #f1f5f9;
+            background-color: ${themeThBg};
             text-align: center;
+            color: #0f172a;
           }
           .cal-table td {
-            border: 1px solid #94a3b8;
-            height: 75px;
+            border: 1px solid #cbd5e1;
+            height: 72px;
             vertical-align: top;
-            padding: 5px;
-            font-size: 9.5px;
+            padding: 4px;
+            font-size: 9px;
             background-color: #ffffff;
+            page-break-inside: avoid;
           }
           .day-number {
             font-weight: 800;
-            font-size: 11px;
-            margin-bottom: 4px;
+            font-size: 10.5px;
+            margin-bottom: 3px;
             display: inline-block;
           }
           .holiday-tag {
             color: #b45309;
-            font-size: 8px;
+            font-size: 7.5px;
             background-color: #fef3c7;
             padding: 1px 3px;
             border-radius: 2px;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
             display: block;
             font-weight: bold;
             border: 1px solid #fde68a;
@@ -404,7 +986,7 @@ export default function CalendarModule({
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-size: 8px;
+            font-size: 7.5px;
             color: #334155;
           }
           .task-strip.completed {
@@ -422,7 +1004,7 @@ export default function CalendarModule({
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-size: 8px;
+            font-size: 7.5px;
             color: #5b21b6;
             font-weight: bold;
           }
@@ -432,50 +1014,74 @@ export default function CalendarModule({
             color: #047857;
             text-decoration: line-through;
           }
-          /* Tabular schedule */
           .sub-title {
-            font-size: 13px;
-            font-weight: bold;
-            border-bottom: 1.5px solid #475569;
+            font-size: 12px;
+            font-weight: 800;
+            border-bottom: 1.5px solid ${themeBorder};
             padding-bottom: 4px;
-            margin-top: 25px;
-            margin-bottom: 12px;
-            color: #0f172a;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: ${themePrimary};
           }
           .sched-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
           }
           .sched-table th {
-            background-color: #f8fafc;
+            background-color: ${themeThBg};
             border: 1px solid #cbd5e1;
-            padding: 8px;
+            padding: 6px 8px;
             font-weight: bold;
             text-align: left;
-            font-size: 10.5px;
+            font-size: 10px;
+            color: #1e293b;
           }
           .sched-table td {
             border: 1px solid #e2e8f0;
-            padding: 8px;
-            font-size: 10.5px;
+            padding: 6px 8px;
+            font-size: 10px;
           }
           .sched-table tr:nth-child(even) {
             background-color: #fafbfc;
           }
+          .date-group-block {
+            margin-bottom: 18px;
+            page-break-inside: avoid;
+          }
+          .date-header {
+            font-weight: 800;
+            font-size: 11px;
+            background-color: ${themeThBg};
+            padding: 5px 10px;
+            border: 1px solid #cbd5e1;
+            border-bottom: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .holiday-pill {
+            background-color: #fef3c7;
+            color: #b45309;
+            font-size: 8.5px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            border: 1px solid #fde68a;
+          }
           .signature-box-row {
-            margin-top: 50px;
+            margin-top: 40px;
             display: flex;
             justify-content: space-around;
             text-align: center;
+            page-break-inside: avoid;
           }
           .sign-box {
-            width: 220px;
+            width: 230px;
           }
           .sign-line {
             border-bottom: 1px dotted #475569;
             margin-bottom: 6px;
-            height: 38px;
+            height: 30px;
           }
           @media print {
             body { padding: 0; }
@@ -485,196 +1091,29 @@ export default function CalendarModule({
       </head>
       <body>
         <div class="title-section">
-          <h1>แผนผังตารางกำหนดการปฏิบัติงานและการนัดหมายรอบเดือน</h1>
-          <p>เอกสารสรุปกำหนดการประจำเดือนแบบราชการอย่างเป็นทางการ (Official Monthly Calendar Schedule Sheet)</p>
+          <h1>${documentTitleText}</h1>
+          <p>${documentSubText}</p>
         </div>
 
         <div class="info-meta">
-          <div><strong>ประจำเดือน:</strong> ${monthNameTh} พ.ศ. ${yearTh}</div>
-          <div><strong>จัดพิมพ์เมื่อวันที่:</strong> ${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</div>
+          <div><strong>ขอบเขตเอกสาร:</strong> ${printDocType === 'daily-focus' ? `ประจำวันที่ ${printSingleDate}` : `ประจำเดือน ${monthNameTh} พ.ศ. ${yearTh}`}</div>
+          <div><strong>จัดพิมพ์เมื่อวันที่:</strong> ${formattedPrintDate} น.</div>
         </div>
 
-        <table class="cal-table">
-          <thead>
-            <tr>
-              <th style="color:#ef4444; width:14.2%;">อาทิตย์ (SUN)</th>
-              <th style="width:14.2%;">จันทร์ (MON)</th>
-              <th style="width:14.2%;">อังคาร (TUE)</th>
-              <th style="width:14.2%;">พุธ (WED)</th>
-              <th style="width:14.2%;">พฤหัสฯ (THU)</th>
-              <th style="width:14.2%;">ศุกร์ (FRI)</th>
-              <th style="color:#3b82f6; width:14.2%;">เสาร์ (SAT)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${weeksList.map(week => `
-              <tr>
-                ${week.map(cell => {
-                  if (cell.day === null) {
-                    return `<td style="background-color: #f8fafc;"></td>`;
-                  }
-                  
-                  return `
-                    <td>
-                      <span class="day-number">${cell.day}</span>
-                      ${cell.holiday ? `<span class="holiday-tag" title="${cell.holiday}">🎉 ${cell.holiday}</span>` : ''}
-                      
-                      ${cell.tasks.slice(0, 2).map(t => `
-                        <div class="task-strip ${t.status === 'completed' ? 'completed' : ''}" title="${t.title}">
-                          ${t.dueTime ? t.dueTime : ''} ${t.title}
-                        </div>
-                      `).join('')}
-                      
-                      ${cell.tasks.length > 2 ? `
-                        <div style="font-size: 7.5px; color:#64748b; font-weight:bold; padding-left: 3px; margin-bottom: 2px;">
-                          และงานอื่น +${cell.tasks.length - 2} รายการ...
-                        </div>
-                      ` : ''}
+        ${bodyContentHtml}
 
-                      ${cell.expenses.slice(0, 2).map(e => `
-                        <div class="expense-strip ${e.paid ? 'completed' : ''}" title="${e.parentName}${e.isInstallment ? ` (งวดที่ ${e.installmentNo}/${e.totalInstallments})` : ''}">
-                          💰 ฿${e.amount.toLocaleString('th-TH')} ${e.parentName}
-                        </div>
-                      `).join('')}
+        ${signatureBlockHtml}
 
-                      ${cell.expenses.length > 2 ? `
-                        <div style="font-size: 7.5px; color:#8b5cf6; font-weight:bold; padding-left: 3px;">
-                          และค่างวดอีก +${cell.expenses.length - 2} บิล...
-                        </div>
-                      ` : ''}
-                    </td>
-                  `;
-                }).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        ${printIncludeList ? `
-          <div class="sub-title">📌 บัญชีรายชื่อกิจกรรม/งานภารกิจกำหนดส่งในรอบเดือนนี้ (Monthly Task Listing)</div>
-          <table class="sched-table">
-            <thead>
-              <tr>
-                <th style="width: 8%; text-align: center;">ลำดับ</th>
-                <th style="width: 15%;">วันที่กำหนดส่ง</th>
-                <th style="width: 45%;">ชื่องานนัดหมาย / ภารกิจหลัก</th>
-                <th style="width: 17%;">หมวดหมู่</th>
-                <th style="width: 15%;">สถานะการทำ</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${scheduledTasks.length === 0 ? `
-                <tr>
-                  <td colspan="5" style="text-align: center; padding: 25px; color:#64748b;">
-                    <i>- เดือนนี้ไม่มีรายการบันทึกงานภารกิจหรือเวลานัดหมายสะสม -</i>
-                  </td>
-                </tr>
-              ` : scheduledTasks.map((t, index) => `
-                <tr>
-                  <td style="text-align: center; font-weight: bold;">${index + 1}</td>
-                  <td>${t.dueDate ? t.dueDate.split('-').reverse().join('/') : '-'} ${t.dueTime ? `⏰ ${t.dueTime}` : ''}</td>
-                  <td><strong>${t.title}</strong>${t.desc ? `<br/><span style="font-size:9px;color:#64748b;">(${t.desc})</span>` : ''}</td>
-                  <td>${t.category}</td>
-                  <td style="font-weight: 600; color: ${t.status === 'completed' ? '#047857' : '#b45309'}">
-                    ${t.status === 'completed' ? '✅ เสร็จสิ้นแล้ว' : '⏳ รอดำเนินการบอร์ด'}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <div class="sub-title">💰 บัญชีรายชื่อบิลและค่างวดผ่อนชำระสะสมในรอบเดือนนี้ (Monthly Bills & Installments)</div>
-          <table class="sched-table">
-            <thead>
-              <tr>
-                <th style="width: 8%; text-align: center;">ลำดับ</th>
-                <th style="width: 15%;">วันที่กำหนดชำระ</th>
-                <th style="width: 45%;">รายการบิล / ค่างวดผ่อนชำระ</th>
-                <th style="width: 17%;">จำนวนเงิน</th>
-                <th style="width: 15%;">สถานะการชำระเงิน</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(() => {
-                const scheduledExps: Array<{ parentName: string; amount: number; paid: boolean; dueDate: string; isInstallment: boolean; installmentNo?: number; totalInstallments?: number; }> = [];
-                expenses.forEach(e => {
-                  if (e.isInstallment && e.installments) {
-                    e.installments.forEach(inst => {
-                      if (inst.dueDate && inst.dueDate.substring(0, 7) === `${printYear}-${printMonth}`) {
-                        scheduledExps.push({
-                          parentName: e.name,
-                          amount: inst.amount,
-                          paid: inst.paid,
-                          dueDate: inst.dueDate,
-                          isInstallment: true,
-                          installmentNo: inst.installmentNo,
-                          totalInstallments: e.totalInstallments
-                        });
-                      }
-                    });
-                  } else {
-                    if (e.dueDate && e.dueDate.substring(0, 7) === `${printYear}-${printMonth}`) {
-                      scheduledExps.push({
-                        parentName: e.name,
-                        amount: e.amount,
-                        paid: e.paid,
-                        dueDate: e.dueDate,
-                        isInstallment: false
-                      });
-                    }
-                  }
-                });
-
-                scheduledExps.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-
-                if (scheduledExps.length === 0) {
-                  return `
-                    <tr>
-                      <td colspan="5" style="text-align: center; padding: 25px; color:#64748b;">
-                        <i>- เดือนนี้ไม่มีรายการบิลค่าใช้จ่ายหรือค่างวดสะสม -</i>
-                      </td>
-                    </tr>
-                  `;
-                }
-
-                return scheduledExps.map((e, index) => `
-                  <tr>
-                    <td style="text-align: center; font-weight: bold;">${index + 1}</td>
-                    <td>${e.dueDate.split('-').reverse().join('/')}</td>
-                    <td>
-                      <strong>${e.parentName}</strong>
-                      ${e.isInstallment ? `<br/><span style="font-size:9px;color:#8b5cf6;font-weight:600;">(ค่างวดผ่อนชำระ งวดที่ ${e.installmentNo}/${e.totalInstallments})</span>` : ''}
-                    </td>
-                    <td style="font-family: monospace; font-weight: bold; color: #1e293b;">฿${e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                    <td style="font-weight: 600; color: ${e.paid ? '#047857' : '#b45309'}">
-                      ${e.paid ? '✅ ชำระเรียบร้อยแล้ว' : '⏳ รอการชำระเงิน'}
-                    </td>
-                  </tr>
-                `).join('');
-              })()}
-            </tbody>
-          </table>
-        ` : ''}
-
-        <div class="signature-box-row">
-          <div class="sign-box">
-            <div class="sign-line"></div>
-            <p style="font-weight: 600; font-size: 11px; margin: 0;">ลงชื่อผู้ออกตารางจัดเตรียม</p>
-            <p style="font-size: 9.5px; color:#64748b; margin-top: 3px;">(............................................................)</p>
-          </div>
-          <div class="sign-box">
-            <div class="sign-line"></div>
-            <p style="font-weight: 600; font-size: 11px; margin: 0;">ลงชื่อผู้ตรวจสอบอนุมัติตาราง</p>
-            <p style="font-size: 9.5px; color:#64748b; margin-top: 3px;">(............................................................)</p>
-          </div>
-        </div>
-
-        <p style="font-size: 9px; color: #94a3b8; text-align: center; margin-top: 50px; border-top: 1px dotted #cbd5e1; padding-top: 10px;">
-          รายงานสรุปวิถีปฏิทินปฏิบัติการอย่างเป็นทางการ เชื่อมโยงผ่าน Firebase Firestore
+        <p style="font-size: 8.5px; color: #94a3b8; text-align: center; margin-top: 35px; border-top: 1px dotted #cbd5e1; padding-top: 8px;">
+          เอกสารรายงานตารางงานและกำหนดการอย่างเป็นทางการ
         </p>
       </body>
       </html>
     `;
+  };
+
+  const handlePrintCalendar = () => {
+    const htmlLayout = generateCalendarPrintHtml();
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
@@ -684,7 +1123,7 @@ export default function CalendarModule({
     iframe.style.height = '0';
     iframe.style.border = '0';
     document.body.appendChild(iframe);
-    
+
     iframe.contentWindow?.document.open();
     iframe.contentWindow?.document.write(htmlLayout);
     iframe.contentWindow?.document.close();
@@ -693,7 +1132,9 @@ export default function CalendarModule({
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
       setTimeout(() => {
-        document.body.removeChild(iframe);
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
       }, 1000);
     }, 400);
 
@@ -833,10 +1274,10 @@ export default function CalendarModule({
         <div className="flex items-center gap-3 self-end sm:self-auto">
           <button
             type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('open-print-modal', { detail: { initialTab: 'calendar' } }))}
-            className="h-10 px-3.5 border border-slate-200 bg-white rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="h-10 px-3.5 border border-slate-200 bg-white rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
           >
-            <Printer className="w-4 h-4 text-slate-500" />
+            <Printer className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>พิมพ์รายงานปฏิทิน / PDF</span>
           </button>
 
@@ -1283,6 +1724,339 @@ export default function CalendarModule({
                 ปิดหน้านี้
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar Print Settings & Live Preview Modal */}
+      {isPrintModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-5 bg-slate-900/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-5xl rounded-3xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] dark:bg-slate-900 dark:border-slate-800 text-left">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 dark:bg-slate-950/80 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <span>สั่งพิมพ์เอกสารตารางงานอย่างมืออาชีพ</span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                      PDF & Print Roster
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    เลือกรูปแบบผังปฏิทิน ตารางเวลา หรือรายงานผู้บริหาร พร้อมสั่งพิมพ์หรือบันทึก PDF A4 ได้ทันที
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsPrintModalOpen(false)}
+                className="w-9 h-9 rounded-xl flex items-center justify-center border border-slate-200 text-slate-400 hover:text-slate-800 bg-white dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-200 transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body: Split 2 Columns */}
+            <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-150 dark:divide-slate-800">
+              
+              {/* Left Column: Configuration Controls (lg:col-span-5) */}
+              <div className="lg:col-span-5 p-4 sm:p-5 space-y-4 bg-slate-50/40 dark:bg-slate-950/20 overflow-y-auto max-h-[68vh] lg:max-h-[72vh]">
+                
+                {/* Section 1: Document Layout Type */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-200">
+                    1. รูปแบบประเภทเอกสาร (Document Type)
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      {
+                        id: 'monthly-grid',
+                        label: '📅 ผังตารางปฏิทินปฏิบัติงานรายเดือน (Monthly Grid)',
+                        desc: 'ตาราง 7 วัน + บัญชีรายชื่อภารกิจและค่างวด เหมาะสำหรับปิดประกาศหรือติดบอร์ด'
+                      },
+                      {
+                        id: 'agenda-timetable',
+                        label: '📋 ตารางเวลาปฏิบัติงานและนัดหมาย (Agenda Timetable)',
+                        desc: 'เรียงตามลำดับเวลาวันต่อวัน พร้อมช่องติ๊กตรวจสอบ (Checklist)'
+                      },
+                      {
+                        id: 'executive-summary',
+                        label: '💼 รายงานสรุปผู้บริหารและค่างวดชำระ (Executive Summary)',
+                        desc: 'การ์ดสรุป KPI สถิติภารกิจและสรุปภาระงบประมาณค่าใช้จ่าย'
+                      },
+                      {
+                        id: 'daily-focus',
+                        label: '📆 กำหนดการเจาะจงเฉพาะวัน (Daily Schedule Focus)',
+                        desc: 'ใบสรุปนัดหมายเจาะจงสำหรับรายวันเฉพาะกิจ'
+                      }
+                    ].map(item => {
+                      const isActive = printDocType === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setPrintDocType(item.id as any);
+                            if (item.id === 'monthly-grid') setPrintOrientation('landscape');
+                            else setPrintOrientation('portrait');
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                            isActive
+                              ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 ring-2 ring-indigo-500/70 dark:border-indigo-500'
+                              : 'border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850'
+                          }`}
+                        >
+                          <div className="font-extrabold text-xs text-slate-800 dark:text-slate-100 flex items-center justify-between">
+                            <span>{item.label}</span>
+                            {isActive && <CheckCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />}
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                            {item.desc}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 2: Time Scope */}
+                <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-200">
+                    2. ช่วงเวลาของเอกสาร (Time Range)
+                  </label>
+
+                  {printDocType === 'daily-focus' ? (
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-500 mb-1">เลือกวันที่เจาะจง:</label>
+                      <input
+                        type="date"
+                        value={printSingleDate}
+                        onChange={(e) => setPrintSingleDate(e.target.value)}
+                        className="w-full h-9 px-3 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-950 dark:text-slate-200"
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-slate-500 mb-1">เดือน:</label>
+                        <select
+                          value={printMonth}
+                          onChange={(e) => setPrintMonth(e.target.value)}
+                          className="w-full h-9 px-2.5 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-950 dark:text-slate-200"
+                        >
+                          {monthNames.map((mn, idx) => (
+                            <option key={mn} value={String(idx + 1).padStart(2, '0')}>{mn}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-slate-500 mb-1">ปี พ.ศ.:</label>
+                        <select
+                          value={printYear}
+                          onChange={(e) => setPrintYear(e.target.value)}
+                          className="w-full h-9 px-2.5 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-950 dark:text-slate-200"
+                        >
+                          {Array.from({ length: 11 }, (_, k) => parseInt(printYear) - 5 + k).map(y => (
+                            <option key={y} value={String(y)}>พ.ศ. {y + 543}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 3: Content Options */}
+                <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2.5">
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-200">
+                    3. ตัวเลือกเนื้อหาและองค์ประกอบ (Content Options)
+                  </label>
+
+                  <div>
+                    <label className="block text-[10.5px] font-bold text-slate-500 mb-1">กรองสถานะงาน:</label>
+                    <select
+                      value={printTaskStatus}
+                      onChange={(e) => setPrintTaskStatus(e.target.value as any)}
+                      className="w-full h-8 px-2.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-slate-950 dark:text-slate-200"
+                    >
+                      <option value="all">ทั้งหมด (All Tasks)</option>
+                      <option value="pending">เฉพาะรอดำเนินการ (Pending Only)</option>
+                      <option value="completed">เฉพาะที่เสร็จสิ้นแล้ว (Completed Only)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printIncludeTasks}
+                        onChange={(e) => setPrintIncludeTasks(e.target.checked)}
+                        className="w-4 h-4 rounded accent-indigo-600"
+                      />
+                      <span>รายการงานภารกิจ</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printIncludeExpenses}
+                        onChange={(e) => setPrintIncludeExpenses(e.target.checked)}
+                        className="w-4 h-4 rounded accent-indigo-600"
+                      />
+                      <span>บิลและค่างวดผ่อน</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printIncludeHolidays}
+                        onChange={(e) => setPrintIncludeHolidays(e.target.checked)}
+                        className="w-4 h-4 rounded accent-indigo-600"
+                      />
+                      <span>วันหยุดราชการ</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printIncludeSignatures}
+                        onChange={(e) => setPrintIncludeSignatures(e.target.checked)}
+                        className="w-4 h-4 rounded accent-indigo-600"
+                      />
+                      <span>ช่องลงลายมือชื่อ</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Section 4: Style & Orientation */}
+                <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-200">
+                    4. จานสีและรูปแบบกระดาษ (Theme & Layout)
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-500 mb-1">การวางกระดาษ A4:</label>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPrintOrientation('landscape')}
+                          className={`flex-1 py-1.5 px-2 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
+                            printOrientation === 'landscape'
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          📄 แนวนอน
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPrintOrientation('portrait')}
+                          className={`flex-1 py-1.5 px-2 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
+                            printOrientation === 'portrait'
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          📄 แนวตั้ง
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-500 mb-1">ธีมสีเอกสาร:</label>
+                      <select
+                        value={printTheme}
+                        onChange={(e) => setPrintTheme(e.target.value as any)}
+                        className="w-full h-8 px-2 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-slate-950 dark:text-slate-200"
+                      >
+                        <option value="official">🏛️ ทางการสถาบัน (Navy)</option>
+                        <option value="slate">💼 ผู้บริหารมินิมอล (Slate)</option>
+                        <option value="emerald">🌿 เอ็มเมอรัลด์ (Emerald)</option>
+                        <option value="monochrome">🖤 ขาวดำประหยัดหมึก (Monochrome)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-500 mb-1">หัวข้อเอกสาร (Document Title):</label>
+                      <input
+                        type="text"
+                        value={printHeaderTitle}
+                        onChange={(e) => setPrintHeaderTitle(e.target.value)}
+                        placeholder="เช่น แผนผังตารางกำหนดการปฏิบัติงานและการนัดหมาย"
+                        className="w-full h-8 px-3 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium bg-slate-50 dark:bg-slate-950 dark:text-slate-200"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-slate-500 mb-1">ชื่อหน่วยงาน / บริษัท (ระบุเพิ่มเติมได้):</label>
+                      <input
+                        type="text"
+                        value={printOrgName}
+                        onChange={(e) => setPrintOrgName(e.target.value)}
+                        placeholder="เช่น แผนกการตลาด / บริษัท เอ็กแซมเปิล จำกัด"
+                        className="w-full h-8 px-3 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium bg-slate-50 dark:bg-slate-950 dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Column: Live Paper Document Preview (lg:col-span-7) */}
+              <div className="lg:col-span-7 p-4 sm:p-5 bg-slate-200/60 dark:bg-slate-950/80 flex flex-col justify-between overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Eye className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <span>ตัวอย่างหน้ากระดาษพิมพ์จริง (Live Document Paper Preview)</span>
+                  </span>
+                  <span className="text-[10px] font-extrabold text-slate-500 bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-full border border-slate-300 dark:border-slate-800">
+                    A4 ({printOrientation === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'})
+                  </span>
+                </div>
+
+                {/* Paper Canvas Frame */}
+                <div className="flex-1 bg-white border border-slate-300 shadow-lg rounded-xl overflow-y-auto max-h-[58vh] lg:max-h-[62vh] p-2 dark:bg-white dark:border-slate-300">
+                  <iframe
+                    srcDoc={generateCalendarPrintHtml()}
+                    title="Live Print Preview"
+                    className="w-full h-[600px] border-none bg-white"
+                  />
+                </div>
+
+                <p className="text-[10.5px] text-slate-500 dark:text-slate-400 text-center mt-3">
+                  💡 <strong>คำแนะนำการพิมพ์:</strong> สามารถคลิกปุ่มด้านล่างเพื่อเปิดหน้าต่างพิมพ์ของเบราว์เซอร์ และเลือกเครื่องพิมพ์จริง หรือบันทึกเป็นไฟล์ PDF ได้ทันที
+                </p>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2 dark:bg-slate-950 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="h-10 px-5 border border-slate-200 bg-white rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-850 transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintCalendar}
+                className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>สั่งพิมพ์ / บันทึกเอกสารเป็น PDF (Print or Save PDF)</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}

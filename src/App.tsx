@@ -49,7 +49,7 @@ import {
   Scale
 } from 'lucide-react';
 import { Task, Expense, AppSettings, CustomMenuLink, Announcement } from './types';
-import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
+import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor, getDarkToneFromColor } from './themePresets';
 
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { updateEmail, updatePassword } from 'firebase/auth';
@@ -297,6 +297,7 @@ export default function App() {
   const [editingAnnounceId, setEditingAnnounceId] = useState<string | null>(null);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
   const [showAnnounceModalId, setShowAnnounceModalId] = useState<string | null>(null);
+  const [presetCategoryFilter, setPresetCategoryFilter] = useState<string>('all');
 
   // Manage visibility of iframe frame security guidelines banner and handle auto-popup for restricted sites
   useEffect(() => {
@@ -1924,6 +1925,9 @@ export default function App() {
       colorSidebarActive: preset.colorSidebarActive,
       colorBgAppStart: preset.colorBgAppStart,
       colorBgAppEnd: preset.colorBgAppEnd,
+      darkColorBgAppStart: preset.darkColorBgAppStart || '#0f172a',
+      darkColorBgAppEnd: preset.darkColorBgAppEnd || '#020617',
+      darkColorSidebarBg: preset.darkColorSidebarBg || '#0b0f19',
       bgType: preset.bgType
     };
     if (tempSettings) {
@@ -1939,14 +1943,17 @@ export default function App() {
       // Auto-compute harmonious sub colors
       const hover = getDarkerColor(color, 12);
       const light = getLighterColor(color, 85);
+      const darkStart = getDarkToneFromColor(color, 90);
+      const darkEnd = getDarkToneFromColor(color, 96);
       
       const updated = {
         ...baseToUse,
         colorAccent: color,
         colorAccentHover: hover,
         colorAccentLight: light,
-        // Match sidebar values dynamically to look cohesive
-        colorSidebarActive: color
+        colorSidebarActive: color,
+        darkColorBgAppStart: darkStart,
+        darkColorBgAppEnd: darkEnd,
       };
       if (tempSettings) {
         setTempSettings(updated);
@@ -2132,7 +2139,13 @@ export default function App() {
     root.style.setProperty('--accent-hover', settings.colorAccentHover);
     root.style.setProperty('--accent-light', settings.colorAccentLight);
     root.style.setProperty('--accent-text', settings.colorAccentText);
-    root.style.setProperty('--sidebar-bg', settings.colorSidebarBg);
+    
+    if (settings.darkMode && settings.darkColorSidebarBg) {
+      root.style.setProperty('--sidebar-bg', settings.darkColorSidebarBg);
+    } else {
+      root.style.setProperty('--sidebar-bg', settings.colorSidebarBg);
+    }
+
     root.style.setProperty('--sidebar-text', settings.colorSidebarText);
     root.style.setProperty('--sidebar-active', settings.colorSidebarActive);
   }, [settings]);
@@ -2140,24 +2153,48 @@ export default function App() {
   // Handle application applet background styles
   const getAppStyleBackground = (): React.CSSProperties => {
     if (settings.bgStyle === 'indigo') {
+      if (settings.darkMode) {
+        return { background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #020617 100%)' };
+      }
       return { background: 'linear-gradient(135deg, #f0f4ff 0%, #e8edff 50%, #f0e8ff 100%)' };
     } else if (settings.bgStyle === 'slate') {
+      if (settings.darkMode) {
+        return { background: 'linear-gradient(135deg, #0f172a 0%, #020617 100%)' };
+      }
       return { background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)' };
     } else if (settings.bgStyle === 'custom' && settings.customBgUrl) {
+      if (settings.darkMode) {
+        return {
+          backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.85), rgba(2, 6, 23, 0.9)), url('${settings.customBgUrl}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed'
+        };
+      }
       return {
         backgroundImage: `url('${settings.customBgUrl}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed'
       };
-    } else if (settings.bgStyle === 'theme-custom') {
-      if (settings.bgType === 'gradient') {
-        return { background: `linear-gradient(135deg, ${settings.colorBgAppStart} 0%, ${settings.colorBgAppEnd} 100%)` };
+    } else if (settings.bgStyle === 'theme-custom' || !settings.bgStyle) {
+      if (settings.darkMode) {
+        const darkStart = settings.darkColorBgAppStart || '#0f172a';
+        const darkEnd = settings.darkColorBgAppEnd || '#020617';
+        if (settings.bgType === 'gradient') {
+          return { background: `linear-gradient(135deg, ${darkStart} 0%, ${darkEnd} 100%)` };
+        } else {
+          return { backgroundColor: darkStart };
+        }
       } else {
-        return { backgroundColor: settings.colorBgAppStart };
+        if (settings.bgType === 'gradient') {
+          return { background: `linear-gradient(135deg, ${settings.colorBgAppStart} 0%, ${settings.colorBgAppEnd} 100%)` };
+        } else {
+          return { backgroundColor: settings.colorBgAppStart };
+        }
       }
     }
-    return { backgroundColor: '#f8fafc' };
+    return settings.darkMode ? { backgroundColor: '#0f172a' } : { backgroundColor: '#f8fafc' };
   };
 
   // Render application notifications indicators summary
@@ -3679,32 +3716,87 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Section 2: Colors */}
-                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-4">
-                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-800">
-                              <span>🎨</span> จานสีกำหนดเองทั้งหน้าต่าง (Theme Color Customizer)
-                            </h4>
-                            
+                          {/* Section 2: Colors & Dark Mode Customizer */}
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-5">
+                            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-3">
+                              <div>
+                                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                  <span className="text-base">🎨</span> ชุดจานสีกำหนดเอง & โหมดมืดอัจฉริยะ (Theme & Dark Mode Customizer)
+                                </h4>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                  ปรับแต่งโทนสีแบรนด์, ปุ่มเน้น, และโทนสีพื้นหลังโหมดมืดได้อย่างอิสระ ทันสมัย สบายตา
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Preset Categories */}
                             <div>
-                              <label className="block text-[11px] font-bold text-slate-500 mb-2 dark:text-slate-400">เลือกชุดจานสีพรีเซ็ตสำเร็จรูป (Theme Presets)</label>
-                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                {THEME_PRESETS.map(preset => {
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  เลือกชุดจานสีพรีเซ็ตสำเร็จรูป (Theme Presets)
+                                </label>
+                                <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full">
+                                  {THEME_PRESETS.length} ธีมพร้อมใช้งาน
+                                </span>
+                              </div>
+
+                              {/* Category Filter Pills */}
+                              <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+                                {[
+                                  { id: 'all', label: 'ทั้งหมด' },
+                                  { id: 'executive', label: '🔥 ผู้บริหาร' },
+                                  { id: 'dark', label: '🌙 มืดถนอมสายตา' },
+                                  { id: 'vibrant', label: '🎨 สดใส' },
+                                  { id: 'nature', label: '🌿 ธรรมชาติ' },
+                                  { id: 'cyber', label: '⚡ ไซเบอร์' },
+                                  { id: 'pastel', label: '🌸 พาสเทล' },
+                                ].map(cat => (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    onClick={() => setPresetCategoryFilter(cat.id)}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all whitespace-nowrap cursor-pointer ${
+                                      presetCategoryFilter === cat.id
+                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850'
+                                    }`}
+                                  >
+                                    {cat.label}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Presets Grid */}
+                              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 max-h-64 overflow-y-auto p-1">
+                                {THEME_PRESETS.filter(p => presetCategoryFilter === 'all' || p.category === presetCategoryFilter).map(preset => {
                                   const isActive = (tempSettings || settings).themePreset === preset.id;
                                   return (
                                     <button
                                       key={preset.id}
                                       type="button"
                                       onClick={() => applyThemePreset(preset.id)}
-                                      className={`p-2.5 rounded-xl border text-left text-[11px] font-bold transition-all relative overflow-hidden cursor-pointer ${
+                                      className={`p-2.5 rounded-xl border text-left text-[10.5px] font-bold transition-all relative overflow-hidden cursor-pointer flex flex-col justify-between ${
                                         isActive 
-                                          ? 'border-accent bg-accent/5 ring-1 ring-accent' 
-                                          : 'border-slate-200 bg-white hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950'
+                                          ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/80 shadow-xs' 
+                                          : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/90 dark:hover:bg-slate-850'
                                       }`}
-                                      style={isActive ? { '--accent': (tempSettings || settings).colorAccent } as React.CSSProperties : {}}
                                     >
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: preset.colorAccent }} />
-                                        <span className="truncate text-slate-700 dark:text-slate-300">{preset.nameTh}</span>
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-3 h-3 rounded-full flex-shrink-0 border border-black/10 shadow-xs" style={{ backgroundColor: preset.colorAccent }} />
+                                          <span className="truncate text-slate-800 dark:text-slate-200 font-extrabold">{preset.nameTh}</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-150/60 dark:border-slate-800">
+                                        <span className="flex items-center gap-1">
+                                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: preset.colorBgAppStart }} />
+                                          <span>สว่าง</span>
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: preset.darkColorBgAppStart || '#0f172a' }} />
+                                          <span>มืด</span>
+                                        </span>
                                       </div>
                                     </button>
                                   );
@@ -3712,23 +3804,67 @@ export default function App() {
                               </div>
                             </div>
 
-                            <div className="p-3 bg-blue-50/70 border border-blue-150 rounded-xl flex items-center justify-between dark:bg-blue-950/20 dark:border-blue-900/60">
+                            {/* Quick Accent Swatches */}
+                            <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl space-y-2">
+                              <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-300">
+                                ⚡ สลับสีเน้นหลักอย่างรวดเร็ว (Quick Accent Color Picker)
+                              </label>
+                              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                                {[
+                                  { color: '#2563eb', name: 'Blue' },
+                                  { color: '#059669', name: 'Emerald' },
+                                  { color: '#7c3aed', name: 'Violet' },
+                                  { color: '#db2777', name: 'Rose' },
+                                  { color: '#ea580c', name: 'Orange' },
+                                  { color: '#d97706', name: 'Amber' },
+                                  { color: '#0891b2', name: 'Cyan' },
+                                  { color: '#10b981', name: 'Mint' },
+                                  { color: '#6366f1', name: 'Indigo' },
+                                  { color: '#f43f5e', name: 'Crimson' },
+                                  { color: '#475569', name: 'Slate' },
+                                  { color: '#0d9488', name: 'Teal' },
+                                ].map(swatch => (
+                                  <button
+                                    key={swatch.color}
+                                    type="button"
+                                    onClick={() => handleAccentColorChangeInput(swatch.color)}
+                                    title={swatch.name}
+                                    className={`w-6 h-6 rounded-full flex-shrink-0 transition-transform cursor-pointer border-2 ${
+                                      (tempSettings || settings).colorAccent === swatch.color
+                                        ? 'scale-125 border-slate-900 dark:border-white ring-2 ring-indigo-400'
+                                        : 'border-transparent hover:scale-110'
+                                    }`}
+                                    style={{ backgroundColor: swatch.color }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Harmonious Mode Toggle */}
+                            <div className="p-3 bg-indigo-50/80 border border-indigo-150 rounded-xl flex items-center justify-between dark:bg-indigo-950/30 dark:border-indigo-900/60">
                               <div className="text-left">
-                                <h4 className="text-[11px] font-bold text-blue-800 dark:text-blue-400">โหมดคำนวณสีอัตโนมัติ (Harmonious Mode)</h4>
-                                <p className="text-[9px] text-blue-600 dark:text-blue-400/80">ระบบจะช่วยคำนวณและปรับโทนปุ่มโฮเวอร์รวมถึงส่วนต่างๆ ให้เข้ากับสีเน้นหลักโดยอัตโนมัติ</p>
+                                <h4 className="text-[11px] font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                                  <span>✨</span> โหมดคำนวณสีอัตโนมัติ (Harmonious Auto-Color Mode)
+                                </h4>
+                                <p className="text-[9.5px] text-indigo-700 dark:text-indigo-400/90 mt-0.5">
+                                  ระบบจะคำนวณและปรับโทนปุ่มโฮเวอร์ แถบไฮไลต์ และโทนสีดาร์กโหมดให้แมตช์เข้ากันโดยอัตโนมัติ
+                                </p>
                               </div>
                               <input
                                 type="checkbox"
                                 checked={harmoniousMode}
                                 onChange={(e) => setHarmoniousMode(e.target.checked)}
-                                className="w-4 h-4 cursor-pointer accent-blue-600"
+                                className="w-4 h-4 cursor-pointer accent-indigo-600"
                               />
                             </div>
 
+                            {/* Detailed Custom Color Pickers */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                               {/* Color 1 */}
                               <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">สีเน้นหลักระบบ (Primary Accent)</label>
+                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                                  สีเน้นหลักระบบ (Primary Accent)
+                                </label>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="color"
@@ -3741,14 +3877,16 @@ export default function App() {
                                     maxLength={7}
                                     value={(tempSettings || settings).colorAccent}
                                     onChange={(e) => handleAccentColorChangeInput(e.target.value)}
-                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                    className="w-20 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
                                   />
                                 </div>
                               </div>
 
                               {/* Color 2 */}
                               <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">ปุ่มโฮเวอร์ (Hover Accent)</label>
+                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                                  ปุ่มโฮเวอร์ (Hover Accent)
+                                </label>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="color"
@@ -3767,14 +3905,16 @@ export default function App() {
                                       if (tempSettings) setTempSettings({ ...tempSettings, colorAccentHover: e.target.value });
                                     }}
                                     disabled={harmoniousMode}
-                                    className={`w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 ${harmoniousMode ? 'text-slate-400' : 'dark:text-slate-300'}`}
+                                    className={`w-20 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 ${harmoniousMode ? 'text-slate-400' : 'dark:text-slate-300'}`}
                                   />
                                 </div>
                               </div>
 
-                              {/* Color 3 */}
+                              {/* Color 3: Light Background */}
                               <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">พื้นหลังแอป (App Background)</label>
+                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                                  พื้นหลังโหมดสว่าง (Light Mode App Bg)
+                                </label>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="color"
@@ -3791,52 +3931,42 @@ export default function App() {
                                     onChange={(e) => {
                                       if (tempSettings) setTempSettings({ ...tempSettings, colorBgAppStart: e.target.value });
                                     }}
-                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                    className="w-20 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
                                   />
                                 </div>
                               </div>
 
-                              {/* Color 4 */}
+                              {/* Color 4: Dark Background */}
                               <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
-                                <div className="flex items-center justify-between mb-1">
-                                  <label className="text-[10px] font-bold text-slate-400">สีท้ายไล่โทน (Gradient End)</label>
-                                  <select
-                                    value={(tempSettings || settings).bgType || 'gradient'}
-                                    onChange={(e) => {
-                                      if (tempSettings) setTempSettings({ ...tempSettings, bgType: e.target.value as any });
-                                    }}
-                                    className="text-[9px] font-bold text-slate-450 border border-slate-200 rounded bg-white dark:bg-slate-900 dark:border-slate-800"
-                                  >
-                                    <option value="gradient">ไล่เฉด</option>
-                                    <option value="solid">สีเดียว</option>
-                                  </select>
-                                </div>
+                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                                  <span>🌙</span> พื้นหลังโหมดมืด (Dark Mode App Bg)
+                                </label>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="color"
-                                    value={(tempSettings || settings).colorBgAppEnd}
+                                    value={(tempSettings || settings).darkColorBgAppStart || '#0f172a'}
                                     onChange={(e) => {
-                                      if (tempSettings) setTempSettings({ ...tempSettings, colorBgAppEnd: e.target.value });
+                                      if (tempSettings) setTempSettings({ ...tempSettings, darkColorBgAppStart: e.target.value });
                                     }}
-                                    disabled={(tempSettings || settings).bgType === 'solid'}
-                                    className={`w-8 h-8 border border-slate-350 rounded p-0 ${(tempSettings || settings).bgType === 'solid' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                                    className="w-8 h-8 border border-slate-350 rounded cursor-pointer p-0"
                                   />
                                   <input
                                     type="text"
                                     maxLength={7}
-                                    value={(tempSettings || settings).colorBgAppEnd}
+                                    value={(tempSettings || settings).darkColorBgAppStart || '#0f172a'}
                                     onChange={(e) => {
-                                      if (tempSettings) setTempSettings({ ...tempSettings, colorBgAppEnd: e.target.value });
+                                      if (tempSettings) setTempSettings({ ...tempSettings, darkColorBgAppStart: e.target.value });
                                     }}
-                                    disabled={(tempSettings || settings).bgType === 'solid'}
-                                    className={`w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 ${(tempSettings || settings).bgType === 'solid' ? 'text-slate-400' : 'dark:text-slate-300'}`}
+                                    className="w-20 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
                                   />
                                 </div>
                               </div>
 
-                              {/* Color 5 */}
+                              {/* Color 5: Light Sidebar */}
                               <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">พื้นหลังเมนูด้านซ้าย (Sidebar Bg)</label>
+                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+                                  เมนูซ้ายโหมดสว่าง (Light Sidebar Bg)
+                                </label>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="color"
@@ -3853,32 +3983,82 @@ export default function App() {
                                     onChange={(e) => {
                                       if (tempSettings) setTempSettings({ ...tempSettings, colorSidebarBg: e.target.value });
                                     }}
-                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                    className="w-20 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
                                   />
                                 </div>
                               </div>
 
-                              {/* Color 6 */}
+                              {/* Color 6: Dark Sidebar */}
                               <div className="p-3 bg-white border border-slate-150 rounded-xl dark:bg-slate-900 dark:border-slate-800">
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1.5">ฟอนต์และไอคอนเมนูด้านซ้าย (Sidebar Text)</label>
+                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                                  <span>🌙</span> เมนูซ้ายโหมดมืด (Dark Sidebar Bg)
+                                </label>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="color"
-                                    value={(tempSettings || settings).colorSidebarText}
+                                    value={(tempSettings || settings).darkColorSidebarBg || '#0b0f19'}
                                     onChange={(e) => {
-                                      if (tempSettings) setTempSettings({ ...tempSettings, colorSidebarText: e.target.value });
+                                      if (tempSettings) setTempSettings({ ...tempSettings, darkColorSidebarBg: e.target.value });
                                     }}
                                     className="w-8 h-8 border border-slate-350 rounded cursor-pointer p-0"
                                   />
                                   <input
                                     type="text"
                                     maxLength={7}
-                                    value={(tempSettings || settings).colorSidebarText}
+                                    value={(tempSettings || settings).darkColorSidebarBg || '#0b0f19'}
                                     onChange={(e) => {
-                                      if (tempSettings) setTempSettings({ ...tempSettings, colorSidebarText: e.target.value });
+                                      if (tempSettings) setTempSettings({ ...tempSettings, darkColorSidebarBg: e.target.value });
                                     }}
-                                    className="w-16 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
+                                    className="w-20 font-mono text-[11px] text-slate-700 bg-slate-50 border border-slate-200 p-1 rounded dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
                                   />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Live Preview Card */}
+                            <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl space-y-2">
+                              <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <span>👁️</span> ตัวอย่างการแสดงผลจริง (Live Palette Preview)
+                              </label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                {/* Light Mode Preview Card */}
+                                <div 
+                                  className="p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2 text-left"
+                                  style={{ backgroundColor: (tempSettings || settings).colorBgAppStart || '#f8fafc' }}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-extrabold text-slate-700">☀️ โหมดสว่าง (Light)</span>
+                                    <span 
+                                      className="text-[9px] font-bold px-2 py-0.5 rounded-full text-white"
+                                      style={{ backgroundColor: (tempSettings || settings).colorAccent }}
+                                    >
+                                      ป้ายกำกับ
+                                    </span>
+                                  </div>
+                                  <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-2xs space-y-1">
+                                    <p className="text-[11px] font-bold text-slate-800">ตัวอย่างภารกิจงานปรกติ</p>
+                                    <p className="text-[9.5px] text-slate-500">ทดสอบโทนสีเน้นและพื้นหลังการ์ดงาน</p>
+                                  </div>
+                                </div>
+
+                                {/* Dark Mode Preview Card */}
+                                <div 
+                                  className="p-3 rounded-xl border border-slate-800 shadow-2xs space-y-2 text-left"
+                                  style={{ backgroundColor: (tempSettings || settings).darkColorBgAppStart || '#0f172a' }}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-extrabold text-slate-200">🌙 โหมดมืด (Dark)</span>
+                                    <span 
+                                      className="text-[9px] font-bold px-2 py-0.5 rounded-full text-white"
+                                      style={{ backgroundColor: (tempSettings || settings).colorAccent }}
+                                    >
+                                      ป้ายกำกับ
+                                    </span>
+                                  </div>
+                                  <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 shadow-2xs space-y-1">
+                                    <p className="text-[11px] font-bold text-slate-100">ตัวอย่างภารกิจงานปรกติ</p>
+                                    <p className="text-[9.5px] text-slate-400">ทดสอบโทนสีเน้นและพื้นหลังการ์ดงาน</p>
+                                  </div>
                                 </div>
                               </div>
                             </div>

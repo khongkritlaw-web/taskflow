@@ -69,6 +69,7 @@ export interface Announcement {
   visibility: 'all' | 'specific';
   allowedUsers?: string[];
   createdAt: string;
+  author?: string;
   isActive: boolean;
 }
 
@@ -104,6 +105,9 @@ export interface AppSettings {
   colorSidebarActive: string;
   colorBgAppStart: string;
   colorBgAppEnd: string;
+  darkColorBgAppStart?: string;
+  darkColorBgAppEnd?: string;
+  darkColorSidebarBg?: string;
   bgType: 'solid' | 'gradient'; // 'solid' or 'gradient'
   customMenuLinks?: CustomMenuLink[];
   settingsPassword?: string;
