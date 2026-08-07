@@ -132,6 +132,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [selectedReceiptForPreview, setSelectedReceiptForPreview] = useState<ReceiptDoc | null>(null);
+  const [isPreviewUnsaved, setIsPreviewUnsaved] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [themeStyle, setThemeStyle] = useState<'navy' | 'slate' | 'emerald' | 'monochrome'>('navy');
 
@@ -317,14 +318,9 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setRefNo(`TASK-${task.id}`);
   };
 
-  // Save / Update Receipt
-  const handleSaveReceipt = () => {
-    if (!customerName.trim()) {
-      alert('กรุณากรอกชื่อผู้รับบริการ / ลูกค้า');
-      return;
-    }
-
-    const doc: ReceiptDoc = {
+  // Helper to build document from current form state
+  const buildCurrentDoc = (): ReceiptDoc => {
+    return {
       id: editingId || Date.now().toString(),
       receiptNo: receiptNo || generateAutoNo(docType),
       docType,
@@ -368,6 +364,28 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       createdAt: new Date().toISOString(),
       status: 'active'
     };
+  };
+
+  // Preview only (Does NOT save history until user prints or saves)
+  const handlePreviewOnly = () => {
+    if (!customerName.trim()) {
+      alert('กรุณากรอกชื่อผู้รับบริการ / ลูกค้า');
+      return;
+    }
+
+    const doc = buildCurrentDoc();
+    setIsPreviewUnsaved(true);
+    setSelectedReceiptForPreview(doc);
+  };
+
+  // Save / Update Receipt to History
+  const handleSaveReceipt = () => {
+    if (!customerName.trim()) {
+      alert('กรุณากรอกชื่อผู้รับบริการ / ลูกค้า');
+      return;
+    }
+
+    const doc = buildCurrentDoc();
 
     if (editingId) {
       setReceipts(receipts.map(r => r.id === editingId ? doc : r));
@@ -375,6 +393,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       setReceipts([doc, ...receipts]);
     }
 
+    setIsPreviewUnsaved(false);
     setSaveSuccessMsg(true);
     setTimeout(() => setSaveSuccessMsg(false), 3000);
 
@@ -461,6 +480,20 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
 
   // Print Document Trigger
   const handlePrint = (doc: ReceiptDoc) => {
+    if (isPreviewUnsaved) {
+      setReceipts(prev => {
+        const exists = prev.some(r => r.id === doc.id);
+        if (exists) {
+          return prev.map(r => r.id === doc.id ? doc : r);
+        } else {
+          return [doc, ...prev];
+        }
+      });
+      setIsPreviewUnsaved(false);
+      setSaveSuccessMsg(true);
+      setTimeout(() => setSaveSuccessMsg(false), 3000);
+    }
+
     setSelectedReceiptForPreview(doc);
     setShowPrintModal(true);
     setTimeout(() => {
@@ -1113,7 +1146,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               {/* Quick Preview Button */}
               <button
                 type="button"
-                onClick={handleSaveReceipt}
+                onClick={handlePreviewOnly}
                 className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <Eye className="w-4 h-4" />
@@ -1268,7 +1301,15 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                 <div className="flex items-center gap-3">
                   <Printer className="w-5 h-5 text-indigo-400" />
                   <div>
-                    <h3 className="text-sm font-extrabold text-white">ตัวอย่างเอกสารขนาด A4 ก่อนสั่งพิมพ์</h3>
+                    <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                      <span>ตัวอย่างเอกสารขนาด A4 ก่อนสั่งพิมพ์</span>
+                      {isPreviewUnsaved && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 text-amber-400" />
+                          ยังไม่บันทึกประวัติ (จะบันทึกเมื่อสั่งพิมพ์)
+                        </span>
+                      )}
+                    </h3>
                     <p className="text-[10px] text-slate-400 font-mono">เลขที่: {selectedReceiptForPreview.receiptNo}</p>
                   </div>
                 </div>
@@ -1280,12 +1321,15 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <span>สั่งพิมพ์ / บันทึก PDF (A4)</span>
+                    <span>{isPreviewUnsaved ? 'สั่งพิมพ์และบันทึกเอกสาร (A4)' : 'สั่งพิมพ์ / บันทึก PDF (A4)'}</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setSelectedReceiptForPreview(null)}
+                    onClick={() => {
+                      setSelectedReceiptForPreview(null);
+                      setIsPreviewUnsaved(false);
+                    }}
                     className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
                   >
                     <X className="w-5 h-5" />
