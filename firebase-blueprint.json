@@ -149,12 +149,31 @@
         "bgType": { "type": "string" },
         "customMenuLinks": { "type": "array" }
       }
+    },
+    "Note": {
+      "title": "Note",
+      "description": "User personal note-taking entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "details": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "userId"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile records containing account login details"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": "Note",
+      "description": "User personal offline-first notepad and records database"
     },
     "/users/{userId}/tasks/{taskId}": {
       "schema": "Task",

@@ -74,8 +74,12 @@ interface Announcement {
   id: string;
   title: string;
   content: string;
+  imageUrl?: string;
+  visibility?: 'all' | 'specific';
+  allowedUsers?: string[];
   createdAt: string;
-  author: string;
+  author?: string;
+  isActive?: boolean;
 }
 
 interface ChatMessage {
@@ -181,6 +185,9 @@ export default function AdminPanel({
   // Announcement form state
   const [annTitle, setAnnTitle] = useState('');
   const [annContent, setAnnContent] = useState('');
+  const [annImageUrl, setAnnImageUrl] = useState('');
+  const [annVisibility, setAnnVisibility] = useState<'all' | 'specific'>('all');
+  const [annAllowedUsers, setAnnAllowedUsers] = useState<string[]>([]);
   const [isPostingAnn, setIsPostingAnn] = useState(false);
 
   // Selected Chat Thread
@@ -447,23 +454,50 @@ export default function AdminPanel({
   const handlePublishAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!annTitle.trim() || !annContent.trim()) {
-      await triggerAlert('โปรดระบุหัวข้อข่าวรายละเอียดประกาศให้ครบถ้วนก่อนโพสต์ค่ะ', 'warning');
+      await triggerAlert('โปรดระบุหัวข้อและรายละเอียดประกาศให้ครบถ้วนก่อนโพสต์ค่ะ', 'warning');
       return;
     }
 
     setIsPostingAnn(true);
     try {
-      const docRef = await addDoc(collection(db, 'announcements'), {
+      const annId = Date.now().toString();
+      const newAnnData = {
+        id: annId,
         title: annTitle.trim(),
         content: annContent.trim(),
+        imageUrl: annImageUrl.trim(),
+        visibility: annVisibility,
+        allowedUsers: annVisibility === 'specific' ? annAllowedUsers : [],
         createdAt: new Date().toISOString(),
-        author: 'admin'
-      });
+        author: sessionUser?.displayName || 'แอดมินผู้ดูแลระบบ',
+        isActive: true
+      };
+
+      // 1. Add to Firestore collection 'announcements'
+      await setDoc(doc(db, 'announcements', annId), newAnnData);
+
+      // 2. Sync to 'users/admin/settings/app' document
+      const adminSettingsRef = doc(db, 'users', 'admin', 'settings', 'app');
+      const adminSettingsSnap = await getDoc(adminSettingsRef);
+      if (adminSettingsSnap.exists()) {
+        const existing = adminSettingsSnap.data().announcements || [];
+        await updateDoc(adminSettingsRef, {
+          announcements: [newAnnData, ...existing.filter((a: any) => a.id !== annId)]
+        });
+      } else {
+        await setDoc(adminSettingsRef, {
+          announcements: [newAnnData]
+        }, { merge: true });
+      }
+
       setAnnTitle('');
       setAnnContent('');
-      await triggerAlert('ลงทะเบียนแจ้งประกาศข่าวสารบอร์ดบริหารสำเร็จเรียบร้อยค่ะ!', 'success');
+      setAnnImageUrl('');
+      setAnnVisibility('all');
+      setAnnAllowedUsers([]);
+      await triggerAlert('ส่งข่าวสารประชาสัมพันธ์สำเร็จเรียบร้อยค่ะ! ระบบได้แจ้งเตือนเข้ากระดิ่งและจะเด้งป๊อบอัพที่หน้าจอผู้ใช้ทันที', 'success');
     } catch (err) {
-      console.error('Failed to build announcement:', err);
+      console.error('Failed to publish announcement:', err);
       await triggerAlert('เกิดปัญหาไม่สามารถโพสต์ประกาศในระบบได้ กรุณาลองใหม่อีกครั้งค่ะ', 'error');
     } finally {
       setIsPostingAnn(false);
@@ -481,6 +515,13 @@ export default function AdminPanel({
 
     try {
       await deleteDoc(doc(db, 'announcements', id));
+      const adminSettingsRef = doc(db, 'users', 'admin', 'settings', 'app');
+      const adminSettingsSnap = await getDoc(adminSettingsRef);
+      if (adminSettingsSnap.exists()) {
+        const existing = adminSettingsSnap.data().announcements || [];
+        const updated = existing.filter((a: any) => a.id !== id);
+        await updateDoc(adminSettingsRef, { announcements: updated });
+      }
       await triggerAlert('ลบโพสต์ข่าวสารประกาศเสร็จสิ้น', 'success');
     } catch (err) {
       await triggerAlert('ลบข่าวสารประกาศไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'error');
@@ -930,54 +971,164 @@ export default function AdminPanel({
 
             {/* RIGHT COLUMN: Announcements Creator */}
             <div className="lg:col-span-5">
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm dark:bg-slate-900 dark:border-slate-800">
-                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
-                  <Megaphone className="w-5 h-5 text-indigo-500" />
-                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                    📢 ประกาศและกระจายข่าวสารผู้จัดการใหม่
-                  </h3>
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm dark:bg-slate-900 dark:border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Megaphone className="w-5 h-5 text-indigo-500 animate-bounce" />
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                        📢 ประกาศและกระจายข่าวสารผู้จัดการใหม่
+                      </h3>
+                      <p className="text-[9.5px] text-slate-400 mt-0.5">
+                        เด้งป๊อบอัพหน้าจอผู้ใช้ + แจ้งเตือนผ่านกระดิ่งทันที
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <form onSubmit={handlePublishAnnouncement} className="space-y-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">หัวข้อประกาศบอร์ดบริหาร</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">หัวข้อประกาศบอร์ดบริหาร <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       required
                       value={annTitle}
                       onChange={(e) => setAnnTitle(e.target.value)}
-                      placeholder="เช่น ประกาศปิดปรับปรุงระบบคืนค่าชำระ หรือ ดีลงานใหญ่..."
+                      placeholder="เช่น ประกาศปิดปรับปรุงระบบ หรือ แจ้งเปลี่ยนกำหนดส่งงาน..."
                       className="w-full h-10 px-3 text-xs font-semibold rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-400 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">รายละเอียดข้อความสารสนเทศ</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">รายละเอียดข้อความสารสนเทศ <span className="text-rose-500">*</span></label>
                     <textarea
                       required
-                      rows={4}
+                      rows={3}
                       value={annContent}
                       onChange={(e) => setAnnContent(e.target.value)}
-                      placeholder="พิมพ์ข้อความที่แอดมินต้องการแจ้งให้ทุกคนเห็นได้ที่นี่..."
+                      placeholder="พิมพ์ข้อความรายละเอียดข่าวสารที่แอดมินต้องการสื่อสารให้ผู้ใช้งานเห็น..."
                       className="w-full p-3 text-xs font-semibold rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-400 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 resize-none leading-relaxed"
                     />
+                  </div>
+
+                  {/* Image Attachment */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">รูปภาพประกอบประกาศ (อัปโหลดหรือแนบลิงก์)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={annImageUrl}
+                        onChange={(e) => setAnnImageUrl(e.target.value)}
+                        placeholder="วาง URL รูปภาพ เช่น https://..."
+                        className="flex-1 h-9 px-3 text-[11px] font-semibold rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-400 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100"
+                      />
+                      <label className="h-9 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black flex items-center gap-1 cursor-pointer transition-all shrink-0">
+                        <UploadCloud className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>เลือกรูป</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                setAnnImageUrl(event.target?.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {annImageUrl && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 h-28 bg-slate-50 dark:bg-slate-950 flex items-center justify-center group">
+                        <img src={annImageUrl} alt="Announcement Preview" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                        <button
+                          type="button"
+                          onClick={() => setAnnImageUrl('')}
+                          className="absolute top-2 right-2 p-1 bg-rose-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Target Audience / Visibility */}
+                  <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-850">
+                    <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">กลุ่มเป้าหมายผู้รับประกาศ</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnnVisibility('all');
+                          setAnnAllowedUsers([]);
+                        }}
+                        className={`h-8 rounded-xl text-[10.5px] font-extrabold transition-all flex items-center justify-center gap-1.5 border ${
+                          annVisibility === 'all'
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                        }`}
+                      >
+                        🌐 ผู้ใช้ทุกคน ({users.length} คน)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAnnVisibility('specific')}
+                        className={`h-8 rounded-xl text-[10.5px] font-extrabold transition-all flex items-center justify-center gap-1.5 border ${
+                          annVisibility === 'specific'
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                        }`}
+                      >
+                        🎯 เฉพาะบางคน ({annAllowedUsers.length})
+                      </button>
+                    </div>
+
+                    {annVisibility === 'specific' && (
+                      <div className="mt-2 space-y-1 max-h-32 overflow-y-auto p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                        {users.filter(u => u.userId !== 'admin').map(u => {
+                          const isSelected = annAllowedUsers.includes(u.userId);
+                          return (
+                            <label key={u.userId} className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAnnAllowedUsers([...annAllowedUsers, u.userId]);
+                                  } else {
+                                    setAnnAllowedUsers(annAllowedUsers.filter(id => id !== u.userId));
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                              />
+                              <span className="truncate">{u.displayName || u.email || `@${u.userId}`}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <button
                     type="submit"
                     disabled={isPostingAnn}
-                    className="w-full h-10 rounded-xl font-bold text-xs text-white transition-all hover:brightness-105 hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 shadow-md disabled:bg-slate-350"
+                    className="w-full h-11 rounded-xl font-bold text-xs text-white transition-all hover:brightness-105 hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 shadow-md disabled:bg-slate-350 cursor-pointer"
                     style={{ backgroundColor: accentColor }}
                   >
                     {isPostingAnn ? (
                       <>
                         <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                        <span>กำลังเผยแพร่...</span>
+                        <span>กำลังส่งข่าวสารกระจายระบบ...</span>
                       </>
                     ) : (
                       <>
-                        <Plus className="w-4 h-4" />
-                        <span>อัพโหลดประกาศข่าวประชาสัมพันธ์</span>
+                        <Send className="w-4 h-4" />
+                        <span>กระจายประกาศประชาสัมพันธ์ (เด้งป๊อบอัพ + กระดิ่ง)</span>
                       </>
                     )}
                   </button>

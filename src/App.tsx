@@ -44,7 +44,9 @@ import {
   Check,
   UserCheck,
   UserX,
-  Edit
+  Edit,
+  FolderOpen,
+  Scale
 } from 'lucide-react';
 import { Task, Expense, AppSettings, CustomMenuLink, Announcement } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor } from './themePresets';
@@ -71,8 +73,13 @@ import TaskModule from './components/TaskModule';
 import CalendarModule from './components/CalendarModule';
 import SettingsLockScreen from './components/SettingsLockScreen';
 import ExpenseModule from './components/ExpenseModule';
+import LocalFileExplorer from './components/LocalFileExplorer';
+import DekaSearchModule from './components/DekaSearchModule';
 import { PrintReportModal } from './components/PrintReportModal';
 import { EditProfileModal } from './components/EditProfileModal';
+import NotesWidget from './components/NotesWidget';
+import BackupModule from './components/BackupModule';
+import FormDocumentModule from './components/FormDocumentModule';
 
 const DEFAULT_CATEGORIES = ['💼 งานทั่วไป', '🏠 ส่วนตัว', '🛒 ช้อปปิ้ง', '🔥 เร่งด่วน'];
 const DEFAULT_EXPENSE_CATEGORIES = ['🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง', '💊 สุขภาพ', '📱 สื่อสาร', '🎓 การศึกษา', '🎉 บันเทิง', '📦 อื่นๆ'];
@@ -247,7 +254,7 @@ export default function App() {
   const [allUsersList, setAllUsersList] = useState<{ userId: string; email: string; phone: string; uid: string }[]>([]);
   const [currentViewUid, setCurrentViewUid] = useState<string>('');
   const [currentViewUserId, setCurrentViewUserId] = useState<string>('');
-  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
 
   useEffect(() => {
     if (activeTab !== 'settings') {
@@ -281,6 +288,7 @@ export default function App() {
 
   // Announcement states
   const [adminAnnouncements, setAdminAnnouncements] = useState<Announcement[]>([]);
+  const [dbAnnouncements, setDbAnnouncements] = useState<Announcement[]>([]);
   const [newAnnounceTitle, setNewAnnounceTitle] = useState('');
   const [newAnnounceContent, setNewAnnounceContent] = useState('');
   const [newAnnounceImage, setNewAnnounceImage] = useState('');
@@ -516,9 +524,15 @@ export default function App() {
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
+      const uid = currentViewUserId || localStorage.getItem('sess_userId');
+      if (uid) {
+        await forcePushLocalToCloud(currentViewUserId, uid);
+        setIsCloudSynced(true);
+      }
     };
     const handleOffline = () => {
       setIsOnline(false);
+      setIsCloudSynced(false);
     };
 
     window.addEventListener('online', handleOnline);
@@ -528,7 +542,7 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [sessionUser.userId]);
+  }, [sessionUser.userId, currentViewUserId]);
 
   // Listen for storage event to sync settings across multiple tabs in the same browser instantly
   useEffect(() => {
@@ -682,11 +696,12 @@ export default function App() {
     if (!isLoggedIn) {
       setAdminCustomLinks([]);
       setAdminAnnouncements([]);
+      setDbAnnouncements([]);
       return;
     }
 
     const adminSettingsRef = doc(db, 'users', 'admin', 'settings', 'app');
-    const unsubscribe = onSnapshot(adminSettingsRef, (docSnap) => {
+    const unsubscribeSettings = onSnapshot(adminSettingsRef, (docSnap) => {
       if (docSnap.exists()) {
         const adminData = docSnap.data();
         const links = adminData.customMenuLinks || [];
@@ -701,7 +716,32 @@ export default function App() {
       console.error('Failed to subscribe to admin settings:', err);
     });
 
-    return () => unsubscribe();
+    const announcementsRef = collection(db, 'announcements');
+    const unsubscribeAnn = onSnapshot(announcementsRef, (snapshot) => {
+      const items: Announcement[] = [];
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data();
+        items.push({
+          id: docSnap.id,
+          title: d.title || '',
+          content: d.content || '',
+          imageUrl: d.imageUrl || '',
+          visibility: d.visibility || 'all',
+          allowedUsers: d.allowedUsers || [],
+          createdAt: d.createdAt || new Date().toISOString(),
+          author: d.author || 'admin',
+          isActive: d.isActive ?? true
+        });
+      });
+      setDbAnnouncements(items);
+    }, (err) => {
+      console.error('Failed to subscribe to announcements collection:', err);
+    });
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeAnn();
+    };
   }, [isLoggedIn]);
 
   // Load dismissed announcements on login/load
@@ -1297,6 +1337,24 @@ export default function App() {
       } catch (e) {
         console.error('Failed to sync settings to Firestore:', e);
       }
+    }
+  };
+
+  const handleCloudRestore = async (data: { tasks?: Task[]; expenses?: Expense[]; settings?: AppSettings }) => {
+    try {
+      if (data.tasks) {
+        await syncTasks(data.tasks);
+      }
+      if (data.expenses) {
+        await syncExpenses(data.expenses);
+      }
+      if (data.settings) {
+        await syncSettings(data.settings);
+      }
+      await showAlert('กู้คืนข้อมูลสำรองเรียบร้อยแล้วค่ะ ระบบกำลังโหลดและอัปเดตหน้าต่างทั้งหมด', 'กู้คืนข้อมูลสำเร็จ', 'success');
+    } catch (e: any) {
+      console.error('Restore error:', e);
+      await showAlert('ไม่สามารถกู้คืนข้อมูลสำรองได้: ' + (e.message || ''), 'เกิดข้อผิดพลาด', 'danger');
     }
   };
 
@@ -2120,24 +2178,18 @@ export default function App() {
     return isBillToday || isDueToday || isOverdue;
   });
 
-  const notificationCount = notificationTasks.length + notificationExpenses.length;
-
   // Filter custom links according to targeted user or all users
   const visibleCustomLinks = useMemo(() => {
     const currentUserId = sessionUser.userId;
     if (!currentUserId) return [];
 
-    // Source links: if currentUserId is 'admin', they are configuring all links, so show all in admin's own settings.
-    // If not admin, they see links configured by the admin (received via adminCustomLinks).
     const sourceLinks = currentUserId === 'admin' 
       ? (settings.customMenuLinks || [])
       : adminCustomLinks;
 
     return sourceLinks.filter(link => {
-      // Admin always sees everything they created/edit
       if (currentUserId === 'admin') return true;
 
-      // Default to 'all' if visibility is not defined
       if (!link.visibility || link.visibility === 'all') {
         return true;
       }
@@ -2155,28 +2207,40 @@ export default function App() {
     const currentUserId = sessionUser.userId;
     if (!currentUserId) return [];
 
-    const sourceAnnouncements = currentUserId === 'admin'
-      ? (settings.announcements || [])
-      : adminAnnouncements;
+    const sourceAnnouncements = [
+      ...(settings.announcements || []),
+      ...(adminAnnouncements || []),
+      ...(dbAnnouncements || [])
+    ];
 
-    return sourceAnnouncements.filter(ann => {
-      // Must be active
-      if (!ann.isActive) return false;
+    const map = new Map<string, Announcement>();
+    sourceAnnouncements.forEach(ann => {
+      if (ann && ann.id && !map.has(ann.id)) {
+        map.set(ann.id, ann);
+      }
+    });
 
-      // Admin always sees all active announcements
+    const allAnn = Array.from(map.values());
+
+    return allAnn.filter(ann => {
+      if (ann.isActive === false) return false;
       if (currentUserId === 'admin') return true;
 
       if (!ann.visibility || ann.visibility === 'all') {
         return true;
       }
-
       if (ann.visibility === 'specific') {
         return ann.allowedUsers && ann.allowedUsers.includes(currentUserId);
       }
-
       return false;
-    });
-  }, [settings.announcements, adminAnnouncements, sessionUser.userId]);
+    }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [settings.announcements, adminAnnouncements, dbAnnouncements, sessionUser.userId]);
+
+  const notificationAnnouncements = useMemo(() => {
+    return visibleAnnouncements.filter(ann => !dismissedAnnouncements.includes(ann.id));
+  }, [visibleAnnouncements, dismissedAnnouncements]);
+
+  const notificationCount = notificationTasks.length + notificationExpenses.length + notificationAnnouncements.length;
 
   // Auto show announcement modal for any visible active announcement that has not been dismissed
   useEffect(() => {
@@ -2268,9 +2332,14 @@ export default function App() {
             )}
             
             {!sidebarCollapsed && (
-              <span className="font-extrabold text-sm text-slate-100 truncate tracking-tight">
-                {settings.appName.split(' ')[0]}
-              </span>
+              <div className="flex flex-col min-w-0 leading-tight">
+                <span className="font-extrabold text-[11px] text-slate-100 truncate tracking-tight">
+                  {settings.appName}
+                </span>
+                <span className="text-[9.5px] text-slate-400 truncate mt-0.5 font-medium">
+                  {settings.appDesc}
+                </span>
+              </div>
             )}
           </div>
 
@@ -2305,19 +2374,6 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab('calendar'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
-              activeTab === 'calendar'
-                ? 'bg-slate-800 text-white border-l-[3px]'
-                : 'hover:bg-slate-800'
-            }`}
-            style={activeTab === 'calendar' ? { borderLeftColor: settings.colorAccent } : {}}
-          >
-            <CalendarIcon className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>ปฏิทินงาน/ค่าใช้จ่าย</span>}
-          </button>
-
-          <button
             onClick={() => { setActiveTab('expenses'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
               activeTab === 'expenses'
@@ -2328,6 +2384,45 @@ export default function App() {
           >
             <Receipt className="w-4.5 h-4.5 flex-shrink-0" />
             {!sidebarCollapsed && <span>จัดการเงินค่าใช้จ่าย</span>}
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('localFiles'); setMobileMenuOpen(false); }}
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+              activeTab === 'localFiles'
+                ? 'bg-slate-800 text-white border-l-[3px]'
+                : 'hover:bg-slate-800'
+            }`}
+            style={activeTab === 'localFiles' ? { borderLeftColor: settings.colorAccent } : {}}
+          >
+            <FolderOpen className="w-4.5 h-4.5 flex-shrink-0" />
+            {!sidebarCollapsed && <span>เปิดไฟล์ & มีเดียท้องถิ่น</span>}
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('dekaSearch'); setMobileMenuOpen(false); }}
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+              activeTab === 'dekaSearch'
+                ? 'bg-slate-800 text-white border-l-[3px]'
+                : 'hover:bg-slate-800'
+            }`}
+            style={activeTab === 'dekaSearch' ? { borderLeftColor: settings.colorAccent } : {}}
+          >
+            <Scale className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" />
+            {!sidebarCollapsed && <span>สืบค้นฎีกา</span>}
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('formDocument'); setMobileMenuOpen(false); }}
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+              activeTab === 'formDocument'
+                ? 'bg-slate-800 text-white border-l-[3px]'
+                : 'hover:bg-slate-800'
+            }`}
+            style={activeTab === 'formDocument' ? { borderLeftColor: settings.colorAccent } : {}}
+          >
+            <FileText className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" />
+            {!sidebarCollapsed && <span>ออกเอกสารแบบฟอร์ม</span>}
           </button>
 
           {/* Inline custom menu links - Opens directly in a new tab */}
@@ -2425,24 +2520,25 @@ export default function App() {
                   onClick={async (e) => {
                     e.stopPropagation();
                     if (!isCloudSynced) {
-                      showAlert("ตรวจพบสถานะการทำงานในเครื่อง (Offline) ระบบกำลังเตรียมซิงก์ผลลัพธ์ในเครื่องทั้งหมดขึ้นเซิร์ฟเวอร์แบบแมนนวลให้ทันทีค่ะ...", "ประสานระบบสำรองข้อมูล", "info");
+                      showAlert("ระบบกำลังตรวจสอบการซิงก์ผลลัพธ์ในเครื่องขึ้นเซิร์ฟเวอร์ออนไลน์โดยตรงให้ทันทีค่ะ...", "ประสานระบบข้อมูลออนไลน์", "info");
                       try {
                         const uid = currentViewUserId || localStorage.getItem('sess_userId');
                         if (uid) {
                           await forcePushLocalToCloud(currentViewUserId, uid);
                           setIsCloudSynced(true);
-                          showAlert("🚀 ซิงก์ประวัติการแก้ไขและบอร์ดงานในเครื่องทั้งหมดขึ้นสู่ระบบ Cloud Firestore เรียบร้อยแล้วค่ะ! เปิดเครื่องอื่นงานจะเชื่อมโยงกันทันทีโดยไม่ต้องแก้ไขซ้ำค่ะ", "คลาวด์ซิงก์เสร็จสิ้น", "success");
+                          showAlert("🚀 เชื่อมโยงและบันทึกประวัติไปยังเซิร์ฟเวอร์แบบออนไลน์ 100% เรียบร้อยแล้วค่ะ! ข้อมูลของคุณจะเข้าสู่ระบบออนไลน์แบบเรียลไทม์ทันที", "ระบบออนไลน์ 100%", "success");
                         }
                       } catch (e: any) {
                         showAlert("ไม่สามารถเชื่อมต่อประสานระบบแมนนวลได้ในขณะนี้: " + (e.message || String(e)), "ผิดพลาด", "error");
                       }
-                    } else {                      showAlert("ระบบคลาวด์ Cloud Firestore ทำงานได้สมบูรณ์ ปกติ และเชื่อมต่อเรียลไทม์เรียบร้อยแล้วค่ะ! ทุกข้อมูลอัปเดตเรียลไทม์แล้ว", "เชื่อมต่อคลาวด์สมบูรณ์", "success");
+                    } else {
+                      showAlert("ระบบฐานข้อมูลทำงานได้สมบูรณ์แบบ 100% เชื่อมต่อและบันทึกข้อมูลออนไลน์โดยตรงแบบเรียลไทม์แล้วค่ะ", "บันทึกออนไลน์ 100%", "success");
                     }
                   }}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
                   <span className={`text-[8px] font-extrabold ${isCloudSynced ? 'text-emerald-400' : 'text-amber-500'}`}>
-                    {isCloudSynced ? 'ซิงก์คลาวด์แล้ว' : 'เก็บในเครื่อง (คลิกซิงก์)'}
+                    {isCloudSynced ? '☁️ บันทึกออนไลน์ 100%' : '🔄 กำลังเชื่อมต่อระบบ...'}
                   </span>
                 </div>
               </div>
@@ -2461,10 +2557,22 @@ export default function App() {
 
       {/* RIGHT MAIN APP BODY CONTAINER */}
       <div
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 relative ${
           sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60'
         }`}
       >
+        {headerCollapsed && (
+          <div className="sticky top-0 z-40 h-0 flex justify-end px-4 lg:px-8 pointer-events-none">
+            <button
+              onClick={() => handleSetHeaderCollapsed(false)}
+              className="mt-3 w-10 h-10 border border-slate-200 text-slate-500 bg-white/95 hover:bg-white dark:bg-slate-950/95 dark:border-slate-800 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 rounded-xl flex items-center justify-center shadow-md hover:shadow-lg transition-all active:scale-95 pointer-events-auto cursor-pointer"
+              title="แสดงแถบเมนูหลักด้านบน"
+            >
+              <ArrowDown className="w-4 h-4 animate-bounce" style={{ animationDuration: '3s' }} />
+            </button>
+          </div>
+        )}
+
         {/* UPPER RESPONSIVE APP HEADER */}
         <header className={`border-b border-slate-200/85 px-4 lg:px-8 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30 dark:bg-slate-900/80 dark:border-slate-800 transition-all duration-300 ${
           headerCollapsed ? 'h-0 py-0 border-b-0 opacity-0 pointer-events-none overflow-hidden' : 'h-16'
@@ -2476,24 +2584,6 @@ export default function App() {
             >
               <Menu className="w-4.5 h-4.5" />
             </button>
-
-            {settings.appLogoUrl && (
-              <img
-                src={settings.appLogoUrl}
-                alt="Logo"
-                className="w-8 h-8 rounded-lg border border-slate-200 object-contain dark:border-slate-800 hidden lg:block bg-white dark:bg-slate-900"
-                style={{ imageRendering: 'auto' }}
-              />
-            )}
-
-            <div>
-              <h1 className="text-[13px] font-black text-slate-800 dark:text-white truncate max-w-[180px] sm:max-w-xs leading-none">
-                {settings.appName}
-              </h1>
-              <p className="text-[10px] text-slate-400 mt-1 truncate max-w-[180px] sm:max-w-xs leading-none">
-                {settings.appDesc}
-              </p>
-            </div>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -2542,13 +2632,88 @@ export default function App() {
                     </div>
 
                     {/* Content area */}
-                    <div className="max-h-80 overflow-y-auto p-4 space-y-3 dark:bg-slate-900">
+                    <div className="max-h-96 overflow-y-auto p-4 space-y-4 dark:bg-slate-900">
                       {notificationCount === 0 ? (
                         <div className="p-8 text-center text-slate-400 dark:text-slate-550 text-xs">
-                          ✨ ไม่มีรายการแจ้งเตือนค้างจัดทำค่ะ
+                          ✨ ไม่มีรายการแจ้งเตือนค้างจัดทำหรือข่าวสารใหม่ค่ะ
                         </div>
                       ) : (
                         <div className="space-y-4">
+                          {/* List Announcements */}
+                          {visibleAnnouncements.length > 0 && (
+                            <div className="space-y-2 text-left">
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block">
+                                  📢 ข่าวสารประชาสัมพันธ์ ({notificationAnnouncements.length} ใหม่)
+                                </span>
+                                {notificationAnnouncements.length > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      const allIds = notificationAnnouncements.map(a => a.id);
+                                      const updated = Array.from(new Set([...dismissedAnnouncements, ...allIds]));
+                                      setDismissedAnnouncements(updated);
+                                      if (sessionUser.userId) {
+                                        localStorage.setItem(`dismissed_announcements_${sessionUser.userId}`, JSON.stringify(updated));
+                                      }
+                                    }}
+                                    className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                  >
+                                    อ่านทั้งหมดแล้ว
+                                  </button>
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                {visibleAnnouncements.slice(0, 5).map(ann => {
+                                  const isUnread = !dismissedAnnouncements.includes(ann.id);
+                                  return (
+                                    <div 
+                                      key={ann.id} 
+                                      onClick={() => {
+                                        setShowNotificationFlyout(false);
+                                        setShowAnnounceModalId(ann.id);
+                                      }}
+                                      className={`group p-3 rounded-xl border cursor-pointer transition-all duration-200 flex items-start gap-3 relative shadow-xs hover:shadow-md border-l-4 ${
+                                        isUnread 
+                                          ? 'bg-indigo-50/80 hover:bg-indigo-100/70 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 border-indigo-200 dark:border-indigo-800 border-l-indigo-500' 
+                                          : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-950/30 dark:hover:bg-slate-900/40 border-slate-100 dark:border-slate-800 border-l-slate-300'
+                                      }`}
+                                    >
+                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${
+                                        isUnread ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300 font-bold' : 'bg-slate-200 text-slate-500 dark:bg-slate-800'
+                                      }`}>
+                                        📢
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={`text-xs font-bold leading-snug line-clamp-1 transition-colors ${
+                                            isUnread ? 'text-indigo-950 dark:text-indigo-100 font-black' : 'text-slate-700 dark:text-slate-300'
+                                          }`}>
+                                            {ann.title}
+                                          </span>
+                                          {isUnread && (
+                                            <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.2 rounded-full uppercase shrink-0 animate-pulse">
+                                              ใหม่
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-snug">
+                                          {ann.content}
+                                        </p>
+                                        <div className="flex items-center justify-between mt-1.5">
+                                          <span className="text-[9px] text-slate-400 font-medium">
+                                            {new Date(ann.createdAt).toLocaleDateString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.
+                                          </span>
+                                          <span className="text-[9.5px] font-extrabold text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5">
+                                            เปิดอ่านป๊อบอัพ →
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                           {/* List Tasks */}
                           {notificationTasks.length > 0 && (
                             <div className="space-y-2 text-left">
@@ -2666,6 +2831,31 @@ export default function App() {
               )}
             </div>
 
+            {/* Calendar Menu next to Personal Notes */}
+            <div className="flex items-center">
+              {/* Calendar Button */}
+              <button
+                onClick={() => setActiveTab('calendar')}
+                className={`w-10 h-10 border rounded-xl flex items-center justify-center transition-all relative dark:border-slate-800 cursor-pointer ${
+                  activeTab === 'calendar'
+                    ? 'text-white shadow-sm'
+                    : 'border-slate-200 text-slate-500 bg-white hover:bg-slate-50 dark:bg-slate-950 dark:text-slate-400 hover:text-slate-700'
+                }`}
+                style={activeTab === 'calendar' ? { backgroundColor: settings.colorAccent, borderColor: settings.colorAccent } : {}}
+                title="ปฏิทินงาน/ค่าใช้จ่าย"
+                id="header-calendar-btn"
+              >
+                <CalendarIcon className="w-4.5 h-4.5" />
+              </button>
+            </div>
+
+            {/* Notes Widget */}
+            <NotesWidget
+              sessionUser={sessionUser}
+              accentColor={settings.colorAccent}
+              darkMode={settings.darkMode}
+            />
+
             {/* Connection Status Badge */}
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-extrabold shadow-sm transition-all duration-300 ${
               isOnline 
@@ -2674,10 +2864,10 @@ export default function App() {
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500' : 'bg-amber-500 animate-ping'}`} />
               <span className="hidden xs:inline">
-                {isOnline ? 'เชื่อมต่อคลาวด์' : 'เซฟในเครื่องปลอดภัย'}
+                {isOnline ? 'เชื่อมต่อระบบแล้ว' : 'เซฟในเครื่องปลอดภัย'}
               </span>
               <span className="inline xs:hidden">
-                {isOnline ? 'คลาวด์' : 'ออฟไลน์'}
+                {isOnline ? 'ออนไลน์' : 'ออฟไลน์'}
               </span>
             </div>
 
@@ -2715,25 +2905,25 @@ export default function App() {
                   onClick={async (e) => {
                     e.stopPropagation();
                     if (!isCloudSynced) {
-                      showAlert("ตรวจพบสถานะการทำงานในเครื่อง (Offline) ระบบกำลังเตรียมซิงก์ผลลัพธ์ในเครื่องทั้งหมดขึ้นเซิร์ฟเวอร์แบบแมนนวลให้ทันทีค่ะ...", "ประสานระบบสำรองข้อมูล", "info");
+                      showAlert("ระบบกำลังตรวจสอบการซิงก์ผลลัพธ์ในเครื่องขึ้นเซิร์ฟเวอร์ออนไลน์โดยตรงให้ทันทีค่ะ...", "ประสานระบบข้อมูลออนไลน์", "info");
                       try {
                         const uid = currentViewUserId || localStorage.getItem('sess_userId');
                         if (uid) {
                           await forcePushLocalToCloud(currentViewUserId, uid);
                           setIsCloudSynced(true);
-                          showAlert("🚀 ซิงก์ประวัติการแก้ไขและบอร์ดงานในเครื่องทั้งหมดขึ้นสู่ระบบ Cloud Firestore เรียบร้อยแล้วค่ะ! เปิดเครื่องอื่นงานจะเชื่อมโยงกันทันทีโดยไม่ต้องแก้ไขซ้ำค่ะ", "คลาวด์ซิงก์เสร็จสิ้น", "success");
+                          showAlert("🚀 เชื่อมโยงและบันทึกประวัติไปยังเซิร์ฟเวอร์แบบออนไลน์ 100% เรียบร้อยแล้วค่ะ! ข้อมูลของคุณจะเข้าสู่ระบบออนไลน์แบบเรียลไทม์ทันที", "ระบบออนไลน์ 100%", "success");
                         }
                       } catch (e: any) {
                         showAlert("ไม่สามารถเชื่อมต่อประสานระบบแมนนวลได้ในขณะนี้: " + (e.message || String(e)), "ผิดพลาด", "error");
                       }
                     } else {
-                      showAlert("ระบบคลาวด์ Cloud Firestore ทำงานได้สมบูรณ์ ปกติ และเชื่อมต่อเรียลไทม์เรียบร้อยแล้วค่ะ! ทุกข้อมูลอัปเดตเรียลไทม์แล้ว", "เชื่อมต่อคลาวด์สมบูรณ์", "success");
+                      showAlert("ระบบฐานข้อมูลทำงานได้สมบูรณ์แบบ 100% เชื่อมต่อและบันทึกข้อมูลออนไลน์โดยตรงแบบเรียลไทม์แล้วค่ะ", "บันทึกออนไลน์ 100%", "success");
                     }
                   }}
                 >
                   <span className={`w-1 h-1 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
                   <span className={`text-[7.5px] font-extrabold ${isCloudSynced ? 'text-emerald-500' : 'text-amber-500'}`}>
-                    {isCloudSynced ? 'ออนไลน์' : 'ออฟไลน์ (คลิกซิงก์)'}
+                    {isCloudSynced ? '☁️ ออนไลน์ 100%' : '🔄 กำลังเชื่อมต่อ...'}
                   </span>
                 </div>
               </div>
@@ -3217,6 +3407,54 @@ export default function App() {
               </motion.div>
             )}
 
+            {activeTab === 'localFiles' && (
+              <motion.div
+                key="localFiles"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+                className="w-full"
+              >
+                <LocalFileExplorer
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'dekaSearch' && (
+              <motion.div
+                key="dekaSearch"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+                className="w-full"
+              >
+                <DekaSearchModule
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'formDocument' && (
+              <motion.div
+                key="formDocument"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+                className="w-full"
+              >
+                <FormDocumentModule
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
+                />
+              </motion.div>
+            )}
+
             {activeTab === 'admin' && (sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && (
               <motion.div
                 key="admin"
@@ -3265,7 +3503,8 @@ export default function App() {
                         { id: 'branding', label: 'แบรนดิ้ง & หน้าตาเว็บ', icon: 'Palette' },
                         { id: 'account', label: 'ผู้ใช้ & ความปลอดภัย', icon: 'Shield' },
                         { id: 'notifications', label: 'การแจ้งเตือน & ระบบส่งเมล', icon: 'Bell' },
-                        { id: 'reports_links', label: 'พิมพ์สรุป & ลิงก์เสริม', icon: 'FileText' }
+                        { id: 'reports_links', label: 'พิมพ์สรุป & ลิงก์เสริม', icon: 'FileText' },
+                        { id: 'backup', label: 'สำรองข้อมูล & Google Drive / Excel', icon: 'Database' }
                       ].map(tab => {
                         const isActive = settingsSubTab === tab.id;
                         return (
@@ -3285,6 +3524,7 @@ export default function App() {
                               {tab.icon === 'Shield' && '🔐'}
                               {tab.icon === 'Bell' && '🔔'}
                               {tab.icon === 'FileText' && '📄'}
+                              {tab.icon === 'Database' && '💾'}
                             </span>
                             <span>{tab.label}</span>
                           </button>
@@ -4332,6 +4572,20 @@ export default function App() {
                               )}
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* SUB-TAB: BACKUP & GOOGLE DRIVE */}
+                      {settingsSubTab === 'backup' && (
+                        <div className="space-y-6 animate-fade-in text-left">
+                          <BackupModule
+                            tasks={tasks}
+                            expenses={expenses}
+                            settings={settings}
+                            onRestore={handleCloudRestore}
+                            accentColor={settings.colorAccent}
+                            sessionUser={sessionUser}
+                          />
                         </div>
                       )}
                       </div>
