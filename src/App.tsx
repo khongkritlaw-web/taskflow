@@ -80,6 +80,7 @@ import { EditProfileModal } from './components/EditProfileModal';
 import NotesWidget from './components/NotesWidget';
 import BackupModule from './components/BackupModule';
 import FormDocumentModule from './components/FormDocumentModule';
+import { ReceiptModule } from './components/ReceiptModule';
 
 const DEFAULT_CATEGORIES = ['💼 งานทั่วไป', '🏠 ส่วนตัว', '🛒 ช้อปปิ้ง', '🔥 เร่งด่วน'];
 const DEFAULT_EXPENSE_CATEGORIES = ['🏠 ที่พัก', '💡 สาธารณูปโภค', '🛒 ของใช้/อาหาร', '🚗 การเดินทาง', '💊 สุขภาพ', '📱 สื่อสาร', '🎓 การศึกษา', '🎉 บันเทิง', '📦 อื่นๆ'];
@@ -2462,6 +2463,19 @@ export default function App() {
             {!sidebarCollapsed && <span>ออกเอกสารแบบฟอร์ม</span>}
           </button>
 
+          <button
+            onClick={() => { setActiveTab('receipt'); setMobileMenuOpen(false); }}
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+              activeTab === 'receipt'
+                ? 'bg-slate-800 text-white border-l-[3px]'
+                : 'hover:bg-slate-800'
+            }`}
+            style={activeTab === 'receipt' ? { borderLeftColor: settings.colorAccent } : {}}
+          >
+            <Receipt className="w-4.5 h-4.5 flex-shrink-0 text-emerald-400" />
+            {!sidebarCollapsed && <span>ออกใบเสร็จรับเงิน</span>}
+          </button>
+
           {/* Inline custom menu links - Opens directly in a new tab */}
           {visibleCustomLinks.map((link) => {
             const IconComponent = getCustomLinkIconComponent(link.iconName || 'Link');
@@ -3488,6 +3502,25 @@ export default function App() {
                 <FormDocumentModule
                   accentColor={settings.colorAccent}
                   darkMode={settings.darkMode}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'receipt' && (
+              <motion.div
+                key="receipt"
+                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 140, damping: 16 }}
+                className="w-full"
+              >
+                <ReceiptModule
+                  accentColor={settings.colorAccent}
+                  settings={settings}
+                  sessionUser={sessionUser}
+                  tasks={tasks}
+                  expenses={expenses}
                 />
               </motion.div>
             )}
@@ -4765,6 +4798,9 @@ export default function App() {
                             onRestore={handleCloudRestore}
                             accentColor={settings.colorAccent}
                             sessionUser={sessionUser}
+                            allUsersList={allUsersList}
+                            announcements={dbAnnouncements.length > 0 ? dbAnnouncements : adminAnnouncements}
+                            customMenuLinks={adminCustomLinks.length > 0 ? adminCustomLinks : (settings.customMenuLinks || [])}
                           />
                         </div>
                       )}

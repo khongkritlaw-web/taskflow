@@ -82,3 +82,31 @@ select:-webkit-autofill:focus {
 .dark select:-webkit-autofill:focus {
   -webkit-text-fill-color: #ffffff !important;
 }
+
+/* A4 PRINT CSS RULES */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #printable-a4-receipt, #printable-a4-receipt * {
+    visibility: visible !important;
+  }
+  #printable-a4-receipt {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 15mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}
+

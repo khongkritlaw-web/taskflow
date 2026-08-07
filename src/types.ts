@@ -125,3 +125,74 @@ export interface AppSettings {
   nativeNotificationsEnabled?: boolean;
   announcements?: Announcement[];
 }
+
+export interface ReceiptItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface ReceiptDoc {
+  id: string;
+  receiptNo: string;
+  docType: 'receipt' | 'tax_invoice' | 'invoice' | 'quotation' | 'temp_receipt';
+  issueDate: string;
+  dueDate?: string;
+  refNo?: string;
+  
+  // Issuer details
+  issuerName: string;
+  issuerTaxId?: string;
+  issuerBranch?: string;
+  issuerAddress?: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
+  issuerLogoUrl?: string;
+
+  // Customer details
+  customerName: string;
+  customerTaxId?: string;
+  customerBranch?: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+
+  // Items and Calculation
+  items: ReceiptItem[];
+  subtotal: number;
+  discountType?: 'flat' | 'percent';
+  discountValue?: number;
+  discountAmount?: number;
+  
+  vatType: 'no_vat' | 'vat_7_add' | 'vat_7_included';
+  vatAmount?: number;
+  
+  withholdingTaxPercent?: number; // e.g., 0, 1, 3, 5
+  withholdingTaxAmount?: number;
+  
+  grandTotal: number;
+  grandTotalTextThai?: string;
+
+  // Payment
+  paymentMethod: 'cash' | 'transfer' | 'cheque' | 'credit' | 'qr';
+  bankName?: string;
+  bankAccountNo?: string;
+  bankAccountName?: string;
+  chequeNo?: string;
+  chequeDate?: string;
+
+  // Notes & Signatures
+  notes?: string;
+  collectorName?: string;
+  collectorSignatureUrl?: string;
+  approverName?: string;
+  approverSignatureUrl?: string;
+
+  userId: string;
+  createdAt: string;
+  status: 'active' | 'void';
+}
+

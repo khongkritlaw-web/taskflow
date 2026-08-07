@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Cloud, 
@@ -15,11 +15,22 @@ import {
   ChevronRight,
   Info,
   Calendar,
-  FileJson
+  FileJson,
+  Search,
+  Users,
+  Bell,
+  Link as LinkIcon,
+  Table,
+  Eye,
+  Filter,
+  Layers,
+  FileText,
+  CreditCard,
+  Check
 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup, type User } from 'firebase/auth';
 import { auth } from '../firebase';
-import { Task, Expense, AppSettings } from '../types';
+import { Task, Expense, AppSettings, CustomMenuLink, Announcement } from '../types';
 
 interface BackupModuleProps {
   tasks: Task[];
@@ -28,6 +39,9 @@ interface BackupModuleProps {
   onRestore: (data: { tasks?: Task[]; expenses?: Expense[]; settings?: AppSettings }) => void;
   accentColor: string;
   sessionUser: any;
+  allUsersList?: { userId: string; email: string; phone: string; uid: string }[];
+  announcements?: Announcement[];
+  customMenuLinks?: CustomMenuLink[];
 }
 
 interface BackupFile {
@@ -45,7 +59,10 @@ export default function BackupModule({
   settings, 
   onRestore, 
   accentColor,
-  sessionUser
+  sessionUser,
+  allUsersList = [],
+  announcements = [],
+  customMenuLinks = []
 }: BackupModuleProps) {
   
   // Google Drive Authentication States
@@ -59,6 +76,10 @@ export default function BackupModule({
   const [driveBackups, setDriveBackups] = useState<BackupFile[]>([]);
   const [driveFolderId, setDriveFolderId] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+
+  // Live Backend Data Inspector States
+  const [activePreviewTab, setActivePreviewTab] = useState<'tasks' | 'expenses' | 'installments' | 'users' | 'announcements' | 'links'>('tasks');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Helper: Format Bytes to human readable
   const formatBytes = (bytesStr: string | number) => {
@@ -218,7 +239,7 @@ export default function BackupModule({
     return `"${str}"`;
   };
 
-  // Convert array to Excel-compatible CSV string (using Thai headings & BOM)
+  // 1. Convert tasks array to Excel-compatible CSV string
   const generateTasksCSV = (taskList: Task[]): string => {
     const headers = [
       'รหัสงาน (ID)',
@@ -232,10 +253,14 @@ export default function BackupModule({
       'วันที่ทำซ้ำ',
       'วันที่เสร็จสิ้น',
       'บันทึกสรุปงาน/ปิดคดี',
-      'ผู้ใช้ผู้บันทึก'
+      'ผู้มอบหมายโดยแอดมิน',
+      'สถานะอนุมัติ',
+      'ข้อเสนอแนะจากแอดมิน',
+      'ผู้ใช้ผู้บันทึก',
+      'วันที่สร้างรายการ'
     ];
     
-    let csvContent = '\uFEFF'; // UTF-8 BOM to make it open correctly in Excel Thailand
+    let csvContent = '\uFEFF'; // UTF-8 BOM for Excel
     csvContent += headers.map(escapeCSV).join(',') + '\n';
     
     taskList.forEach(t => {
@@ -248,10 +273,14 @@ export default function BackupModule({
         t.dueTime || '',
         t.status === 'completed' ? 'เสร็จสิ้น (Completed)' : 'รอดำเนินการ (Pending)',
         t.isRecurring ? 'ทำซ้ำรายสัปดาห์' : 'ครั้งเดียว',
-        t.recurringDays ? t.recurringDays.join(', ') : '-',
+        t.recurringDays ? t.recurringDays.join('; ') : '-',
         t.completedAt || '-',
         t.completionNotes || '-',
-        t.userId
+        t.assignedByAdmin ? 'ใช่' : 'ไม่ใช่',
+        t.approvalStatus || 'ปกติ',
+        t.adminFeedback || '-',
+        t.userId,
+        t.createdAt || '-'
       ];
       csvContent += row.map(escapeCSV).join(',') + '\n';
     });
@@ -259,12 +288,13 @@ export default function BackupModule({
     return csvContent;
   };
 
+  // 2. Convert expenses array to Excel-compatible CSV string
   const generateExpensesCSV = (expenseList: Expense[]): string => {
     const headers = [
       'รหัสรายการ (ID)',
-      'ชื่อรายการ',
+      'ชื่อรายการ/บิล',
       'จำนวนเงิน (บาท)',
-      'หมวดหมู่',
+      'หมวดหมู่รายจ่าย',
       'วันที่ทำรายการ',
       'วันที่ครบกำหนดชำระ',
       'สถานะการชำระเงิน',
@@ -275,7 +305,7 @@ export default function BackupModule({
       'ผู้ใช้ผู้บันทึก'
     ];
     
-    let csvContent = '\uFEFF'; // UTF-8 BOM
+    let csvContent = '\uFEFF';
     csvContent += headers.map(escapeCSV).join(',') + '\n';
     
     expenseList.forEach(e => {
@@ -299,19 +329,202 @@ export default function BackupModule({
     return csvContent;
   };
 
+  // 3. Convert installments schedule array to Excel-compatible CSV string
+  const generateInstallmentsCSV = (expenseList: Expense[]): string => {
+    const headers = [
+      'รหัสบิลหลัก (Expense ID)',
+      'ชื่อรายการหลัก',
+      'งวดที่',
+      'จำนวนเงินงวดนี้ (บาท)',
+      'กำหนดชำระงวดนี้',
+      'สถานะชำระงวดนี้',
+      'วันที่ชำระงวดนี้',
+      'มีสลิปแนบ',
+      'หมวดหมู่',
+      'ผู้ใช้ผู้บันทึก'
+    ];
+
+    let csvContent = '\uFEFF';
+    csvContent += headers.map(escapeCSV).join(',') + '\n';
+
+    expenseList.filter(e => e.isInstallment && e.installments && e.installments.length > 0).forEach(e => {
+      e.installments?.forEach(inst => {
+        const row = [
+          e.id,
+          e.name,
+          inst.installmentNo,
+          inst.amount,
+          inst.dueDate,
+          inst.paid ? 'ชำระแล้ว' : 'ค้างชำระ',
+          inst.paidDate || '-',
+          inst.slipBase64 ? 'มีไฟล์สลิป' : 'ไม่มี',
+          e.cat,
+          e.userId
+        ];
+        csvContent += row.map(escapeCSV).join(',') + '\n';
+      });
+    });
+
+    return csvContent;
+  };
+
+  // 4. Convert user accounts registry to Excel-compatible CSV string
+  const generateUsersCSV = (users: { userId: string; email: string; phone: string; uid: string }[]): string => {
+    const headers = [
+      'ลำดับ',
+      'ชื่อผู้ใช้ / Username',
+      'อีเมล (Email Address)',
+      'เบอร์โทรศัพท์',
+      'รหัสประจำตัวคลาวด์ (Firebase UID)'
+    ];
+
+    let csvContent = '\uFEFF';
+    csvContent += headers.map(escapeCSV).join(',') + '\n';
+
+    users.forEach((u, idx) => {
+      const row = [
+        idx + 1,
+        u.userId,
+        u.email || '-',
+        u.phone || '-',
+        u.uid || '-'
+      ];
+      csvContent += row.map(escapeCSV).join(',') + '\n';
+    });
+
+    return csvContent;
+  };
+
+  // 5. Convert announcements to Excel-compatible CSV string
+  const generateAnnouncementsCSV = (annList: Announcement[]): string => {
+    const headers = [
+      'รหัสประกาศ (ID)',
+      'หัวข้อข่าวสาร/ประกาศ',
+      'เนื้อหาประกาศ',
+      'ขอบเขตผู้มองเห็น',
+      'ผู้เขียนประกาศ',
+      'วันที่สร้าง',
+      'สถานะเปิดใช้งาน'
+    ];
+
+    let csvContent = '\uFEFF';
+    csvContent += headers.map(escapeCSV).join(',') + '\n';
+
+    annList.forEach(a => {
+      const row = [
+        a.id,
+        a.title,
+        a.content,
+        a.visibility === 'all' ? 'ทุกคน' : 'เฉพาะบุคคลที่กำหนด',
+        a.author || 'ผู้ดูแลระบบ',
+        a.createdAt ? formatThaiDate(a.createdAt) : '-',
+        a.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'
+      ];
+      csvContent += row.map(escapeCSV).join(',') + '\n';
+    });
+
+    return csvContent;
+  };
+
+  // 6. Convert custom menu links to Excel-compatible CSV string
+  const generateLinksCSV = (linkList: CustomMenuLink[]): string => {
+    const headers = [
+      'รหัสลิงก์ (ID)',
+      'ชื่อเมนู',
+      'URL ปลายทาง',
+      'ไอคอน',
+      'ขอบเขตสิทธิ์ใช้งาน',
+      'ผู้ได้รับการอนุญาต'
+    ];
+
+    let csvContent = '\uFEFF';
+    csvContent += headers.map(escapeCSV).join(',') + '\n';
+
+    linkList.forEach(l => {
+      const row = [
+        l.id,
+        l.title,
+        l.url,
+        l.iconName || 'Link',
+        l.visibility === 'all' ? 'ผู้ใช้ทุกคน' : 'ระบุผู้ใช้',
+        l.allowedUsers ? l.allowedUsers.join('; ') : 'ทั้งหมด'
+      ];
+      csvContent += row.map(escapeCSV).join(',') + '\n';
+    });
+
+    return csvContent;
+  };
+
+  // 7. Master All-in-One Consolidated Excel CSV Report
+  const generateMasterAllCSV = (): string => {
+    let csv = '\uFEFF';
+    const dateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    
+    csv += `=== รายงานสรุปข้อมูลหลังบ้านระบบ DekaSuite Master Backend Data Export ===\n`;
+    csv += `วันที่ออกรายงาน,${escapeCSV(dateStr)}\n`;
+    csv += `ผู้สร้างรายงาน,${escapeCSV(sessionUser?.userId || 'Admin')}\n`;
+    csv += `จำนวนภารกิจ/คดีทั้งหมด,${tasks.length}\n`;
+    csv += `จำนวนรายการรายจ่ายทั้งหมด,${expenses.length}\n`;
+    csv += `ยอดรวมรายจ่ายทั้งหมด (บาท),${expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)}\n`;
+    csv += `จำนวนสมาชิกในระบบ,${allUsersList.length}\n\n`;
+
+    csv += `--- [หมวด 1: รายการภารกิจและคดีทั้งหมด (${tasks.length} รายการ)] ---\n`;
+    csv += generateTasksCSV(tasks).replace('\uFEFF', '') + '\n';
+
+    csv += `--- [หมวด 2: รายการบัญชีรายจ่าย/บิล (${expenses.length} รายการ)] ---\n`;
+    csv += generateExpensesCSV(expenses).replace('\uFEFF', '') + '\n';
+
+    csv += `--- [หมวด 3: แจกแจงค่างวดผ่อนชำระ] ---\n`;
+    csv += generateInstallmentsCSV(expenses).replace('\uFEFF', '') + '\n';
+
+    csv += `--- [หมวด 4: บัญชีผู้ใช้งานหลังบ้าน (${allUsersList.length} รายชื่อ)] ---\n`;
+    csv += generateUsersCSV(allUsersList).replace('\uFEFF', '') + '\n';
+
+    csv += `--- [หมวด 5: ประกาศข่าวสาร (${announcements.length} รายการ)] ---\n`;
+    csv += generateAnnouncementsCSV(announcements).replace('\uFEFF', '') + '\n';
+
+    csv += `--- [หมวด 6: ลิงก์เมนูย่อยระบบ (${customMenuLinks.length} รายการ)] ---\n`;
+    csv += generateLinksCSV(customMenuLinks).replace('\uFEFF', '') + '\n';
+
+    return csv;
+  };
+
   // Trigger Local Excel (CSV) Download for user
-  const handleLocalExcelDownload = (type: 'tasks' | 'expenses') => {
+  const handleLocalExcelDownload = (type: 'tasks' | 'expenses' | 'installments' | 'users' | 'announcements' | 'links' | 'all') => {
     try {
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '_');
       let csvContent = '';
       let fileName = '';
       
-      if (type === 'tasks') {
-        csvContent = generateTasksCSV(tasks);
-        fileName = `DekaSuite_Tasks_Excel_${dateStr}.csv`;
-      } else {
-        csvContent = generateExpensesCSV(expenses);
-        fileName = `DekaSuite_Expenses_Excel_${dateStr}.csv`;
+      switch (type) {
+        case 'tasks':
+          csvContent = generateTasksCSV(tasks);
+          fileName = `DekaSuite_Tasks_Backend_${dateStr}.csv`;
+          break;
+        case 'expenses':
+          csvContent = generateExpensesCSV(expenses);
+          fileName = `DekaSuite_Expenses_Backend_${dateStr}.csv`;
+          break;
+        case 'installments':
+          csvContent = generateInstallmentsCSV(expenses);
+          fileName = `DekaSuite_InstallmentSchedules_${dateStr}.csv`;
+          break;
+        case 'users':
+          csvContent = generateUsersCSV(allUsersList);
+          fileName = `DekaSuite_UsersRegistry_${dateStr}.csv`;
+          break;
+        case 'announcements':
+          csvContent = generateAnnouncementsCSV(announcements);
+          fileName = `DekaSuite_Announcements_${dateStr}.csv`;
+          break;
+        case 'links':
+          csvContent = generateLinksCSV(customMenuLinks);
+          fileName = `DekaSuite_CustomLinks_${dateStr}.csv`;
+          break;
+        case 'all':
+          csvContent = generateMasterAllCSV();
+          fileName = `DekaSuite_MASTER_BACKEND_FULL_EXPORT_${dateStr}.csv`;
+          break;
       }
       
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -723,36 +936,98 @@ export default function BackupModule({
             </div>
 
             {/* Quick download widgets */}
-            <div className="space-y-2 text-left">
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">ดาวน์โหลดเอกสารสำหรับเปิดใน Excel / Google Sheets:</p>
+            <div className="space-y-3 text-left">
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">เลือกดาวน์โหลดข้อมูลหลังบ้านแยกตามหมวดหมู่ (Excel / Google Sheets):</p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {/* Export tasks */}
                 <button
                   type="button"
                   onClick={() => handleLocalExcelDownload('tasks')}
-                  className="h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 hover:bg-slate-100 dark:hover:bg-slate-950/50 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 hover:bg-slate-100 dark:hover:bg-slate-950/60 text-slate-750 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
                 >
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                    <span>รายการงานและคดี (Excel)</span>
+                  <div className="flex items-center gap-2 truncate">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <span className="truncate">1. รายการงานและคดี ({tasks.length})</span>
                   </div>
-                  <Download className="w-3.5 h-3.5 text-slate-400" />
+                  <Download className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                 </button>
 
                 {/* Export expenses */}
                 <button
                   type="button"
                   onClick={() => handleLocalExcelDownload('expenses')}
-                  className="h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 hover:bg-slate-100 dark:hover:bg-slate-950/50 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 hover:bg-slate-100 dark:hover:bg-slate-950/60 text-slate-750 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
                 >
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-teal-500" />
-                    <span>รายงานรายจ่าย/บิล (Excel)</span>
+                  <div className="flex items-center gap-2 truncate">
+                    <FileSpreadsheet className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                    <span className="truncate">2. รายงานรายจ่าย/บิล ({expenses.length})</span>
                   </div>
-                  <Download className="w-3.5 h-3.5 text-slate-400" />
+                  <Download className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                </button>
+
+                {/* Export Installment Schedules */}
+                <button
+                  type="button"
+                  onClick={() => handleLocalExcelDownload('installments')}
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 hover:bg-slate-100 dark:hover:bg-slate-950/60 text-slate-750 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <CreditCard className="w-4 h-4 text-cyan-500 flex-shrink-0" />
+                    <span className="truncate">3. งวดผ่อนชำระ</span>
+                  </div>
+                  <Download className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                </button>
+
+                {/* Export Users Registry */}
+                <button
+                  type="button"
+                  onClick={() => handleLocalExcelDownload('users')}
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 hover:bg-slate-100 dark:hover:bg-slate-950/60 text-slate-750 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Users className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                    <span className="truncate">4. ผู้ใช้งานหลังบ้าน ({allUsersList.length})</span>
+                  </div>
+                  <Download className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                </button>
+
+                {/* Export Announcements */}
+                <button
+                  type="button"
+                  onClick={() => handleLocalExcelDownload('announcements')}
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 hover:bg-slate-100 dark:hover:bg-slate-950/60 text-slate-750 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Bell className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <span className="truncate">5. ประกาศข่าวสาร ({announcements.length})</span>
+                  </div>
+                  <Download className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                </button>
+
+                {/* Export Links */}
+                <button
+                  type="button"
+                  onClick={() => handleLocalExcelDownload('links')}
+                  className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 hover:bg-slate-100 dark:hover:bg-slate-950/60 text-slate-750 dark:text-slate-200 text-xs font-bold flex items-center justify-between gap-2 transition-all cursor-pointer active:scale-98"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <LinkIcon className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                    <span className="truncate">6. เมนูลิงก์ภายนอก ({customMenuLinks.length})</span>
+                  </div>
+                  <Download className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                 </button>
               </div>
+
+              {/* ALL-IN-ONE MASTER EXPORT BUTTON */}
+              <button
+                type="button"
+                onClick={() => handleLocalExcelDownload('all')}
+                className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-98 transition-all cursor-pointer border border-emerald-400/30 mt-2"
+              >
+                <FileSpreadsheet className="w-4.5 h-4.5 text-amber-300" />
+                <span>🌟 ส่งออกรวมข้อมูลหลังบ้านทั้งหมดในไฟล์เดียว (Master All-in-One Excel)</span>
+              </button>
             </div>
 
             {/* Local JSON restore/backup panel */}
@@ -911,6 +1186,244 @@ export default function BackupModule({
           )}
         </div>
       )}
+
+      {/* LIVE BACKEND DATA INSPECTOR TABLE (ตารางดูข้อมูลหลังบ้านแบบเรียลไทม์ในหน้าตั้งค่า) */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/30 p-6 text-left space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 shadow-inner">
+              <Table className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                <span>ตารางพรีวิวและตรวจสอบข้อมูลหลังบ้านสด (Live Backend Data Viewer)</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black">
+                  เรียลไทม์
+                </span>
+              </h3>
+              <p className="text-[10px] text-slate-400">คลิกเลือกหมวดหมู่ข้อมูล ค้นหา และกดส่งออก Excel ของหมวดหมู่นั้นๆ ได้ทันที</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="ค้นหาในตารางข้อมูลหลังบ้าน..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full h-9 pl-9 pr-3 text-[11px] rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleLocalExcelDownload(activePreviewTab as any)}
+              className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>โหลด Excel ตารางนี้</span>
+            </button>
+          </div>
+        </div>
+
+        {/* DATA SELECTOR TABS */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: 'tasks', label: '📋 งาน/คดี', count: tasks.length },
+            { id: 'expenses', label: '💰 รายจ่าย/บิล', count: expenses.length },
+            { id: 'installments', label: '💳 งวดผ่อนชำระ', count: expenses.filter(e => e.isInstallment && e.installments?.length).length },
+            { id: 'users', label: '👥 ผู้ใช้งานหลังบ้าน', count: allUsersList.length },
+            { id: 'announcements', label: '📢 ประกาศข่าวสาร', count: announcements.length },
+            { id: 'links', label: '🔗 ลิงก์เสริม', count: customMenuLinks.length },
+          ].map(tab => {
+            const isActive = activePreviewTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActivePreviewTab(tab.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-850'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* LIVE DATA GRID DISPLAY */}
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950/20 max-h-80 overflow-y-auto">
+          {activePreviewTab === 'tasks' && (
+            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+              <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
+                <tr>
+                  <th className="px-3 py-2.5">หัวข้อภารกิจ</th>
+                  <th className="px-3 py-2.5">หมวดหมู่</th>
+                  <th className="px-3 py-2.5">กำหนดส่ง</th>
+                  <th className="px-3 py-2.5">สถานะ</th>
+                  <th className="px-3 py-2.5">ผู้ใช้ผู้บันทึก</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-850">
+                {tasks.filter(t => !searchTerm || t.title.toLowerCase().includes(searchTerm.toLowerCase()) || t.category.toLowerCase().includes(searchTerm.toLowerCase())).map(t => (
+                  <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/50">
+                    <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{t.title}</td>
+                    <td className="px-3 py-2"><span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold">{t.category}</span></td>
+                    <td className="px-3 py-2 font-mono text-[10.5px]">{t.dueDate} {t.dueTime || ''}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${t.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                        {t.status === 'completed' ? 'เสร็จสิ้น' : 'รอดำเนินการ'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 font-medium">{t.userId}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {activePreviewTab === 'expenses' && (
+            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+              <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
+                <tr>
+                  <th className="px-3 py-2.5">ชื่อรายการ</th>
+                  <th className="px-3 py-2.5">จำนวนเงิน</th>
+                  <th className="px-3 py-2.5">หมวดหมู่</th>
+                  <th className="px-3 py-2.5">วันที่ครบกำหนด</th>
+                  <th className="px-3 py-2.5">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-850">
+                {expenses.filter(e => !searchTerm || e.name.toLowerCase().includes(searchTerm.toLowerCase()) || e.cat.toLowerCase().includes(searchTerm.toLowerCase())).map(e => (
+                  <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/50">
+                    <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{e.name}</td>
+                    <td className="px-3 py-2 font-mono font-bold text-emerald-500">{e.amount?.toLocaleString()} ฿</td>
+                    <td className="px-3 py-2"><span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold">{e.cat}</span></td>
+                    <td className="px-3 py-2 font-mono text-[10.5px]">{e.dueDate}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${e.paid ? 'bg-teal-500/10 text-teal-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                        {e.paid ? 'ชำระแล้ว' : 'ค้างชำระ'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {activePreviewTab === 'installments' && (
+            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+              <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
+                <tr>
+                  <th className="px-3 py-2.5">รายการหลัก</th>
+                  <th className="px-3 py-2.5">งวดที่</th>
+                  <th className="px-3 py-2.5">ยอดงวดนี้</th>
+                  <th className="px-3 py-2.5">กำหนดชำระ</th>
+                  <th className="px-3 py-2.5">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-850">
+                {expenses.filter(e => e.isInstallment && e.installments?.length).flatMap(e => (e.installments || []).map(inst => ({ parentName: e.name, cat: e.cat, ...inst }))).filter(i => !searchTerm || i.parentName.toLowerCase().includes(searchTerm.toLowerCase())).map((i, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-950/50">
+                    <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{i.parentName}</td>
+                    <td className="px-3 py-2 font-mono font-bold">งวดที่ {i.installmentNo}</td>
+                    <td className="px-3 py-2 font-mono font-bold text-cyan-500">{i.amount?.toLocaleString()} ฿</td>
+                    <td className="px-3 py-2 font-mono text-[10.5px]">{i.dueDate}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${i.paid ? 'bg-teal-500/10 text-teal-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                        {i.paid ? 'ชำระแล้ว' : 'ค้างชำระ'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {activePreviewTab === 'users' && (
+            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+              <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
+                <tr>
+                  <th className="px-3 py-2.5">ลำดับ</th>
+                  <th className="px-3 py-2.5">ชื่อผู้ใช้ / Username</th>
+                  <th className="px-3 py-2.5">อีเมล</th>
+                  <th className="px-3 py-2.5">เบอร์โทรศัพท์</th>
+                  <th className="px-3 py-2.5">Firebase UID</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-850">
+                {allUsersList.filter(u => !searchTerm || u.userId.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase())).map((u, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-950/50">
+                    <td className="px-3 py-2 font-mono">{idx + 1}</td>
+                    <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{u.userId}</td>
+                    <td className="px-3 py-2">{u.email || '-'}</td>
+                    <td className="px-3 py-2 font-mono">{u.phone || '-'}</td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-slate-400 truncate max-w-[120px]">{u.uid}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {activePreviewTab === 'announcements' && (
+            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+              <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
+                <tr>
+                  <th className="px-3 py-2.5">หัวข้อประกาศ</th>
+                  <th className="px-3 py-2.5">ผู้เขียน</th>
+                  <th className="px-3 py-2.5">ขอบเขต</th>
+                  <th className="px-3 py-2.5">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-850">
+                {announcements.filter(a => !searchTerm || a.title.toLowerCase().includes(searchTerm.toLowerCase())).map(a => (
+                  <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/50">
+                    <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{a.title}</td>
+                    <td className="px-3 py-2">{a.author || 'แอดมิน'}</td>
+                    <td className="px-3 py-2"><span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold">{a.visibility === 'all' ? 'ทุกคน' : 'ระบุผู้ใช้'}</span></td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${a.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-400'}`}>
+                        {a.isActive ? 'เปิดอยู่' : 'ปิดอยู่'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {activePreviewTab === 'links' && (
+            <table className="w-full text-xs text-left text-slate-600 dark:text-slate-400">
+              <thead className="text-[10px] uppercase font-black tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
+                <tr>
+                  <th className="px-3 py-2.5">ชื่อเมนู</th>
+                  <th className="px-3 py-2.5">URL ปลายทาง</th>
+                  <th className="px-3 py-2.5">ไอคอน</th>
+                  <th className="px-3 py-2.5">ขอบเขตสิทธิ์</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-850">
+                {customMenuLinks.filter(l => !searchTerm || l.title.toLowerCase().includes(searchTerm.toLowerCase()) || l.url.toLowerCase().includes(searchTerm.toLowerCase())).map(l => (
+                  <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/50">
+                    <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{l.title}</td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-indigo-500 truncate max-w-[200px]">{l.url}</td>
+                    <td className="px-3 py-2 font-semibold">{l.iconName || 'Link'}</td>
+                    <td className="px-3 py-2"><span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold">{l.visibility === 'all' ? 'ทุกคน' : 'ระบุผู้ใช้'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
 
     </div>
   );
