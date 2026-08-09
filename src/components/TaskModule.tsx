@@ -692,67 +692,69 @@ export default function TaskModule({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 1. Metric widgets */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* 1. Metric widgets - Sequential borderless horizontal layout */}
+      <div className="flex flex-wrap items-center gap-3 sm:gap-6 py-2 px-1 border-b border-slate-200/60 dark:border-slate-800/60">
         <motion.div
           onClick={() => setActiveFilterPopup('all')}
-          whileHover={{ scale: 1.04, y: -4 }}
-          whileTap={{ scale: 0.96 }}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.02 }}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800/50 transition-all"
         >
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-slate-400"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">งานทั้งหมด</div>
-          <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{tasks.length}</div>
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">งานทั้งหมด</div>
+            <div className="text-xl font-black text-slate-800 dark:text-slate-100 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{tasks.length}</div>
+          </div>
         </motion.div>
+
+        <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden xs:block"></div>
 
         <motion.div
           onClick={() => setActiveFilterPopup('pending')}
-          whileHover={{ scale: 1.04, y: -4 }}
-          whileTap={{ scale: 0.96 }}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.05 }}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-amber-500/10 transition-all"
         >
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-amber-500"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">กำลังดำเนินการ</div>
-          <div className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{countPending}</div>
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+          <div>
+            <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">กำลังดำเนินการ</div>
+            <div className="text-xl font-black text-amber-600 dark:text-amber-400">{countPending}</div>
+          </div>
         </motion.div>
+
+        <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden xs:block"></div>
 
         <motion.div
           onClick={() => setActiveFilterPopup('completed')}
-          whileHover={{ scale: 1.04, y: -4 }}
-          whileTap={{ scale: 0.96 }}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.08 }}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-emerald-500/10 transition-all"
         >
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-500"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">เสร็จสิ้นแล้ว</div>
-          <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{countCompleted}</div>
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+          <div>
+            <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">เสร็จสิ้นแล้ว</div>
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{countCompleted}</div>
+          </div>
         </motion.div>
+
+        <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden xs:block"></div>
 
         <motion.div
           onClick={() => setActiveFilterPopup('overdue')}
-          whileHover={{ scale: 1.04, y: -4 }}
-          whileTap={{ scale: 0.96 }}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.11 }}
-          className="bg-white p-5 rounded-2xl border border-slate-200 cursor-pointer shadow-sm relative overflow-hidden group dark:bg-slate-900 dark:border-slate-800"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-rose-500/10 transition-all"
         >
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-rose-500"></div>
-          <div className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1">เกินกำหนดส่ง</div>
-          <div className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{countOverdue}</div>
+          <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+          <div>
+            <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">เกินกำหนดส่ง</div>
+            <div className="text-xl font-black text-rose-600 dark:text-rose-400">{countOverdue}</div>
+          </div>
         </motion.div>
       </div>
 
-      {/* 2. Actions toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center dark:bg-slate-900 dark:border-slate-800">
+      {/* 2. Actions toolbar - Clean sequential layout without box frames */}
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center py-1">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 animate-pulse" />
           <input
