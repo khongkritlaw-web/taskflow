@@ -118,6 +118,7 @@ export function bahtText(num: number): string {
 }
 
 const STORAGE_KEY = 'dekasuite_receipts_history_v1';
+const ISSUER_STORAGE_KEY = 'dekasuite_saved_issuer_info_v1';
 
 export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], expenses = [] }: ReceiptModuleProps) {
   const [receipts, setReceipts] = useState<ReceiptDoc[]>(() => {
@@ -126,6 +127,15 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return [];
+  });
+
+  // Load Saved Issuer Info
+  const [savedIssuerInfo, setSavedIssuerInfo] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem(ISSUER_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
   });
 
   const [activeSubTab, setActiveSubTab] = useState<'create' | 'history'>('create');
@@ -144,15 +154,38 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
   const [dueDate, setDueDate] = useState('');
   const [refNo, setRefNo] = useState('');
 
-  // Issuer Info
-  const [issuerName, setIssuerName] = useState(settings.appName || 'สำนักงานกฎหมาย และที่ปรึกษา');
-  const [issuerTaxId, setIssuerTaxId] = useState('0105560000000');
-  const [issuerBranch, setIssuerBranch] = useState('สำนักงานใหญ่');
-  const [issuerAddress, setIssuerAddress] = useState('123/45 ถนนรัชดาภิเษก แขวงจอมพล เขตจตุจักร กรุงเทพมหานคร 10900');
-  const [issuerPhone, setIssuerPhone] = useState('02-123-4567');
-  const [issuerEmail, setIssuerEmail] = useState(settings.emailRecipient || 'contact@firm.com');
-  const [issuerLogoUrl, setIssuerLogoUrl] = useState(settings.appLogoUrl || '');
-  const [showLogo, setShowLogo] = useState(true);
+  // Issuer Info (Defaults to saved issuer info if available)
+  const [issuerName, setIssuerName] = useState(() => savedIssuerInfo?.issuerName || settings.appName || 'สำนักงานกฎหมาย และที่ปรึกษา');
+  const [issuerTaxId, setIssuerTaxId] = useState(() => savedIssuerInfo?.issuerTaxId || '0105560000000');
+  const [issuerBranch, setIssuerBranch] = useState(() => savedIssuerInfo?.issuerBranch || 'สำนักงานใหญ่');
+  const [issuerAddress, setIssuerAddress] = useState(() => savedIssuerInfo?.issuerAddress || '123/45 ถนนรัชดาภิเษก แขวงจอมพล เขตจตุจักร กรุงเทพมหานคร 10900');
+  const [issuerPhone, setIssuerPhone] = useState(() => savedIssuerInfo?.issuerPhone || '02-123-4567');
+  const [issuerEmail, setIssuerEmail] = useState(() => savedIssuerInfo?.issuerEmail || settings.emailRecipient || 'contact@firm.com');
+  const [issuerLogoUrl, setIssuerLogoUrl] = useState(() => savedIssuerInfo?.issuerLogoUrl || settings.appLogoUrl || '');
+  const [showLogo, setShowLogo] = useState(() => savedIssuerInfo?.showLogo !== undefined ? savedIssuerInfo.showLogo : true);
+  const [issuerSaveSuccessMsg, setIssuerSaveSuccessMsg] = useState(false);
+
+  // Save Issuer Info explicitly to LocalStorage
+  const handleSaveIssuerInfo = () => {
+    const issuerData = {
+      issuerName,
+      issuerTaxId,
+      issuerBranch,
+      issuerAddress,
+      issuerPhone,
+      issuerEmail,
+      issuerLogoUrl,
+      showLogo
+    };
+    try {
+      localStorage.setItem(ISSUER_STORAGE_KEY, JSON.stringify(issuerData));
+      setSavedIssuerInfo(issuerData);
+      setIssuerSaveSuccessMsg(true);
+      setTimeout(() => setIssuerSaveSuccessMsg(false), 3000);
+    } catch (e) {
+      alert('ไม่สามารถบันทึกข้อมูลผู้ออกใบเสร็จได้');
+    }
+  };
 
   // Watermark Settings
   const [showWatermark, setShowWatermark] = useState(true);
@@ -426,6 +459,22 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       setReceipts([doc, ...receipts]);
     }
 
+    // Auto-save current issuer info into storage as well for future use
+    try {
+      const issuerData = {
+        issuerName,
+        issuerTaxId,
+        issuerBranch,
+        issuerAddress,
+        issuerPhone,
+        issuerEmail,
+        issuerLogoUrl,
+        showLogo
+      };
+      localStorage.setItem(ISSUER_STORAGE_KEY, JSON.stringify(issuerData));
+      setSavedIssuerInfo(issuerData);
+    } catch (e) {}
+
     setIsPreviewUnsaved(false);
     setSaveSuccessMsg(true);
     setTimeout(() => setSaveSuccessMsg(false), 3000);
@@ -484,8 +533,17 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setActiveSubTab('create');
   };
 
-  // Reset Form
-  const handleResetForm = () => {
+  // Reset Form (always requests confirmation unless skipConfirm = true)
+  const handleResetForm = (skipConfirm = false) => {
+    if (!skipConfirm) {
+      const isConfirmed = window.confirm(
+        '⚠️ คุณต้องการล้างข้อมูลในฟอร์มออกทั้งหมดใช่หรือไม่?\n\n' +
+        'ข้อมูลลูกค้า รายการ และตัวเลขทั้งหมดจะถูกล้างเพื่อให้คุณเริ่มออกใบเสร็จใหม่\n' +
+        '(ข้อมูลผู้ออกใบเสร็จที่บันทึกไว้จะยังคงอยู่)'
+      );
+      if (!isConfirmed) return;
+    }
+
     setEditingId(null);
     setReceiptNo(generateAutoNo(docType));
     setIssueDate(new Date().toISOString().slice(0, 10));
@@ -497,17 +555,28 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setCustomerAddress('');
     setCustomerPhone('');
     setCustomerEmail('');
-    setItems([{ id: '1', description: 'ค่าบริการทางกฎหมาย', quantity: 1, unit: 'งวด', unitPrice: 10000, amount: 10000 }]);
+    setItems([{ id: Date.now().toString(), description: 'ค่าบริการทางกฎหมาย', quantity: 1, unit: 'งวด', unitPrice: 10000, amount: 10000 }]);
     setDiscountValue(0);
     setVatType('no_vat');
     setWithholdingTaxPercent(0);
-    setShowLogo(true);
+    setShowLogo(savedIssuerInfo?.showLogo !== undefined ? savedIssuerInfo.showLogo : true);
     setShowWatermark(true);
     setWatermarkType('text');
     setWatermarkText(issuerName || 'สำนักงานกฎหมาย / OFFICIAL RECEIPT');
     setWatermarkImageUrl(issuerLogoUrl || '');
     setWatermarkOpacity(0.12);
     setNotes('ขอบคุณที่ใช้บริการ / กรุณาเก็บเอกสารนี้ไว้เป็นหลักฐาน');
+
+    // Restore saved issuer info if available
+    if (savedIssuerInfo) {
+      if (savedIssuerInfo.issuerName) setIssuerName(savedIssuerInfo.issuerName);
+      if (savedIssuerInfo.issuerTaxId) setIssuerTaxId(savedIssuerInfo.issuerTaxId);
+      if (savedIssuerInfo.issuerBranch) setIssuerBranch(savedIssuerInfo.issuerBranch);
+      if (savedIssuerInfo.issuerAddress) setIssuerAddress(savedIssuerInfo.issuerAddress);
+      if (savedIssuerInfo.issuerPhone) setIssuerPhone(savedIssuerInfo.issuerPhone);
+      if (savedIssuerInfo.issuerEmail) setIssuerEmail(savedIssuerInfo.issuerEmail);
+      if (savedIssuerInfo.issuerLogoUrl) setIssuerLogoUrl(savedIssuerInfo.issuerLogoUrl);
+    }
   };
 
   // Void/Delete Receipt
@@ -768,10 +837,28 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Issuer Info */}
               <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3">
-                <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <Building2 className="w-4 h-4 text-emerald-500" />
-                  <span>2. ข้อมูลผู้ออกใบเสร็จ (ผู้ขาย/สำนักงาน)</span>
-                </h3>
+                <div className="flex flex-wrap items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 gap-2">
+                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-emerald-500" />
+                    <span>2. ข้อมูลผู้ออกใบเสร็จ (ผู้ขาย/สำนักงาน)</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleSaveIssuerInfo}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 flex-shrink-0 shadow-xs"
+                    title="บันทึกข้อมูลผู้ออกใบเสร็จเพื่อใช้ในครั้งถัดไปโดยไม่ต้องกรอกใหม่"
+                  >
+                    <Save className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>บันทึกข้อมูลผู้ออกไว้ใช้ครั้งถัดไป</span>
+                  </button>
+                </div>
+
+                {issuerSaveSuccessMsg && (
+                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-xl text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 animate-fadeIn">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-500" />
+                    <span>จำข้อมูลผู้ออกใบเสร็จสำเร็จ! ระบบจะเรียกใช้ข้อมูลนี้ให้อัตโนมัติในครั้งถัดไป</span>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ชื่อสำนักงาน / บริษัท / ผู้ออก</label>
@@ -1886,10 +1973,20 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               </div>
 
               {/* Printable A4 Document Sheet View */}
-              <div className="p-2 sm:p-8 overflow-y-auto overflow-x-auto flex-1 bg-slate-800/50 flex justify-center items-start">
+              <div className="p-3 sm:p-8 overflow-y-auto overflow-x-auto flex-1 bg-slate-800/50 flex flex-col items-center justify-start min-w-0">
+                {/* Mobile Scroll Hint Banner */}
+                <div className="sm:hidden w-full max-w-[210mm] mb-2.5 px-3 py-2 bg-indigo-500/20 border border-indigo-500/30 rounded-xl text-indigo-200 text-[11px] font-bold flex items-center justify-between gap-2 flex-shrink-0">
+                  <span className="flex items-center gap-1.5">
+                    📄 แสดงผลสัดส่วนกระดาษ A4 จริง (ไม่ย่อส่วน)
+                  </span>
+                  <span className="text-[10px] text-indigo-300 font-semibold">
+                    เลื่อนซ้าย-ขวาเพื่อดูเต็มฉบับ ↔️
+                  </span>
+                </div>
+
                 <div 
                   id="printable-a4-receipt"
-                  className="bg-white text-slate-900 p-4 sm:p-10 rounded-sm shadow-2xl w-full max-w-[210mm] min-h-[297mm] text-xs space-y-4 sm:space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden"
+                  className="bg-white text-slate-900 p-8 rounded-sm shadow-2xl w-[210mm] min-w-[210mm] min-h-[297mm] text-xs space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden flex-shrink-0 my-auto"
                   style={{ color: '#0f172a' }}
                 >
                   {/* Background Watermark Layer */}
@@ -1952,14 +2049,14 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   </div>
 
                   {/* Customer Box */}
-                  <div className="p-4 rounded border border-slate-300 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded border border-slate-300 bg-slate-50/50 grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">ชื่อผู้ว่าจ้าง / ลูกค้า (Customer):</span>
                       <p className="font-bold text-sm text-slate-900">{selectedReceiptForPreview.customerName}</p>
                       <p className="text-[11px] text-slate-600">{selectedReceiptForPreview.customerAddress || 'ไม่ระบุที่อยู่'}</p>
                     </div>
 
-                    <div className="space-y-1 text-right sm:text-left sm:pl-4 sm:border-l sm:border-slate-200">
+                    <div className="space-y-1 text-left pl-4 border-l border-slate-200">
                       <p className="text-[11px] text-slate-700"><span className="font-bold">เลขผู้เสียภาษี:</span> {selectedReceiptForPreview.customerTaxId || '-'}</p>
                       <p className="text-[11px] text-slate-700"><span className="font-bold">โทรศัพท์:</span> {selectedReceiptForPreview.customerPhone || '-'}</p>
                       <p className="text-[11px] text-slate-700"><span className="font-bold">อีเมล:</span> {selectedReceiptForPreview.customerEmail || '-'}</p>
