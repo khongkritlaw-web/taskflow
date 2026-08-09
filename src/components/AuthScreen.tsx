@@ -725,9 +725,14 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       }
 
       // Update in Firestore
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('userId', '==', otpUserId));
-      const querySnapshot = await getDocs(q);
+      let querySnapshot: any = { empty: true };
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('userId', '==', otpUserId));
+        querySnapshot = await getDocs(q);
+      } catch (e) {
+        console.warn('Firestore offline during password reset query:', e);
+      }
 
       if (querySnapshot.empty) {
         // Fallback local only update if Firestore was not accessible

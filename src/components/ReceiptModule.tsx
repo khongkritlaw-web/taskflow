@@ -379,6 +379,10 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     }
   };
 
+  // Top Live Preview Settings
+  const [topPreviewScale, setTopPreviewScale] = useState<number>(0.58);
+  const [showTopPreview, setShowTopPreview] = useState<boolean>(true);
+
   // Watermark Settings
   const [showWatermark, setShowWatermark] = useState(true);
   const [watermarkType, setWatermarkType] = useState<'text' | 'image'>('text');
@@ -918,791 +922,896 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
 
       {/* Main Section: Create or History */}
       {activeSubTab === 'create' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
-          {/* Left / Main Form Column - Single Unified Container */}
-          <div className="lg:col-span-6 p-6 sm:p-7 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-7">
-            
-            {/* Quick Templates Bar */}
-            <div className="pb-4 border-b border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">แม่แบบรายการด่วน:</span>
+        <div className="space-y-6 text-left">
+          {/* Top Sticky Live A4 Preview Card (Always Visible At Top) */}
+          <div className="sticky top-2 z-30 p-4 sm:p-5 rounded-2xl border border-slate-700 dark:border-slate-800 bg-slate-900 text-white shadow-2xl space-y-3">
+            {/* Live Preview Header Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                </span>
+                <div>
+                  <span className="text-xs font-black uppercase text-emerald-400 tracking-wider block">
+                    พรีวิวเอกสาร A4 แบบเรียลไทม์ (Live Preview)
+                  </span>
+                  <span className="text-[11px] text-slate-300 font-medium">
+                    {liveDoc.receiptNo || 'REC-AUTO'} • {liveDoc.customerName || 'ผู้ว่าจ้าง / ลูกค้า (กรอกด้านล่างเพื่ออัปเดต)'}
+                  </span>
+                </div>
               </div>
+
+              {/* Grand Total Badge & Quick Actions */}
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('legal_service')}
-                  className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
-                >
-                  ⚖️ ค่าว่าความ/กฎหมาย
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('court_fee')}
-                  className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold hover:bg-emerald-100 transition-all cursor-pointer"
-                >
-                  🏛️ ค่าธรรมเนียมศาล
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('retainer')}
-                  className="px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-[11px] font-bold hover:bg-amber-100 transition-all cursor-pointer"
-                >
-                  💼 ค่าที่ปรึกษารายเดือน
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('general')}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                >
-                  📦 บริการทั่วไป
-                </button>
-              </div>
-            </div>
-
-            {/* Step 1: Document Type & Config */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                <FileCheck className="w-4 h-4 text-indigo-500" />
-                <span>1. ข้อมูลหัวเอกสารและเลขที่</span>
-              </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ประเภทเอกสารที่ต้องการออก</label>
-                  <select
-                    value={docType}
-                    onChange={(e) => setDocType(e.target.value as any)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold focus:outline-none focus:border-indigo-600 shadow-xs"
-                  >
-                    <option value="receipt">🧾 ใบเสร็จรับเงิน (RECEIPT)</option>
-                    <option value="tax_invoice">🏢 ใบเสร็จรับเงิน / ใบกำกับภาษี (RECEIPT / TAX INVOICE)</option>
-                    <option value="invoice">📋 ใบแจ้งหนี้ / ใบวางบิล (INVOICE / BILL)</option>
-                    <option value="quotation">💼 ใบเสนอราคา (QUOTATION)</option>
-                    <option value="temp_receipt">⏳ ใบเสร็จรับเงินชั่วคราว (TEMPORARY RECEIPT)</option>
-                  </select>
+                <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">ยอดรวมสุทธิ:</span>
+                  <span className="text-sm sm:text-base font-mono font-black text-emerald-400">
+                    {grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">เลขที่เอกสาร (Document No.)</label>
-                  <input
-                    type="text"
-                    value={receiptNo}
-                    onChange={(e) => setReceiptNo(e.target.value)}
-                    placeholder="REC-202608-001"
-                    className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-indigo-700 dark:text-indigo-700 focus:outline-none focus:border-indigo-600 shadow-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">วันที่ออกเอกสาร</label>
-                  <input
-                    type="date"
-                    value={issueDate}
-                    onChange={(e) => setIssueDate(e.target.value)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-bold text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">กำหนดชำระเงิน (ถ้ามี)</label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-medium text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">เลขที่อ้างอิง / คดี / ใบสั่งซื้อ</label>
-                  <input
-                    type="text"
-                    value={refNo}
-                    onChange={(e) => setRefNo(e.target.value)}
-                    placeholder="อ้างอิงคดีดำที่ 123/2569"
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-medium text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Step 2 & 3: Issuer & Customer Details */}
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Issuer Info */}
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 gap-2">
-                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-emerald-500" />
-                    <span>2. ข้อมูลผู้ออกใบเสร็จ (ผู้ขาย/สำนักงาน)</span>
-                  </h3>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={handleSaveIssuerInfo}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 flex-shrink-0 shadow-xs"
-                    title="บันทึกข้อมูลผู้ออกใบเสร็จเพื่อใช้ในครั้งถัดไปโดยไม่ต้องกรอกใหม่"
+                    onClick={handlePreviewOnly}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                    title="ขยายพรีวิวใหญ่เต็มหน้าจอ"
                   >
-                    <Save className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>บันทึกข้อมูลผู้ออก</span>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>ขยายเต็มจอ</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrint(liveDoc)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>สั่งพิมพ์ / PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowTopPreview(!showTopPreview)}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
+                    title={showTopPreview ? "พับเก็บพรีวิว" : "ขยายพรีวิว"}
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showTopPreview ? 'rotate-180' : ''}`} />
+                    <span>{showTopPreview ? 'ย่อพรีวิว' : 'แสดงพรีวิว'}</span>
                   </button>
                 </div>
+              </div>
+            </div>
 
-                {issuerSaveSuccessMsg && (
-                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-xl text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 animate-fadeIn">
-                    <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-500" />
-                    <span>จำข้อมูลผู้ออกใบเสร็จสำเร็จ! ระบบจะเรียกใช้ข้อมูลนี้ให้อัตโนมัติในครั้งถัดไป</span>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ชื่อสำนักงาน / บริษัท / ผู้ออก</label>
-                  <input
-                    type="text"
-                    value={issuerName}
-                    onChange={(e) => setIssuerName(e.target.value)}
-                    className="w-full h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">เลขประจำตัวผู้เสียภาษี</label>
-                    <input
-                      type="text"
-                      value={issuerTaxId}
-                      onChange={(e) => setIssuerTaxId(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">สาขา</label>
-                    <input
-                      type="text"
-                      value={issuerBranch}
-                      onChange={(e) => setIssuerBranch(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
+            {/* Live Scaled A4 Sheet Container */}
+            {showTopPreview && (
+              <div className="space-y-2 animate-fadeIn">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium px-1">
+                  <span className="text-[10px] text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800/60 font-bold">
+                    ({grandTotalTextThai})
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-400 mr-1">ปรับขนาดภาพ:</span>
+                    {[
+                      { scale: 0.45, label: '45%' },
+                      { scale: 0.58, label: '58%' },
+                      { scale: 0.72, label: '72%' },
+                      { scale: 0.88, label: '88%' },
+                    ].map((s) => (
+                      <button
+                        key={s.label}
+                        type="button"
+                        onClick={() => setTopPreviewScale(s.scale)}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          topPreviewScale === s.scale
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ที่อยู่สถานประกอบการ</label>
-                  <textarea
-                    rows={2}
-                    value={issuerAddress}
-                    onChange={(e) => setIssuerAddress(e.target.value)}
-                    className="w-full p-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 resize-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">เบอร์โทรศัพท์</label>
-                    <input
-                      type="text"
-                      value={issuerPhone}
-                      onChange={(e) => setIssuerPhone(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">อีเมล</label>
-                    <input
-                      type="text"
-                      value={issuerEmail}
-                      onChange={(e) => setIssuerEmail(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
+                <div className="w-full max-h-[360px] sm:max-h-[460px] overflow-y-auto overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-2 sm:p-4 flex justify-center items-start shadow-inner">
+                  <div 
+                    style={{ transform: `scale(${topPreviewScale})`, transformOrigin: 'top center' }}
+                    className="my-1 transition-all duration-200"
+                  >
+                    <ReceiptA4Sheet doc={liveDoc} printableId="printable-a4-receipt-top" />
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
 
-                {/* Logo & Watermark Sub-section */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 uppercase tracking-wide">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      โลโก้บริษัท & ลายน้ำเอกสาร
-                    </span>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
+            {/* Left / Main Form Column - Single Unified Container */}
+            <div className="lg:col-span-6 p-6 sm:p-7 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-7">
+              
+              {/* Quick Templates Bar */}
+              <div className="pb-4 border-b border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">แม่แบบรายการด่วน:</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('legal_service')}
+                    className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
+                  >
+                    ⚖️ ค่าว่าความ/กฎหมาย
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('court_fee')}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold hover:bg-emerald-100 transition-all cursor-pointer"
+                  >
+                    🏛️ ค่าธรรมเนียมศาล
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('retainer')}
+                    className="px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-[11px] font-bold hover:bg-amber-100 transition-all cursor-pointer"
+                  >
+                    💼 ค่าที่ปรึกษารายเดือน
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('general')}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                  >
+                    📦 บริการทั่วไป
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 1: Document Type & Config */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <FileCheck className="w-4 h-4 text-indigo-500" />
+                  <span>1. ข้อมูลหัวเอกสารและเลขที่</span>
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ประเภทเอกสารที่ต้องการออก</label>
+                    <select
+                      value={docType}
+                      onChange={(e) => setDocType(e.target.value as any)}
+                      className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    >
+                      <option value="receipt">🧾 ใบเสร็จรับเงิน (RECEIPT)</option>
+                      <option value="tax_invoice">🏢 ใบเสร็จรับเงิน / ใบกำกับภาษี (RECEIPT / TAX INVOICE)</option>
+                      <option value="invoice">📋 ใบแจ้งหนี้ / ใบวางบิล (INVOICE / BILL)</option>
+                      <option value="quotation">💼 ใบเสนอราคา (QUOTATION)</option>
+                      <option value="temp_receipt">⏳ ใบเสร็จรับเงินชั่วคราว (TEMPORARY RECEIPT)</option>
+                    </select>
                   </div>
 
-                  {/* Logo Config */}
-                  <div className="p-3 bg-slate-50 dark:bg-slate-950/70 rounded-xl space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        <Upload className="w-3.5 h-3.5 text-indigo-500" />
-                        <span>แสดงโลโก้บริษัทบนเอกสาร</span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={showLogo} 
-                          onChange={(e) => setShowLogo(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        <span className="ml-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                          {showLogo ? 'เปิด' : 'ปิด'}
-                        </span>
-                      </label>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">เลขที่เอกสาร (Document No.)</label>
+                    <input
+                      type="text"
+                      value={receiptNo}
+                      onChange={(e) => setReceiptNo(e.target.value)}
+                      placeholder="REC-202608-001"
+                      className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-indigo-900 dark:text-indigo-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">วันที่ออกเอกสาร</label>
+                    <input
+                      type="date"
+                      value={issueDate}
+                      onChange={(e) => setIssueDate(e.target.value)}
+                      className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-bold text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">กำหนดชำระเงิน (ถ้ามี)</label>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-bold text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">เลขที่อ้างอิง / คดี / ใบสั่งซื้อ</label>
+                    <input
+                      type="text"
+                      value={refNo}
+                      onChange={(e) => setRefNo(e.target.value)}
+                      placeholder="อ้างอิงคดีดำที่ 123/2569"
+                      className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-bold text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2 & 3: Issuer & Customer Details */}
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Issuer Info */}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 gap-2">
+                    <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-emerald-500" />
+                      <span>2. ข้อมูลผู้ออกใบเสร็จ (ผู้ขาย/สำนักงาน)</span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleSaveIssuerInfo}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 flex-shrink-0 shadow-xs"
+                      title="บันทึกข้อมูลผู้ออกใบเสร็จเพื่อใช้ในครั้งถัดไปโดยไม่ต้องกรอกใหม่"
+                    >
+                      <Save className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>บันทึกข้อมูลผู้ออก</span>
+                    </button>
+                  </div>
+
+                  {issuerSaveSuccessMsg && (
+                    <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-xl text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 animate-fadeIn">
+                      <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-500" />
+                      <span>จำข้อมูลผู้ออกใบเสร็จสำเร็จ! ระบบจะเรียกใช้ข้อมูลนี้ให้อัตโนมัติในครั้งถัดไป</span>
                     </div>
+                  )}
 
-                    {showLogo && (
-                      <div className="space-y-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
-                        <div className="flex items-center gap-2.5">
-                          {issuerLogoUrl ? (
-                            <div className="relative group w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 flex items-center justify-center flex-shrink-0">
-                              <img src={issuerLogoUrl} alt="Logo preview" className="max-w-full max-h-full object-contain" />
-                              <button
-                                type="button"
-                                onClick={() => setIssuerLogoUrl('')}
-                                className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                title="ลบรูปโลโก้"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-400 flex-shrink-0">
-                              <Upload className="w-4 h-4" />
-                            </div>
-                          )}
-
-                          <div className="flex-1 space-y-1">
-                            <label className="px-2.5 py-1 rounded-lg bg-indigo-100/80 dark:bg-indigo-950/80 hover:bg-indigo-200 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-all inline-flex items-center gap-1">
-                              <Upload className="w-3 h-3" />
-                              <span>{issuerLogoUrl ? 'เปลี่ยนโลโก้' : 'อัปโหลดรูปภาพโลโก้'}</span>
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={(e) => handleImageUpload(e, (url) => setIssuerLogoUrl(url))} 
-                              />
-                            </label>
-                            <input 
-                              type="text" 
-                              placeholder="หรือวาง URL รูปภาพโลโก้" 
-                              value={issuerLogoUrl}
-                              onChange={(e) => setIssuerLogoUrl(e.target.value)}
-                              className="w-full h-7 px-2 text-[10px] rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">ชื่อสำนักงาน / บริษัท / ผู้ออก</label>
+                    <input
+                      type="text"
+                      value={issuerName}
+                      onChange={(e) => setIssuerName(e.target.value)}
+                      className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    />
                   </div>
 
-                  {/* Watermark Config */}
-                  <div className="p-3 bg-slate-50 dark:bg-slate-950/70 rounded-xl space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                      <input
+                        type="text"
+                        value={issuerTaxId}
+                        onChange={(e) => setIssuerTaxId(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">สาขา</label>
+                      <input
+                        type="text"
+                        value={issuerBranch}
+                        onChange={(e) => setIssuerBranch(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">ที่อยู่สถานประกอบการ</label>
+                    <textarea
+                      rows={2}
+                      value={issuerAddress}
+                      onChange={(e) => setIssuerAddress(e.target.value)}
+                      className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">เบอร์โทรศัพท์</label>
+                      <input
+                        type="text"
+                        value={issuerPhone}
+                        onChange={(e) => setIssuerPhone(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">อีเมล</label>
+                      <input
+                        type="text"
+                        value={issuerEmail}
+                        onChange={(e) => setIssuerEmail(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Logo & Watermark Sub-section */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <span className="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 uppercase tracking-wide">
                         <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        <span>แสดงลายน้ำพื้นหลังเอกสาร (Watermark)</span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={showWatermark} 
-                          onChange={(e) => setShowWatermark(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-500"></div>
-                        <span className="ml-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                          {showWatermark ? 'เปิด' : 'ปิด'}
-                        </span>
-                      </label>
+                        โลโก้บริษัท & ลายน้ำเอกสาร
+                      </span>
                     </div>
 
-                    {showWatermark && (
-                      <div className="space-y-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                        <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className="font-bold text-slate-600 dark:text-slate-400">ชนิดลายน้ำ:</span>
-                          <button
-                            type="button"
-                            onClick={() => setWatermarkType('text')}
-                            className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
-                              watermarkType === 'text' 
-                                ? 'bg-amber-500 text-white' 
-                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                            }`}
-                          >
-                            ข้อความ (Text)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setWatermarkType('image')}
-                            className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
-                              watermarkType === 'image' 
-                                ? 'bg-amber-500 text-white' 
-                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                            }`}
-                          >
-                            โลโก้/รูปภาพ (Image)
-                          </button>
+                    {/* Logo Config */}
+                    <div className="p-3 bg-slate-50 dark:bg-slate-950/70 rounded-xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>แสดงโลโก้บริษัทบนเอกสาร</span>
                         </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={showLogo} 
+                            onChange={(e) => setShowLogo(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-600"></div>
+                          <span className="ml-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                            {showLogo ? 'เปิด' : 'ปิด'}
+                          </span>
+                        </label>
+                      </div>
 
-                        {watermarkType === 'text' ? (
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">ข้อความลายน้ำ</label>
-                            <input 
-                              type="text" 
-                              value={watermarkText} 
-                              onChange={(e) => setWatermarkText(e.target.value)}
-                              placeholder="ตัวอย่าง: สำนักงานกฎหมาย / OFFICIAL RECEIPT" 
-                              className="w-full h-7 px-2 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                            />
-                          </div>
-                        ) : (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2">
-                              <label className="px-2.5 py-1 rounded-lg bg-amber-100/80 dark:bg-amber-950/80 hover:bg-amber-200 dark:hover:bg-amber-900 text-amber-700 dark:text-amber-400 font-bold text-[10px] border border-amber-200 dark:border-amber-800 cursor-pointer transition-all inline-flex items-center gap-1">
+                      {showLogo && (
+                        <div className="space-y-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                          <div className="flex items-center gap-2.5">
+                            {issuerLogoUrl ? (
+                              <div className="relative group w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 flex items-center justify-center flex-shrink-0">
+                                <img src={issuerLogoUrl} alt="Logo preview" className="max-w-full max-h-full object-contain" />
+                                <button
+                                  type="button"
+                                  onClick={() => setIssuerLogoUrl('')}
+                                  className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                  title="ลบรูปโลโก้"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-400 flex-shrink-0">
+                                <Upload className="w-4 h-4" />
+                              </div>
+                            )}
+
+                            <div className="flex-1 space-y-1">
+                              <label className="px-2.5 py-1 rounded-lg bg-indigo-100/80 dark:bg-indigo-950/80 hover:bg-indigo-200 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-all inline-flex items-center gap-1">
                                 <Upload className="w-3 h-3" />
-                                <span>อัปโหลดรูปภาพลายน้ำ</span>
+                                <span>{issuerLogoUrl ? 'เปลี่ยนโลโก้' : 'อัปโหลดรูปภาพโลโก้'}</span>
                                 <input 
                                   type="file" 
                                   accept="image/*" 
                                   className="hidden" 
-                                  onChange={(e) => handleImageUpload(e, (url) => setWatermarkImageUrl(url))} 
+                                  onChange={(e) => handleImageUpload(e, (url) => setIssuerLogoUrl(url))} 
                                 />
                               </label>
-                              <span className="text-[9px] text-slate-400">(หากไม่ใส่ จะใช้โลโก้บริษัท)</span>
+                              <input 
+                                type="text" 
+                                placeholder="หรือวาง URL รูปภาพโลโก้" 
+                                value={issuerLogoUrl}
+                                onChange={(e) => setIssuerLogoUrl(e.target.value)}
+                                className="w-full h-8 px-2.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                              />
                             </div>
-                            <input 
-                              type="text" 
-                              placeholder="หรือวาง URL รูปภาพลายน้ำ" 
-                              value={watermarkImageUrl}
-                              onChange={(e) => setWatermarkImageUrl(e.target.value)}
-                              className="w-full h-7 px-2 text-[10px] rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
-                            />
                           </div>
-                        )}
-
-                        <div>
-                          <div className="flex justify-between text-[9px] font-bold text-slate-500 mb-0.5">
-                            <span>ความเข้มลายน้ำ (Opacity)</span>
-                            <span>{Math.round(watermarkOpacity * 100)}%</span>
-                          </div>
-                          <input 
-                            type="range" 
-                            min="0.04" 
-                            max="0.35" 
-                            step="0.01" 
-                            value={watermarkOpacity} 
-                            onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
-                            className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
-                          />
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Customer Info */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <UserCheck className="w-4 h-4 text-cyan-500" />
-                  <span>3. ข้อมูลผู้ว่าจ้าง / ลูกค้า (ผู้ชำระเงิน)</span>
-                </h3>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ชื่อลูกค้า / บริษัทผู้รับบริการ *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="บริษัท เอสซีจี คอร์ปอเรชั่น จำกัด / นายสมชาย ใจดี"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:border-indigo-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">เลขประจำตัวผู้เสียภาษี/บัตร</label>
-                    <input
-                      type="text"
-                      placeholder="13 หลัก"
-                      value={customerTaxId}
-                      onChange={(e) => setCustomerTaxId(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">สาขา</label>
-                    <input
-                      type="text"
-                      placeholder="สำนักงานใหญ่ / สาขา 00001"
-                      value={customerBranch}
-                      onChange={(e) => setCustomerBranch(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ที่อยู่สำหรับออกใบเสร็จ</label>
-                  <textarea
-                    rows={2}
-                    placeholder="ที่อยู่สำหรับลงในใบกำกับภาษี..."
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="w-full p-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 resize-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">เบอร์โทรศัพท์</label>
-                    <input
-                      type="text"
-                      placeholder="081-234-5678"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">อีเมล</label>
-                    <input
-                      type="text"
-                      placeholder="client@email.com"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 4: Items Table */}
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-indigo-500" />
-                  <span>4. รายการสินค้า / ค่าบริการ / ค่าใช้จ่าย</span>
-                </h3>
-
-                <button
-                  type="button"
-                  onClick={handleAddItem}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-bold flex items-center gap-1.5 hover:bg-indigo-100 transition-all cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>เพิ่มแถวรายการ</span>
-                </button>
-              </div>
-
-              {/* Items List */}
-              <div className="space-y-3">
-                {items.map((item, idx) => (
-                  <div key={item.id}>
-                    {/* Desktop View (sm:grid) */}
-                    <div className="hidden sm:grid grid-cols-12 gap-2 p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 items-center">
-                      <div className="col-span-1 text-center font-mono text-xs font-bold text-slate-400">
-                        {idx + 1}
-                      </div>
-
-                      <div className="col-span-5">
-                        <input
-                          type="text"
-                          placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
-                          value={item.description}
-                          onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
-                          className="w-full h-9 px-3 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="จำนวน"
-                          value={item.quantity}
-                          onChange={(e) => handleUpdateItem(item.id, 'quantity', e.target.value)}
-                          className="w-full h-9 px-2 text-center text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div className="col-span-1">
-                        <input
-                          type="text"
-                          placeholder="หน่วย"
-                          value={item.unit}
-                          onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
-                          className="w-full h-9 px-2 text-center text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="ราคา/หน่วย"
-                          value={item.unitPrice}
-                          onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
-                          className="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div className="col-span-1 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(item.id)}
-                          disabled={items.length <= 1}
-                          className="p-2 text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      )}
                     </div>
 
-                    {/* Mobile View (sm:hidden) */}
-                    <div className="sm:hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 space-y-2.5">
-                      <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
-                        <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center">
-                          {idx + 1}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                            {(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                    {/* Watermark Config */}
+                    <div className="p-3 bg-slate-50 dark:bg-slate-950/70 rounded-xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          <span>แสดงลายน้ำพื้นหลังเอกสาร (Watermark)</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={showWatermark} 
+                            onChange={(e) => setShowWatermark(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-500"></div>
+                          <span className="ml-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                            {showWatermark ? 'เปิด' : 'ปิด'}
                           </span>
+                        </label>
+                      </div>
+
+                      {showWatermark && (
+                        <div className="space-y-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            <span className="font-bold text-slate-600 dark:text-slate-400">ชนิดลายน้ำ:</span>
+                            <button
+                              type="button"
+                              onClick={() => setWatermarkType('text')}
+                              className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
+                                watermarkType === 'text' 
+                                  ? 'bg-amber-500 text-white' 
+                                  : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              ข้อความ (Text)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setWatermarkType('image')}
+                              className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
+                                watermarkType === 'image' 
+                                  ? 'bg-amber-500 text-white' 
+                                  : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              โลโก้/รูปภาพ (Image)
+                            </button>
+                          </div>
+
+                          {watermarkType === 'text' ? (
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">ข้อความลายน้ำ</label>
+                              <input 
+                                type="text" 
+                                value={watermarkText} 
+                                onChange={(e) => setWatermarkText(e.target.value)}
+                                placeholder="ตัวอย่าง: สำนักงานกฎหมาย / OFFICIAL RECEIPT" 
+                                className="w-full h-8 px-2.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <label className="px-2.5 py-1 rounded-lg bg-amber-100/80 dark:bg-amber-950/80 hover:bg-amber-200 dark:hover:bg-amber-900 text-amber-700 dark:text-amber-400 font-bold text-[10px] border border-amber-200 dark:border-amber-800 cursor-pointer transition-all inline-flex items-center gap-1">
+                                  <Upload className="w-3 h-3" />
+                                  <span>อัปโหลดรูปภาพลายน้ำ</span>
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                    onChange={(e) => handleImageUpload(e, (url) => setWatermarkImageUrl(url))} 
+                                  />
+                                </label>
+                                <span className="text-[9px] text-slate-400">(หากไม่ใส่ จะใช้โลโก้บริษัท)</span>
+                              </div>
+                              <input 
+                                type="text" 
+                                placeholder="หรือวาง URL รูปภาพลายน้ำ" 
+                                value={watermarkImageUrl}
+                                onChange={(e) => setWatermarkImageUrl(e.target.value)}
+                                className="w-full h-8 px-2.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <div className="flex justify-between text-[9px] font-bold text-slate-500 mb-0.5">
+                              <span>ความเข้มลายน้ำ (Opacity)</span>
+                              <span>{Math.round(watermarkOpacity * 100)}%</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="0.04" 
+                              max="0.35" 
+                              step="0.01" 
+                              value={watermarkOpacity} 
+                              onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
+                              className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Info */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <UserCheck className="w-4 h-4 text-cyan-500" />
+                    <span>3. ข้อมูลผู้ว่าจ้าง / ลูกค้า (ผู้ชำระเงิน)</span>
+                  </h3>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">ชื่อลูกค้า / บริษัทผู้รับบริการ *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="บริษัท เอสซีจี คอร์ปอเรชั่น จำกัด / นายสมชาย ใจดี"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">เลขประจำตัวผู้เสียภาษี/บัตร</label>
+                      <input
+                        type="text"
+                        placeholder="13 หลัก"
+                        value={customerTaxId}
+                        onChange={(e) => setCustomerTaxId(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">สาขา</label>
+                      <input
+                        type="text"
+                        placeholder="สำนักงานใหญ่ / สาขา 00001"
+                        value={customerBranch}
+                        onChange={(e) => setCustomerBranch(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">ที่อยู่สำหรับออกใบเสร็จ</label>
+                    <textarea
+                      rows={2}
+                      placeholder="ที่อยู่สำหรับลงในใบกำกับภาษี..."
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">เบอร์โทรศัพท์</label>
+                      <input
+                        type="text"
+                        placeholder="081-234-5678"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">อีเมล</label>
+                      <input
+                        type="text"
+                        placeholder="client@email.com"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4: Items Table */}
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-indigo-500" />
+                    <span>4. รายการสินค้า / ค่าบริการ / ค่าใช้จ่าย</span>
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-bold flex items-center gap-1.5 hover:bg-indigo-100 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>เพิ่มแถวรายการ</span>
+                  </button>
+                </div>
+
+                {/* Items List */}
+                <div className="space-y-3">
+                  {items.map((item, idx) => (
+                    <div key={item.id}>
+                      {/* Desktop View (sm:grid) */}
+                      <div className="hidden sm:grid grid-cols-12 gap-2 p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 items-center">
+                        <div className="col-span-1 text-center font-mono text-xs font-bold text-slate-400">
+                          {idx + 1}
+                        </div>
+
+                        <div className="col-span-5">
+                          <input
+                            type="text"
+                            placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
+                            value={item.description}
+                            onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
+                            className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
+                          />
+                        </div>
+
+                        <div className="col-span-2">
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="จำนวน"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateItem(item.id, 'quantity', e.target.value)}
+                            className="w-full h-10 px-2 text-center text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
+                          />
+                        </div>
+
+                        <div className="col-span-1">
+                          <input
+                            type="text"
+                            placeholder="หน่วย"
+                            value={item.unit}
+                            onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
+                            className="w-full h-10 px-2 text-center text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
+                          />
+                        </div>
+
+                        <div className="col-span-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="ราคา/หน่วย"
+                            value={item.unitPrice}
+                            onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
+                            className="w-full h-10 px-2 text-right text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
+                          />
+                        </div>
+
+                        <div className="col-span-1 text-right">
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(item.id)}
                             disabled={items.length <= 1}
-                            className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg disabled:opacity-30 cursor-pointer"
-                            title="ลบรายการ"
+                            className="p-2 text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">รายละเอียดรายการ</label>
-                        <input
-                          type="text"
-                          placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
-                          value={item.description}
-                          onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
-                          className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">จำนวน</label>
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="1"
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItem(item.id, 'quantity', e.target.value)}
-                            className="w-full h-9 px-2 text-center text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                          />
+                      {/* Mobile View (sm:hidden) */}
+                      <div className="sm:hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                          <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center">
+                            {idx + 1}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              {(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              disabled={items.length <= 1}
+                              className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg disabled:opacity-30 cursor-pointer"
+                              title="ลบรายการ"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">หน่วย</label>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">รายละเอียดรายการ</label>
                           <input
                             type="text"
-                            placeholder="รายการ"
-                            value={item.unit}
-                            onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
-                            className="w-full h-9 px-2 text-center text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                            placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
+                            value={item.description}
+                            onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
+                            className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
                           />
                         </div>
 
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ราคา/หน่วย</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={item.unitPrice}
-                            onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
-                            className="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                          />
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">จำนวน</label>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="1"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateItem(item.id, 'quantity', e.target.value)}
+                              className="w-full h-9 px-2 text-center text-xs font-mono font-bold rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">หน่วย</label>
+                            <input
+                              type="text"
+                              placeholder="รายการ"
+                              value={item.unit}
+                              onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
+                              className="w-full h-9 px-2 text-center text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ราคา/หน่วย</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={item.unitPrice}
+                              onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
+                              className="w-full h-9 px-2 text-right text-xs font-mono font-bold rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              {/* Tax & Calculation Settings */}
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ส่วนลดพิเศษ (Discount)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(Number(e.target.value))}
-                      className="w-full h-9 px-3 text-xs font-mono rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                    />
+                {/* Tax & Calculation Settings */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ส่วนลดพิเศษ (Discount)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(Number(e.target.value))}
+                        className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                      />
+                      <select
+                        value={discountType}
+                        onChange={(e) => setDiscountType(e.target.value as any)}
+                        className="h-10 px-2 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold"
+                      >
+                        <option value="flat">บาท</option>
+                        <option value="percent">%</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ภาษีมูลค่าเพิ่ม (VAT 7%)</label>
                     <select
-                      value={discountType}
-                      onChange={(e) => setDiscountType(e.target.value as any)}
-                      className="h-9 px-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold"
+                      value={vatType}
+                      onChange={(e) => setVatType(e.target.value as any)}
+                      className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold"
                     >
-                      <option value="flat">บาท</option>
-                      <option value="percent">%</option>
+                      <option value="no_vat">ไม่มี VAT (No VAT)</option>
+                      <option value="vat_7_add">+ VAT 7% (แยกจากราคาสินค้า)</option>
+                      <option value="vat_7_included">รวม VAT 7% แล้ว (In-VAT)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ภาษีหัก ณ ที่จ่าย (Withholding Tax)</label>
+                    <select
+                      value={withholdingTaxPercent}
+                      onChange={(e) => setWithholdingTaxPercent(Number(e.target.value))}
+                      className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold"
+                    >
+                      <option value={0}>ไม่มีการหัก ณ ที่จ่าย (0%)</option>
+                      <option value={1}>หัก ณ ที่จ่าย 1% (ขนส่ง/บริการเฉพาะ)</option>
+                      <option value={3}>หัก ณ ที่จ่าย 3% (ค่าบริการวิชาชีพ/ว่าความ)</option>
+                      <option value={5}>หัก ณ ที่จ่าย 5% (ค่าเช่า/รางวัล)</option>
                     </select>
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ภาษีมูลค่าเพิ่ม (VAT 7%)</label>
-                  <select
-                    value={vatType}
-                    onChange={(e) => setVatType(e.target.value as any)}
-                    className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold"
-                  >
-                    <option value="no_vat">ไม่มี VAT (No VAT)</option>
-                    <option value="vat_7_add">+ VAT 7% (แยกจากราคาสินค้า)</option>
-                    <option value="vat_7_included">รวม VAT 7% แล้ว (In-VAT)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ภาษีหัก ณ ที่จ่าย (Withholding Tax)</label>
-                  <select
-                    value={withholdingTaxPercent}
-                    onChange={(e) => setWithholdingTaxPercent(Number(e.target.value))}
-                    className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold"
-                  >
-                    <option value={0}>ไม่มีการหัก ณ ที่จ่าย (0%)</option>
-                    <option value={1}>หัก ณ ที่จ่าย 1% (ขนส่ง/บริการเฉพาะ)</option>
-                    <option value={3}>หัก ณ ที่จ่าย 3% (ค่าบริการวิชาชีพ/ว่าความ)</option>
-                    <option value={5}>หัก ณ ที่จ่าย 5% (ค่าเช่า/รางวัล)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 5: Payment Method & Bank Info */}
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 space-y-4">
-              <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                <DollarSign className="w-4 h-4 text-emerald-500" />
-                <span>5. วิธีการชำระเงิน และหมายเหตุ</span>
-              </h3>
-
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {[
-                  { id: 'transfer', label: '🏦 โอนผ่านธนาคาร' },
-                  { id: 'cash', label: '💵 เงินสด' },
-                  { id: 'qr', label: '📱 สแกน QR' },
-                  { id: 'cheque', label: '📜 เช็คสั่งจ่าย' },
-                  { id: 'credit', label: '💳 บัตรเครดิต' }
-                ].map(m => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setPaymentMethod(m.id as any)}
-                    className={`h-10 px-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                      paymentMethod === m.id
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
               </div>
 
-              {paymentMethod === 'transfer' && (
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ธนาคาร</label>
-                    <input
-                      type="text"
-                      value={bankName}
-                      onChange={(e) => setBankName(e.target.value)}
-                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
-                    />
+              {/* Step 5: Payment Method & Bank Info */}
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 space-y-4">
+                <h3 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <DollarSign className="w-4 h-4 text-emerald-500" />
+                  <span>5. วิธีการชำระเงิน และหมายเหตุ</span>
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[
+                    { id: 'transfer', label: '🏦 โอนผ่านธนาคาร' },
+                    { id: 'cash', label: '💵 เงินสด' },
+                    { id: 'qr', label: '📱 สแกน QR' },
+                    { id: 'cheque', label: '📜 เช็คสั่งจ่าย' },
+                    { id: 'credit', label: '💳 บัตรเครดิต' }
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(m.id as any)}
+                      className={`h-10 px-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        paymentMethod === m.id
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                {paymentMethod === 'transfer' && (
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ธนาคาร</label>
+                      <input
+                        type="text"
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        className="w-full h-9 px-2.5 text-xs rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">เลขที่บัญชี</label>
+                      <input
+                        type="text"
+                        value={bankAccountNo}
+                        onChange={(e) => setBankAccountNo(e.target.value)}
+                        className="w-full h-9 px-2.5 text-xs font-mono font-bold rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ชื่อบัญชี</label>
+                      <input
+                        type="text"
+                        value={bankAccountName}
+                        onChange={(e) => setBankAccountName(e.target.value)}
+                        className="w-full h-9 px-2.5 text-xs rounded-lg border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">เลขที่บัญชี</label>
-                    <input
-                      type="text"
-                      value={bankAccountNo}
-                      onChange={(e) => setBankAccountNo(e.target.value)}
-                      className="w-full h-8 px-2.5 text-xs font-mono font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ชื่อบัญชี</label>
-                    <input
-                      type="text"
-                      value={bankAccountName}
-                      onChange={(e) => setBankAccountName(e.target.value)}
-                      className="w-full h-8 px-2.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">หมายเหตุท้ายใบเสร็จ / เงื่อนไขชำระเงิน</label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full p-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ชื่อผู้รับเงิน / ผู้สร้างเอกสาร</label>
-                  <input
-                    type="text"
-                    value={collectorName}
-                    onChange={(e) => setCollectorName(e.target.value)}
-                    className="w-full h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ชื่อผู้มีอำนาจลงนาม / อนุมัติ</label>
-                  <input
-                    type="text"
-                    value={approverName}
-                    onChange={(e) => setApproverName(e.target.value)}
-                    className="w-full h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Save & Actions */}
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-4">
-              <button
-                type="button"
-                onClick={handleResetForm}
-                className="h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
-              >
-                ล้างฟอร์ม
-              </button>
-
-              <div className="flex items-center gap-3">
-                {saveSuccessMsg && (
-                  <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> บันทึกสำเร็จ!
-                  </span>
                 )}
-                
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">หมายเหตุท้ายใบเสร็จ / เงื่อนไขชำระเงิน</label>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full p-2.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ชื่อผู้รับเงิน / ผู้สร้างเอกสาร</label>
+                    <input
+                      type="text"
+                      value={collectorName}
+                      onChange={(e) => setCollectorName(e.target.value)}
+                      className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ชื่อผู้มีอำนาจลงนาม / อนุมัติ</label>
+                    <input
+                      type="text"
+                      value={approverName}
+                      onChange={(e) => setApproverName(e.target.value)}
+                      className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Save & Actions */}
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-4">
                 <button
                   type="button"
-                  onClick={handleSaveReceipt}
-                  className="h-12 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+                  onClick={handleResetForm}
+                  className="h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>บันทึกและพรีวิวเอกสาร A4</span>
+                  ล้างฟอร์ม
                 </button>
+
+                <div className="flex items-center gap-3">
+                  {saveSuccessMsg && (
+                    <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4" /> บันทึกสำเร็จ!
+                    </span>
+                  )}
+                  
+                  <button
+                    type="button"
+                    onClick={handleSaveReceipt}
+                    className="h-12 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>บันทึกและพรีวิวเอกสาร A4</span>
+                  </button>
+                </div>
               </div>
-            </div>
 
           </div>
 
@@ -1766,8 +1875,9 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Floating Mobile Action Bar (lg:hidden) */}
+        {/* Floating Mobile Action Bar (lg:hidden) */}
           <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md p-3 border-t border-slate-800 text-white shadow-2xl flex items-center justify-between gap-2">
             <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">ยอดสุทธิ (Grand Total)</span>
