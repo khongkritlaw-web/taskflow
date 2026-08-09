@@ -142,7 +142,7 @@ export default function TaskModule({
   const [viewingAttachment, setViewingAttachment] = useState<TaskAttachment | null>(null);
 
   // General Filter Popup modal state
-  const [activeFilterPopup, setActiveFilterPopup] = useState<'all' | 'pending' | 'completed' | 'overdue' | null>(null);
+  const [activeFilterPopup, setActiveFilterPopup] = useState<'all' | 'today' | 'pending' | 'completed' | 'overdue' | null>(null);
 
   // Print Modal Configuration States
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -692,63 +692,125 @@ export default function TaskModule({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 1. Metric widgets - Sequential borderless horizontal layout */}
-      <div className="flex flex-wrap items-center gap-3 sm:gap-6 py-2 px-1 border-b border-slate-200/60 dark:border-slate-800/60">
+      {/* 1. Metric widgets - Stat Cards Grid (กรอบสถิติ) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 md:gap-4">
+        {/* Card 1: งานทั้งหมด */}
         <motion.div
           onClick={() => setActiveFilterPopup('all')}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800/50 transition-all"
+          whileHover={{ y: -2, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden flex flex-col justify-between"
         >
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">งานทั้งหมด</div>
-            <div className="text-xl font-black text-slate-800 dark:text-slate-100 group-hover:text-accent" style={{ '--accent': accentColor } as React.CSSProperties}>{tasks.length}</div>
+          <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400 group-hover:bg-slate-600 transition-colors"></div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">งานทั้งหมด</span>
+            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 group-hover:scale-110 transition-transform">
+              <List className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between mt-1">
+            <div className="text-2xl font-black text-slate-800 dark:text-slate-100 group-hover:text-slate-900 dark:group-hover:text-white">
+              {tasks.length}
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+              รายการ
+            </span>
           </div>
         </motion.div>
 
-        <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden xs:block"></div>
+        {/* Card 2: ต้องส่งวันนี้ */}
+        <motion.div
+          onClick={() => setActiveFilterPopup('today')}
+          whileHover={{ y: -2, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden flex flex-col justify-between"
+        >
+          <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500 group-hover:bg-blue-600 transition-colors"></div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">ต้องส่งวันนี้</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
+              <Calendar className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between mt-1">
+            <div className="text-2xl font-black text-blue-600 dark:text-blue-400">
+              {countToday}
+            </div>
+            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full">
+              วันนี้
+            </span>
+          </div>
+        </motion.div>
 
+        {/* Card 3: กำลังดำเนินการ */}
         <motion.div
           onClick={() => setActiveFilterPopup('pending')}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-amber-500/10 transition-all"
+          whileHover={{ y: -2, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden flex flex-col justify-between"
         >
-          <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-          <div>
-            <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">กำลังดำเนินการ</div>
-            <div className="text-xl font-black text-amber-600 dark:text-amber-400">{countPending}</div>
+          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500 group-hover:bg-amber-600 transition-colors"></div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-amber-600 dark:text-amber-400">กำลังดำเนินการ</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between mt-1">
+            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+              {countPending}
+            </div>
+            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full">
+              รอดำเนินการ
+            </span>
           </div>
         </motion.div>
 
-        <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden xs:block"></div>
-
+        {/* Card 4: เสร็จสิ้นแล้ว */}
         <motion.div
           onClick={() => setActiveFilterPopup('completed')}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-emerald-500/10 transition-all"
+          whileHover={{ y: -2, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden flex flex-col justify-between"
         >
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-          <div>
-            <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">เสร็จสิ้นแล้ว</div>
-            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{countCompleted}</div>
+          <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500 group-hover:bg-emerald-600 transition-colors"></div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">เสร็จสิ้นแล้ว</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+              <CheckCircle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between mt-1">
+            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+              {countCompleted}
+            </div>
+            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+              สำเร็จ
+            </span>
           </div>
         </motion.div>
 
-        <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden xs:block"></div>
-
+        {/* Card 5: เกินกำหนดส่ง */}
         <motion.div
           onClick={() => setActiveFilterPopup('overdue')}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-3 cursor-pointer group py-1.5 px-3 rounded-xl hover:bg-rose-500/10 transition-all"
+          whileHover={{ y: -2, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden flex flex-col justify-between col-span-2 sm:col-span-1"
         >
-          <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
-          <div>
-            <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">เกินกำหนดส่ง</div>
-            <div className="text-xl font-black text-rose-600 dark:text-rose-400">{countOverdue}</div>
+          <div className="absolute top-0 left-0 right-0 h-1 bg-rose-500 group-hover:bg-rose-600 transition-colors"></div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-rose-600 dark:text-rose-400">เกินกำหนดส่ง</span>
+            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between mt-1">
+            <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
+              {countOverdue}
+            </div>
+            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full">
+              ล่าช้า
+            </span>
           </div>
         </motion.div>
       </div>
@@ -1313,6 +1375,7 @@ export default function TaskModule({
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <List className="w-4 h-4 text-accent" style={{ color: accentColor }} />
                 สรุปภารกิจตรวจสอบ: {activeFilterPopup === 'all' && 'งานทั้งหมด'}
+                {activeFilterPopup === 'today' && 'งานที่ต้องส่งในวันนี้'}
                 {activeFilterPopup === 'pending' && 'งานอยู่ระหว่างรอดำเนินการ'}
                 {activeFilterPopup === 'completed' && 'งานเสร็จสิ้นสะสม'}
                 {activeFilterPopup === 'overdue' && 'งานเลยกำหนดส่งที่ล่าช้า'}
