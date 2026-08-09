@@ -130,6 +130,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     const emailFirebase = formatEmail(trimmedId);
     const finalPass = padPass(loginPass);
 
+    // Block admin logins from regular user tab immediately
+    if (authRole === 'user' && trimmedId === 'admin') {
+      triggerError('⚠️ บัญชีผู้ดูแลระบบ (Admin) ต้องลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)" เท่านั้น');
+      setIsLoading(false);
+      return;
+    }
+
     // Save or clear remembered username
     if (rememberMe) {
       localStorage.setItem('remember_username_enabled', 'true');
@@ -154,6 +161,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         // Enforce Admin portal access check
         if (authRole === 'admin' && !checkIsAdminUser(udata, trimmedId)) {
           triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+          setIsLoading(false);
+          return;
+        }
+
+        // Enforce User portal access check (prevent Admin logging in on User tab)
+        if (authRole === 'user' && checkIsAdminUser(udata, trimmedId)) {
+          triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
           setIsLoading(false);
           return;
         }
@@ -213,6 +227,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             return;
           }
 
+          // Enforce User portal access check (prevent Admin logging in on User tab)
+          if (authRole === 'user' && checkIsAdminUser(udata, trimmedId)) {
+            triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
+            setIsLoading(false);
+            return;
+          }
+
           const profileData = {
             userId: udata.userId || trimmedId,
             email: udata.email || `${trimmedId}@taskflow.space`,
@@ -256,6 +277,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             return;
           }
 
+          // Enforce User portal access check (prevent Admin logging in on User tab)
+          if (authRole === 'user' && checkIsAdminUser(profile, trimmedId)) {
+            triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
+            setIsLoading(false);
+            return;
+          }
+
           triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
           setTimeout(() => {
             onLoginSuccess(trimmedId, profile.email, profile.phone || '0812345678', trimmedId, loginPass);
@@ -271,6 +299,12 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
 
       // 4. Admin Initial Setup Fallback (If admin is not yet stored in database)
       if (trimmedId === 'admin') {
+        if (authRole === 'user') {
+          triggerError('⚠️ บัญชีผู้ดูแลระบบ (Admin) ต้องลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)" เท่านั้น');
+          setIsLoading(false);
+          return;
+        }
+
         if (loginPass === '000000' || loginPass === 'admin1234') {
           const adminProfile = {
             userId: 'admin',
@@ -315,15 +349,15 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       return;
     }
     const trimmedId = regId.trim().replace(/\s/g, '').toLowerCase();
-    const trimmedEmail = regEmail.trim();
+    const trimmedEmail = regEmail.trim().toLowerCase();
     const trimmedPhone = regPhone.trim();
     
     if (!trimmedId || !trimmedEmail || !trimmedPhone || !regPass) {
-      triggerError('กรุณากรอกข้อมูลดาว (*) จัดหาให้ครบถ้วน');
+      triggerError('กรุณากรอกข้อมูลดาว (*) ให้ครบถ้วนทุกช่อง');
       return;
     }
     if (regPass.length !== 6) {
-      triggerError('กรุณากำหนดรหัสผ่านลับเป็นตัวเลขหรือตัวอักษร 6 หลักเท่านั้นเพื่อความปลอดภัย');
+      triggerError('กรุณากำหนดรหัสผ่าน 6 หลักเท่านั้นเพื่อความปลอดภัย');
       return;
     }
 
@@ -332,6 +366,58 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     setSuccessMsg('');
     setDiagnosticError(null);
 
+    // 1. Check if an account with this EMAIL already exists
+    try {
+      const usersRef = collection(db, 'users');
+      const qEmail = query(usersRef, where('email', '==', trimmedEmail));
+      const emailSnap = await getDocs(qEmail);
+
+      const localProfileWithEmail = localStorage.getItem(`user_profile_${trimmedEmail}`);
+
+      if (!emailSnap.empty || localProfileWithEmail) {
+        let existingUserId = trimmedEmail;
+        if (!emailSnap.empty) {
+          const udata = emailSnap.docs[0].data();
+          if (udata.userId) existingUserId = udata.userId;
+        } else if (localProfileWithEmail) {
+          try {
+            const p = JSON.parse(localProfileWithEmail);
+            if (p.userId) existingUserId = p.userId;
+          } catch (_) {}
+        }
+
+        triggerError('⚠️ คุณมีบัญชีผู้ใช้งานอยู่แล้ว กรุณาลงชื่อเข้าใช้ด้วยไอดีหรืออีเมลนี้');
+        
+        // Bounce out to login screen ("เด้งออกให้ลงชื่อ")
+        setTimeout(() => {
+          setFormType('login');
+          setAuthRole('user');
+          setLoginId(existingUserId);
+          setErrorMsg('⚠️ คุณมีบัญชีผู้ใช้งานอยู่แล้ว กรุณาลงชื่อเข้าใช้ด้วยไอดีหรืออีเมลนี้');
+        }, 1200);
+
+        setIsLoading(false);
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('Error checking existing email:', checkErr);
+    }
+
+    // 2. Check if User ID already exists
+    try {
+      const userDocRef = doc(db, 'users', trimmedId);
+      const userDocSnap = await getDoc(userDocRef);
+      const localProfileWithId = localStorage.getItem(`user_profile_${trimmedId}`);
+
+      if (userDocSnap.exists() || localProfileWithId) {
+        triggerError('⚠️ ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
+        setIsLoading(false);
+        return;
+      }
+    } catch (checkIdErr) {
+      console.warn('Error checking existing userId:', checkIdErr);
+    }
+
     // Block registering duplicate admin accounts
     if (trimmedId === 'admin') {
       try {
@@ -339,7 +425,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         const q = query(usersRef, where('userId', '==', 'admin'));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
-          triggerError('⚠️ ไอดีสำหรับผู้ดูแลระบบ (admin) ได้ถูกสร้างและเปิดใช้งานในระบบแล้ว และอนุญาตให้มีเพียงการลงทะเบียนเดียวเท่านั้น ไม่สามารถสร้างซ้ำได้!');
+          triggerError('⚠️ ไอดีสำหรับผู้ดูแลระบบ (admin) ไม่สามารถสมัครเป็นบัญชีทั่วไปได้');
           setIsLoading(false);
           return;
         }
@@ -357,7 +443,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       let profileData: any;
 
       try {
-        // Create Firebase Auth user directly - if it exists, it throws email-already-in-use
+        // Create Firebase Auth user directly
         const userCredential = await createUserWithEmailAndPassword(auth, emailFirebase, finalPass);
         uid = userCredential.user.uid;
         profileData = {
@@ -366,14 +452,20 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           phone: trimmedPhone,
           password: regPass,
           uid: uid,
-          isApproved: trimmedId === 'admin' ? true : false
+          isApproved: false
         };
         // Save user to Firestore users collection using auth UID
         await setDoc(doc(db, 'users', uid), profileData);
       } catch (authError: any) {
         console.warn('Firebase Auth registration failed, falling back to direct Firestore register:', authError);
         if (authError.code === 'auth/email-already-in-use') {
-          triggerError('ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
+          triggerError('⚠️ คุณมีบัญชีผู้ใช้งานอยู่แล้ว กรุณาลงชื่อเข้าใช้ด้วยไอดีหรืออีเมลนี้');
+          setTimeout(() => {
+            setFormType('login');
+            setAuthRole('user');
+            setLoginId(trimmedEmail);
+            setErrorMsg('⚠️ คุณมีบัญชีผู้ใช้งานอยู่แล้ว กรุณาลงชื่อเข้าใช้ด้วยไอดีหรืออีเมลนี้');
+          }, 1200);
           setIsLoading(false);
           return;
         }
@@ -382,7 +474,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         const userDocRef = doc(db, 'users', trimmedId);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          triggerError('ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
+          triggerError('⚠️ ไอดีผู้ใช้นี้ถูกใช้งานแล้วในระบบ กรุณาเปลี่ยนไอดีผู้ใช้ใหม่');
           setIsLoading(false);
           return;
         }
@@ -394,7 +486,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           phone: trimmedPhone,
           password: regPass,
           uid: uid,
-          isApproved: trimmedId === 'admin' ? true : false
+          isApproved: false
         };
         // Save directly to Firestore users collection using username as ID
         await setDoc(userDocRef, profileData);
@@ -405,9 +497,9 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
       localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profileData));
 
-      triggerSuccess('ลงทะเบียนผู้ใช้ใหม่สำเร็จ! กำลังนำคุณกลับไปหน้าเข้าสู่ระบบ...');
+      triggerSuccess('สมัครสมาชิกใหม่สำเร็จ! กำลังสลับไปหน้าลงชื่อเข้าใช้...');
       
-      // Clear
+      // Clear registration inputs
       setRegId('');
       setRegEmail('');
       setRegPhone('');
@@ -415,7 +507,9 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       
       setTimeout(() => {
         setFormType('login');
-        setSuccessMsg('');
+        setAuthRole('user');
+        setLoginId(trimmedId);
+        setSuccessMsg('สมัครสมาชิกสำเร็จ! กรุณากรอกรหัสผ่านเพื่อลงชื่อเข้าใช้งาน');
       }, 1500);
     } catch (error: any) {
       console.log('Registration error:', error);
