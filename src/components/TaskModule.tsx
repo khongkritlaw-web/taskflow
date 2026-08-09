@@ -873,27 +873,30 @@ export default function TaskModule({
         <div className="flex gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800/60">
           <button
             onClick={() => setIsHistoryModalOpen(true)}
-            className="flex-1 sm:flex-none h-11 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+            className="flex-1 sm:flex-none h-11 px-3 sm:px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
           >
             <History className="w-4 h-4 text-emerald-500" />
-            ประวัติงานเสร็จสิ้น
+            <span className="hidden sm:inline">ประวัติงานเสร็จสิ้น</span>
+            <span className="sm:hidden">ประวัติ</span>
           </button>
 
           <button
             onClick={triggerPdfExport}
-            className="flex-1 sm:flex-none h-11 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
+            className="flex-1 sm:flex-none h-11 px-3 sm:px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950"
           >
             <FileText className="w-4 h-4" />
-            พิมพ์สรุปงาน
+            <span className="hidden sm:inline">พิมพ์สรุปงาน</span>
+            <span className="sm:hidden">พิมพ์สรุป</span>
           </button>
           
           <button
             onClick={() => openNewTaskModal()}
-            className="flex-1 sm:flex-none h-11 px-5 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 hover:opacity-90 active:scale-95"
+            className="flex-1 sm:flex-none h-11 px-4 sm:px-5 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 hover:opacity-90 active:scale-95"
             style={{ backgroundColor: accentColor }}
           >
             <Plus className="w-4 h-4" />
-            เพิ่มงานใหม่
+            <span className="hidden sm:inline">เพิ่มงานใหม่</span>
+            <span className="sm:hidden">เพิ่มงาน</span>
           </button>
         </div>
       </div>

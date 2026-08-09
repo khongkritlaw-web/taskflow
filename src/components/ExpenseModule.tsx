@@ -716,29 +716,32 @@ export default function ExpenseModule({
           <button
             type="button"
             onClick={() => setIsHistoryModalOpen(true)}
-            className="flex-1 sm:flex-none h-10 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-none h-10 px-3 sm:px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
           >
             <History className="w-4 h-4 text-emerald-600" />
-            ประวัติการชำระเงินทั้งหมด
+            <span className="hidden sm:inline">ประวัติการชำระเงินทั้งหมด</span>
+            <span className="sm:hidden">ประวัติ</span>
           </button>
 
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('open-print-modal', { detail: { initialTab: 'expenses' } }))}
-            className="flex-1 sm:flex-none h-10 px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-none h-10 px-3 sm:px-4 border border-slate-200 rounded-xl font-semibold text-xs text-slate-600 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2"
           >
             <Printer className="w-4 h-4" />
-            พิมพ์สรุปบัญชี / PDF
+            <span className="hidden sm:inline">พิมพ์สรุปบัญชี / PDF</span>
+            <span className="sm:hidden">พิมพ์ PDF</span>
           </button>
 
           <button
             type="button"
             onClick={triggerAddModal}
-            className="flex-1 sm:flex-none h-10 px-5 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all"
+            className="flex-1 sm:flex-none h-10 px-4 sm:px-5 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all"
             style={{ backgroundColor: accentColor }}
           >
             <Plus className="w-4 h-4" />
-            เพิ่มรายการชำระเงิน
+            <span className="hidden sm:inline">เพิ่มรายการชำระเงิน</span>
+            <span className="sm:hidden">เพิ่มบิล</span>
           </button>
         </div>
       </div>

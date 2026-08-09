@@ -5,6 +5,9 @@ import {
   UserPlus, 
   HelpCircle, 
   ShieldCheck, 
+  ShieldAlert,
+  Shield,
+  Crown,
   DoorOpen, 
   Eye, 
   EyeOff, 
@@ -43,6 +46,20 @@ const formatEmail = (id: string) => {
 
 export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenProps) {
   const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp' | 'reset'>('login');
+  const [authRole, setAuthRole] = useState<'user' | 'admin'>('user');
+
+  const checkIsAdminUser = (userData: any, userId: string) => {
+    const cleanId = userId.trim().toLowerCase();
+    if (cleanId === 'admin') return true;
+    if (!userData) return false;
+    return (
+      userData.userId === 'admin' ||
+      userData.isAssistant === true ||
+      userData.isAdmin === true ||
+      userData.role === 'admin' ||
+      userData.role === 'assistant'
+    );
+  };
   
   // Login input - Secure, no prefilled password
   const [rememberMe, setRememberMe] = useState(() => {
@@ -133,19 +150,27 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const udata = userDoc.data();
-        
+
+        // Enforce Admin portal access check
+        if (authRole === 'admin' && !checkIsAdminUser(udata, trimmedId)) {
+          triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+          setIsLoading(false);
+          return;
+        }
+
         const profileData = {
           userId: udata.userId || trimmedId,
           email: udata.email || `${trimmedId}@taskflow.space`,
           phone: udata.phone || '0812345678',
           password: loginPass,
-          uid: uid
+          uid: uid,
+          isAssistant: udata.isAssistant
         };
         localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
         localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
         localStorage.setItem(`user_profile_${(udata.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
 
-        triggerSuccess('เข้าสู่ระบบสำเร็จ...');
+        triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
         setTimeout(() => {
           onLoginSuccess(
             udata.userId || trimmedId, 
@@ -181,18 +206,26 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       if (udata) {
         // User exists! Strictly check password.
         if (udata.password === loginPass || udata.password === finalPass) {
+          // Enforce Admin portal access check
+          if (authRole === 'admin' && !checkIsAdminUser(udata, trimmedId)) {
+            triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+            setIsLoading(false);
+            return;
+          }
+
           const profileData = {
             userId: udata.userId || trimmedId,
             email: udata.email || `${trimmedId}@taskflow.space`,
             phone: udata.phone || '0812345678',
             password: loginPass,
-            uid: udata.uid || trimmedId
+            uid: udata.uid || trimmedId,
+            isAssistant: udata.isAssistant
           };
           localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
           localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
           localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profileData));
 
-          triggerSuccess('เข้าสู่ระบบสำเร็จ...');
+          triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
           setTimeout(() => {
             onLoginSuccess(
               udata.userId || trimmedId,
@@ -216,7 +249,14 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       if (localProfStr) {
         const profile = JSON.parse(localProfStr);
         if (profile.password === loginPass || profile.password === finalPass) {
-          triggerSuccess('เข้าสู่ระบบสำเร็จ...');
+          // Enforce Admin portal access check
+          if (authRole === 'admin' && !checkIsAdminUser(profile, trimmedId)) {
+            triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+            setIsLoading(false);
+            return;
+          }
+
+          triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
           setTimeout(() => {
             onLoginSuccess(trimmedId, profile.email, profile.phone || '0812345678', trimmedId, loginPass);
             setIsLoading(false);
@@ -270,6 +310,10 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
 
   const handleRegister = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (authRole === 'admin') {
+      triggerError('⚠️ ไม่สามารถสมัครบัญชีใหม่ผ่านช่องทางผู้ดูแลระบบได้ กรุณาสลับเป็นช่องทางผู้ใช้งานทั่วไป');
+      return;
+    }
     const trimmedId = regId.trim().replace(/\s/g, '').toLowerCase();
     const trimmedEmail = regEmail.trim();
     const trimmedPhone = regPhone.trim();
@@ -662,22 +706,37 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         {/* Header Branding Ribbon */}
         <div className="p-6 sm:p-8 text-center bg-gradient-to-b from-slate-50 to-white border-b border-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
           <div className="w-14 h-14 bg-accent/10 text-accent rounded-2xl flex items-center justify-center mx-auto mb-3 border border-accent/20 shadow-xs" style={{ '--accent': accentColor } as React.CSSProperties}>
-            {formType === 'login' && <ShieldCheck className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />}
+            {formType === 'login' && (
+              authRole === 'admin' ? (
+                <Crown className="w-7 h-7 text-amber-500 animate-pulse" />
+              ) : (
+                <ShieldCheck className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
+              )
+            )}
             {formType === 'register' && <UserPlus className="w-7 h-7" />}
             {formType === 'forgot' && <HelpCircle className="w-7 h-7" />}
             {formType === 'otp' && <ShieldCheck className="w-7 h-7 animate-bounce" />}
             {formType === 'reset' && <Key className="w-7 h-7" />}
           </div>
           <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-            {formType === 'login' && 'เข้าสู่ระบบ TaskFlow Space'}
+            {formType === 'login' && (authRole === 'admin' ? 'เข้าสู่ระบบผู้ดูแลระบบ (Admin)' : 'เข้าสู่ระบบ TaskFlow Space')}
             {formType === 'register' && 'สมัครบัญชีผู้ใช้งานใหม่'}
             {formType === 'forgot' && 'ลืมรหัสผ่านหรือกู้คืนไอดี?'}
             {formType === 'otp' && 'ตรวจสอบความปลอดภัย OTP'}
             {formType === 'reset' && 'ตั้งค่ารหัสผ่านใหม่'}
           </h2>
           <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-            <Lock className="w-3 h-3 text-emerald-500" />
-            <span>ระบบรักษาความปลอดภัย SSL Encrypted</span>
+            {authRole === 'admin' && formType === 'login' ? (
+              <>
+                <Crown className="w-3 h-3 text-amber-500" />
+                <span>ช่องทางสำหรับ Admin & ผู้ช่วยระบบ</span>
+              </>
+            ) : (
+              <>
+                <Lock className="w-3 h-3 text-emerald-500" />
+                <span>ระบบรักษาความปลอดภัย SSL Encrypted</span>
+              </>
+            )}
           </div>
         </div>
         
@@ -701,17 +760,55 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           {/* 1. LOGIN FORM */}
           {formType === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
+              
+              {/* Role Selection Tabs (Admin vs User) */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950/80 rounded-2xl mb-4 border border-slate-200/80 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthRole('user');
+                    setErrorMsg('');
+                    setSuccessMsg('');
+                  }}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authRole === 'user'
+                      ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs border border-slate-200 dark:border-slate-700'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <User className={`w-4 h-4 ${authRole === 'user' ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
+                  <span>ผู้ใช้งานทั่วไป</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthRole('admin');
+                    setErrorMsg('');
+                    setSuccessMsg('');
+                  }}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    authRole === 'admin'
+                      ? 'bg-amber-500 text-white shadow-xs shadow-amber-500/20'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Crown className={`w-4 h-4 ${authRole === 'admin' ? 'text-amber-100' : 'text-amber-500'}`} />
+                  <span>ผู้ดูแลระบบ (Admin)</span>
+                </button>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 dark:text-slate-300 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-slate-500" />
-                  ไอดีผู้ใช้งาน (User ID)
+                  {authRole === 'admin' ? 'ไอดีผู้ดูแลระบบ / ผู้ช่วย (Admin ID)' : 'ไอดีผู้ใช้งาน (User ID)'}
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={loginId}
                     onChange={(e) => setLoginId(e.target.value)}
-                    placeholder="กรอกไอดีผู้ใช้งานของคุณ..."
+                    placeholder={authRole === 'admin' ? 'กรอกไอดี Admin...' : 'กรอกไอดีผู้ใช้งานของคุณ...'}
                     className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 font-medium transition-all"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                     disabled={isLoading}
@@ -739,7 +836,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 cursor-pointer"
                     title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -761,7 +858,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 <button
                   type="button"
                   onClick={() => { setFormType('forgot'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
-                  className="font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+                  className="font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
                 >
                   ลืมรหัสผ่าน?
                 </button>
@@ -771,35 +868,42 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 <button
                   type="submit"
                   className="w-full h-12 font-bold text-sm text-white rounded-xl transition-all shadow-md focus:outline-none hover:brightness-105 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
-                  style={{ backgroundColor: accentColor }}
+                  style={{ backgroundColor: authRole === 'admin' ? '#d97706' : accentColor }}
                   disabled={isLoading}
                 >
                   {isLoading ? (
                     <>
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                      <span>กำลังยืนยันความปลอดภัย...</span>
+                      <span>กำลังยืนยันสิทธิ์ความปลอดภัย...</span>
                     </>
                   ) : (
                     <>
-                      <ShieldCheck className="w-4.5 h-4.5" />
-                      <span>เข้าสู่ระบบอย่างปลอดภัย</span>
+                      {authRole === 'admin' ? <Crown className="w-4.5 h-4.5 text-amber-100" /> : <ShieldCheck className="w-4.5 h-4.5" />}
+                      <span>{authRole === 'admin' ? 'เข้าสู่ระบบในฐานะ Admin' : 'เข้าสู่ระบบอย่างปลอดภัย'}</span>
                     </>
                   )}
                 </button>
               </div>
 
               <div className="pt-4 text-center border-t border-slate-100 dark:border-slate-800/80 mt-4 flex flex-col items-center gap-2">
-                <div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">ยังไม่มีบัญชีผู้ใช้งาน? </span>
-                  <button
-                    type="button"
-                    onClick={() => { setFormType('register'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
-                    className="text-xs font-bold hover:underline ml-1"
-                    style={{ color: accentColor }}
-                  >
-                    สมัครสมาชิกใหม่
-                  </button>
-                </div>
+                {authRole === 'user' ? (
+                  <div>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">ยังไม่มีบัญชีผู้ใช้งาน? </span>
+                    <button
+                      type="button"
+                      onClick={() => { setFormType('register'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
+                      className="text-xs font-bold hover:underline ml-1 cursor-pointer"
+                      style={{ color: accentColor }}
+                    >
+                      สมัครสมาชิกใหม่
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-700 dark:text-amber-400 font-medium text-center flex items-center justify-center gap-2 w-full">
+                    <ShieldAlert className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <span>เฉพาะผู้ดูแลระบบและผู้ช่วยเท่านั้น (ไม่สามารถสมัครบัญชีใหม่ในช่องทาง Admin ได้)</span>
+                  </div>
+                )}
               </div>
             </form>
           )}

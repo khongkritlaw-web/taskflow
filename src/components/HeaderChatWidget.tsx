@@ -455,7 +455,7 @@ export default function HeaderChatWidget({
           <>
             {/* Backdrop layer */}
             <div 
-              className="fixed inset-0 z-40 bg-transparent" 
+              className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-2xs sm:bg-transparent" 
               onClick={() => setIsOpen(false)} 
             />
 
@@ -465,7 +465,7 @@ export default function HeaderChatWidget({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="absolute right-0 mt-2 w-80 sm:w-96 h-[480px] rounded-3xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col"
+              className="fixed inset-x-2 top-14 h-[82vh] max-h-[540px] sm:h-[480px] sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 rounded-3xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col"
             >
               {/* HEADER */}
               <div className="p-4 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-shrink-0">

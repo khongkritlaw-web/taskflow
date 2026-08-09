@@ -42,6 +42,7 @@ export default function CalendarModule({
   const [selectedDayTasks, setSelectedDayTasks] = useState<Task[] | null>(null);
   const [selectedDayStr, setSelectedDayStr] = useState<string>('');
   const [selectedDayHoliday, setSelectedDayHoliday] = useState<string>('');
+  const [calendarViewMode, setCalendarViewMode] = useState<'grid' | 'agenda'>('grid');
 
   // Professional Print Configuration States
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -1171,7 +1172,7 @@ export default function CalendarModule({
   // Empty cells leading up to 1st of month
   for (let i = 0; i < firstDayIndex; i++) {
     cells.push(
-      <div key={`empty-${i}`} className="min-h-[100px] border-r border-b border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/20" />
+      <div key={`empty-${i}`} className="min-h-[50px] sm:min-h-[100px] border-r border-b border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/20" />
     );
   }
 
@@ -1195,14 +1196,14 @@ export default function CalendarModule({
       <div
         key={`day-${day}`}
         onClick={() => inspectDay(day)}
-        className={`min-h-[100px] p-2 border-r border-b border-slate-200 cursor-pointer flex flex-col justify-between hover:bg-slate-50 transition-all dark:border-slate-800 dark:hover:bg-slate-900 ${
+        className={`min-h-[52px] sm:min-h-[100px] p-1 sm:p-2 border-r border-b border-slate-200 cursor-pointer flex flex-col justify-between hover:bg-slate-50 transition-all dark:border-slate-800 dark:hover:bg-slate-900 ${
           isToday ? 'bg-blue-50/50 outline-2 outline-offset-[-2px] outline-accent/45 dark:bg-blue-950/25' : ''
         } ${hName ? 'bg-amber-50/30 dark:bg-amber-950/5' : ''}`}
         style={isToday ? { '--accent': accentColor } as React.CSSProperties : {}}
       >
-        <span className={`text-xs font-bold leading-none ${
+        <span className={`text-[10px] sm:text-xs font-bold leading-none ${
           isToday 
-            ? 'w-6 h-6 rounded-full flex items-center justify-center text-white font-mono' 
+            ? 'w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-white font-mono' 
             : hName 
               ? 'text-amber-600 dark:text-amber-400' 
               : 'text-slate-700 dark:text-slate-300'
@@ -1212,34 +1213,39 @@ export default function CalendarModule({
           {day}
         </span>
 
-        <div className="flex flex-col gap-1 mt-2">
+        <div className="flex flex-col gap-0.5 sm:gap-1 mt-1 sm:mt-2">
           {hName && (
-            <div className="text-[9px] font-extrabold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded truncate max-w-full dark:bg-amber-950/40 dark:text-amber-300" title={hName}>
-              🎉 {hName}
+            <div className="text-[8px] sm:text-[9px] font-extrabold bg-amber-100 text-amber-800 px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded truncate max-w-full dark:bg-amber-950/40 dark:text-amber-300" title={hName}>
+              <span className="sm:hidden">🎉</span>
+              <span className="hidden sm:inline">🎉 {hName}</span>
             </div>
           )}
           {pendingCount > 0 && (
-            <div className="text-[9px] font-extrabold bg-amber-50/80 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900">
+            <div className="text-[8px] sm:text-[9px] font-extrabold bg-amber-50/80 text-amber-700 border border-amber-200 px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded flex items-center justify-center sm:justify-start gap-1 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900">
               <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-              รอคิว ({pendingCount})
+              <span className="sm:hidden">{pendingCount}</span>
+              <span className="hidden sm:inline">รอคิว ({pendingCount})</span>
             </div>
           )}
           {completedCount > 0 && (
-            <div className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
+            <div className="text-[8px] sm:text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded flex items-center justify-center sm:justify-start gap-1 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-              เสร็จ ({completedCount})
+              <span className="sm:hidden">{completedCount}</span>
+              <span className="hidden sm:inline">เสร็จ ({completedCount})</span>
             </div>
           )}
           {pendingExpensesCount > 0 && (
-            <div className="text-[9px] font-extrabold bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded flex items-center gap-1 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900" title={`มีรายจ่าย/ค่างวดที่ต้องชำระ ${pendingExpensesCount} รายการ`}>
+            <div className="text-[8px] sm:text-[9px] font-extrabold bg-violet-50 text-violet-700 border border-violet-200 px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded flex items-center justify-center sm:justify-start gap-1 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900" title={`มีรายจ่าย/ค่างวดที่ต้องชำระ ${pendingExpensesCount} รายการ`}>
               <span className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-pulse"></span>
-              ค่างวด ({pendingExpensesCount})
+              <span className="sm:hidden">{pendingExpensesCount}</span>
+              <span className="hidden sm:inline">ค่างวด ({pendingExpensesCount})</span>
             </div>
           )}
           {paidExpensesCount > 0 && (
-            <div className="text-[9px] font-extrabold bg-teal-50 text-teal-700 border border-teal-200 px-1.5 py-0.5 rounded flex items-center gap-1 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900" title={`ชำระค่างวดแล้ว ${paidExpensesCount} รายการ`}>
+            <div className="text-[8px] sm:text-[9px] font-extrabold bg-teal-50 text-teal-700 border border-teal-200 px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded flex items-center justify-center sm:justify-start gap-1 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900" title={`ชำระค่างวดแล้ว ${paidExpensesCount} รายการ`}>
               <span className="w-1.5 h-1.5 bg-teal-500 rounded-full"></span>
-              จ่ายแล้ว ({paidExpensesCount})
+              <span className="sm:hidden">{paidExpensesCount}</span>
+              <span className="hidden sm:inline">จ่ายแล้ว ({paidExpensesCount})</span>
             </div>
           )}
         </div>
@@ -1252,90 +1258,226 @@ export default function CalendarModule({
   const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
   for (let i = 0; i < remaining; i++) {
     cells.push(
-      <div key={`pad-${i}`} className="min-h-[100px] border-r border-b border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/10" />
+      <div key={`pad-${i}`} className="min-h-[50px] sm:min-h-[100px] border-r border-b border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/10" />
     );
+  }
+
+  // Prepare monthly agenda list items
+  const monthlyAgendaDays = [];
+  for (let day = 1; day <= totalDays; day++) {
+    const dStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const shortKey = `${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const hName = holidays[dStr] || fixedHolidaysPattern[shortKey] || '';
+    const dayTasks = tasks.filter(t => t.dueDate === dStr);
+    const dayExpenses = getExpensesForDate(dStr);
+
+    if (hName || dayTasks.length > 0 || dayExpenses.length > 0) {
+      monthlyAgendaDays.push({
+        day,
+        dStr,
+        hName,
+        tasks: dayTasks,
+        expenses: dayExpenses,
+        isToday: dStr === todayStr
+      });
+    }
   }
 
   return (
     <div className="space-y-6">
       {/* Dynamic Header Toolbar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 dark:bg-slate-900 dark:border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-accent/10 rounded-xl flex items-center justify-center border border-accent/20" style={{ '--accent': accentColor } as React.CSSProperties}>
-            <CalendarIcon className="w-5 h-5 text-accent" style={{ color: accentColor }} />
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 dark:bg-slate-900 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-accent/10 rounded-xl flex items-center justify-center border border-accent/20" style={{ '--accent': accentColor } as React.CSSProperties}>
+              <CalendarIcon className="w-5 h-5 text-accent" style={{ color: accentColor }} />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">สรุปปฏิทินกิจงานรายเดือน</h2>
+              <p className="text-[10.5px] text-slate-400 mt-0.5">วางรากฐานและติดตามกำหนดส่งของงานได้อย่างสะดวก</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">สรุปปฏิทินกิจงานรายเดือน</h2>
-            <p className="text-[10.5px] text-slate-400 mt-0.5">วางรากฐานและติดตามกำหนดส่งของงานได้อย่างสะดวก</p>
+
+          {/* View Mode Toggle Switcher */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl dark:bg-slate-950 border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
+            <button
+              onClick={() => setCalendarViewMode('grid')}
+              className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all flex items-center gap-1.5 ${
+                calendarViewMode === 'grid'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+              }`}
+            >
+              📅 <span>ตารางเดือน</span>
+            </button>
+            <button
+              onClick={() => setCalendarViewMode('agenda')}
+              className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all flex items-center gap-1.5 ${
+                calendarViewMode === 'agenda'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+              }`}
+            >
+              📋 <span>รายการกำหนดการ</span>
+            </button>
           </div>
         </div>
 
         {/* Filters/Navigates controls */}
-        <div className="flex items-center gap-3 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setIsPrintModalOpen(true)}
-            className="h-10 px-3.5 border border-slate-200 bg-white rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+            className="h-9 px-3 border border-slate-200 bg-white rounded-xl font-semibold text-xs text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-950 transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
           >
             <Printer className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>พิมพ์รายงานปฏิทิน / PDF</span>
+            <span className="hidden sm:inline">พิมพ์รายงานปฏิทิน / PDF</span>
+            <span className="sm:hidden">พิมพ์ PDF</span>
           </button>
 
-          <div className="flex border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
-            <button
-              onClick={handlePrevMonth}
-              className="w-10 h-10 flex items-center justify-center hover:bg-slate-150 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-900 dark:hover:text-slate-200 border-r border-slate-200 dark:border-slate-800"
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex border border-slate-200 rounded-xl overflow-hidden shadow-xs bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
+              <button
+                onClick={handlePrevMonth}
+                className="w-9 h-9 flex items-center justify-center hover:bg-slate-150 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-900 dark:hover:text-slate-200 border-r border-slate-200 dark:border-slate-800"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleNextMonth}
+                className="w-9 h-9 flex items-center justify-center hover:bg-slate-150 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-900 dark:hover:text-slate-200"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <select
+              value={currentMonth}
+              onChange={(e) => handleSelectionChange(e, 'month')}
+              className="h-9 px-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
             >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleNextMonth}
-              className="w-10 h-10 flex items-center justify-center hover:bg-slate-150 text-slate-500 hover:text-slate-800 dark:hover:bg-slate-900 dark:hover:text-slate-200"
+              {monthNames.map((mn, idx) => (
+                <option key={mn} value={idx}>{mn}</option>
+              ))}
+            </select>
+
+            <select
+              value={currentYear}
+              onChange={(e) => handleSelectionChange(e, 'year')}
+              className="h-9 px-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
             >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+              {Array.from({ length: 11 }, (_, k) => currentYear - 5 + k).map(y => (
+                <option key={y} value={y}>พ.ศ. {y + 543}</option>
+              ))}
+            </select>
           </div>
-
-          <select
-            value={currentMonth}
-            onChange={(e) => handleSelectionChange(e, 'month')}
-            className="h-10 px-3 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
-          >
-            {monthNames.map((mn, idx) => (
-              <option key={mn} value={idx}>{mn}</option>
-            ))}
-          </select>
-
-          <select
-            value={currentYear}
-            onChange={(e) => handleSelectionChange(e, 'year')}
-            className="h-10 px-3 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300"
-          >
-            {Array.from({ length: 11 }, (_, k) => currentYear - 5 + k).map(y => (
-              <option key={y} value={y}>พ.ศ. {y + 543}</option>
-            ))}
-          </select>
         </div>
       </div>
 
-      {/* Grid wraps */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto dark:bg-slate-900 dark:border-slate-800">
-        <div className="min-w-[620px] sm:min-w-full">
-          <div className="grid grid-cols-7 border-b border-slate-200 text-center font-bold text-[10.5px] text-slate-400 tracking-wider py-3.5 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30">
-            <div className="text-rose-500">อา.</div>
-            <div>จ.</div>
-            <div>อ.</div>
-            <div>พ.</div>
-            <div>พฤ.</div>
-            <div>ศ.</div>
-            <div className="text-blue-500">ส.</div>
-          </div>
+      {calendarViewMode === 'grid' ? (
+        /* Grid View */
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto dark:bg-slate-900 dark:border-slate-800">
+          <div className="w-full min-w-[340px]">
+            <div className="grid grid-cols-7 border-b border-slate-200 text-center font-bold text-[10px] sm:text-[10.5px] text-slate-400 tracking-wider py-2.5 sm:py-3.5 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30">
+              <div className="text-rose-500"><span className="hidden sm:inline">อาทิตย์</span><span className="sm:hidden">อา.</span></div>
+              <div><span className="hidden sm:inline">จันทร์</span><span className="sm:hidden">จ.</span></div>
+              <div><span className="hidden sm:inline">อังคาร</span><span className="sm:hidden">อ.</span></div>
+              <div><span className="hidden sm:inline">พุธ</span><span className="sm:hidden">พ.</span></div>
+              <div><span className="hidden sm:inline">พฤหัสบดี</span><span className="sm:hidden">พฤ.</span></div>
+              <div><span className="hidden sm:inline">ศุกร์</span><span className="sm:hidden">ศ.</span></div>
+              <div className="text-blue-500"><span className="hidden sm:inline">เสาร์</span><span className="sm:hidden">ส.</span></div>
+            </div>
 
-          <div className="grid grid-cols-7 bg-slate-100 gap-[1px] dark:bg-slate-800">
-            {cells}
+            <div className="grid grid-cols-7 bg-slate-100 gap-[1px] dark:bg-slate-800">
+              {cells}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* Agenda List View Mode */
+        <div className="space-y-3">
+          {monthlyAgendaDays.length === 0 ? (
+            <div className="bg-white p-8 rounded-2xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 text-center">
+              <p className="text-xs text-slate-400 font-semibold">ไม่มีกำหนดการ งาน หรือค่างวดในเดือน {monthNames[currentMonth]} พ.ศ. {currentYear + 543}</p>
+            </div>
+          ) : (
+            monthlyAgendaDays.map(item => (
+              <div 
+                key={item.dStr}
+                onClick={() => inspectDay(item.day)}
+                className={`bg-white p-4 rounded-2xl border cursor-pointer hover:border-slate-300 transition-all dark:bg-slate-900 dark:border-slate-800 ${
+                  item.isToday ? 'border-accent ring-1 ring-accent/20 dark:ring-accent/30' : 'border-slate-200'
+                }`}
+                style={item.isToday ? { '--accent': accentColor } as React.CSSProperties : {}}
+              >
+                <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span 
+                      className="px-2.5 py-1 rounded-lg text-xs font-black text-white font-mono"
+                      style={{ backgroundColor: item.isToday ? accentColor : '#64748b' }}
+                    >
+                      {item.day} {monthNames[currentMonth]}
+                    </span>
+                    {item.isToday && (
+                      <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md dark:bg-blue-950 dark:text-blue-300">
+                        วันนี้ 📍
+                      </span>
+                    )}
+                    {item.hName && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md dark:bg-amber-950 dark:text-amber-300">
+                        🎉 {item.hName}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 hover:text-slate-600">
+                    ดูรายละเอียดวัน →
+                  </span>
+                </div>
+
+                {/* Day Tasks List */}
+                {item.tasks.length > 0 && (
+                  <div className="space-y-1.5 mb-2">
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">ภารกิจ/งาน ({item.tasks.length})</div>
+                    {item.tasks.map(t => (
+                      <div key={t.id} className="p-2 bg-slate-50 rounded-xl dark:bg-slate-950/60 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span>{t.status === 'completed' ? '✅' : '📌'}</span>
+                          <span className={`font-extrabold truncate ${t.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100'}`}>
+                            {t.title}
+                          </span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 ${t.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {t.status === 'completed' ? 'เสร็จสิ้น' : 'รอคิว'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Day Expenses List */}
+                {item.expenses.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">ค่างวด/รายจ่าย ({item.expenses.length})</div>
+                    {item.expenses.map(e => (
+                      <div key={e.id} className="p-2 bg-slate-50 rounded-xl dark:bg-slate-950/60 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span>💳</span>
+                          <span className={`font-bold truncate ${e.paid ? 'text-slate-400' : 'text-slate-800 dark:text-slate-100'}`}>
+                            {e.title} ({e.amount.toLocaleString('th-TH')} บาท)
+                          </span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 ${e.paid ? 'bg-teal-100 text-teal-800' : 'bg-violet-100 text-violet-800'}`}>
+                          {e.paid ? 'จ่ายแล้ว' : 'ค่างวด'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Day Inspector Popup details */}
       {selectedDayTasks && (

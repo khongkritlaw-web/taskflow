@@ -294,7 +294,7 @@ export default function NotesWidget({ sessionUser, accentColor, darkMode }: Note
           <>
             {/* Backdrop */}
             <div 
-              className="fixed inset-0 z-40 bg-transparent" 
+              className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-2xs sm:bg-transparent" 
               onClick={() => setIsOpen(false)} 
             />
 
@@ -304,8 +304,7 @@ export default function NotesWidget({ sessionUser, accentColor, darkMode }: Note
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 15, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col max-h-[85vh]"
-              style={{ minHeight: '460px' }}
+              className="fixed inset-x-2 top-14 h-[82vh] max-h-[540px] sm:h-auto sm:max-h-[85vh] sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col"
               id="notes-panel"
             >
               {/* Panel Header */}
