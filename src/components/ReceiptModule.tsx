@@ -1027,47 +1027,72 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
-            {/* Left / Main Form Column - Single Unified Container */}
-            <div className="lg:col-span-6 p-6 sm:p-7 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-7">
-              
-              {/* Quick Templates Bar */}
-              <div className="pb-4 border-b border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+          {/* Form Container (Full Width, Compact Sections) */}
+          <div className="w-full max-w-5xl mx-auto space-y-6">
+            
+            {/* Quick Templates & Tools Bar at Top */}
+            <div className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-950/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-amber-50/50 dark:from-indigo-950/30 dark:via-slate-900 dark:to-amber-950/20 shadow-xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">แม่แบบรายการด่วน:</span>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('legal_service')}
-                    className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
-                  >
-                    ⚖️ ค่าว่าความ/กฎหมาย
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('court_fee')}
-                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold hover:bg-emerald-100 transition-all cursor-pointer"
-                  >
-                    🏛️ ค่าธรรมเนียมศาล
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('retainer')}
-                    className="px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-[11px] font-bold hover:bg-amber-100 transition-all cursor-pointer"
-                  >
-                    💼 ค่าที่ปรึกษารายเดือน
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('general')}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    📦 บริการทั่วไป
-                  </button>
+                <div>
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 block">
+                    แม่แบบและเครื่องมือช่วยกรอกด่วน (Quick Presets)
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    คลิกเลือกแม่แบบเพื่อใส่รายการ ค่าธรรมเนียม และหมายเหตุอัตโนมัติ
+                  </span>
                 </div>
               </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('legal_service')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-200 text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
+                >
+                  <span>⚖️</span>
+                  <span>ค่าว่าความ/กฎหมาย</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('court_fee')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-200 text-xs font-bold hover:bg-emerald-50 dark:hover:bg-emerald-900 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
+                >
+                  <span>🏛️</span>
+                  <span>ค่าธรรมเนียมศาล</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('retainer')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-amber-900/60 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-200 text-xs font-bold hover:bg-amber-50 dark:hover:bg-amber-900 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
+                >
+                  <span>💼</span>
+                  <span>ค่าที่ปรึกษารายเดือน</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('general')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
+                >
+                  <span>📦</span>
+                  <span>บริการทั่วไป</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetForm}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                  title="ล้างข้อมูลทั้งหมด"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>ล้างฟอร์ม</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Main Form Fields Container */}
+            <div className="p-6 sm:p-7 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-7">
 
               {/* Step 1: Document Type & Config */}
               <div className="space-y-4">
@@ -1812,72 +1837,10 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   </button>
                 </div>
               </div>
-
-          </div>
-
-          {/* Right Column: Live A4 Document Sheet Preview */}
-          <div className="lg:col-span-6 space-y-6">
-            <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-900 text-white shadow-xl space-y-4 sticky top-4">
-              {/* Live Preview Header Controls */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                  </span>
-                  <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">
-                    พรีวิวเอกสาร A4 แบบเรียลไทม์ (Live Preview)
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handlePreviewOnly}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-                    title="ขยายใหญ่เต็มหน้าจอ"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>ขยายใหญ่</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handlePrint(liveDoc)}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>สั่งพิมพ์ / PDF (A4)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Live Summary Calculation Banner */}
-              <div className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">ยอดรวมสุทธิ (Grand Total)</span>
-                  <span className="text-xl font-mono font-black text-emerald-400">
-                    {grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-extrabold text-indigo-300 bg-indigo-950/90 px-2.5 py-1 rounded-lg border border-indigo-800/80 inline-block max-w-[180px] sm:max-w-none truncate">
-                    ({grandTotalTextThai})
-                  </span>
-                </div>
-              </div>
-
-              {/* Live Scaled A4 Sheet Container */}
-              <div className="w-full max-h-[720px] overflow-y-auto overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-2 sm:p-4 flex justify-center items-start shadow-inner">
-                <div className="transform scale-[0.48] xs:scale-[0.55] sm:scale-[0.62] md:scale-[0.68] lg:scale-[0.48] xl:scale-[0.58] 2xl:scale-[0.68] origin-top my-1 transition-all">
-                  <ReceiptA4Sheet doc={liveDoc} printableId="printable-a4-receipt" />
-                </div>
-              </div>
             </div>
           </div>
-        </div>
 
-        {/* Floating Mobile Action Bar (lg:hidden) */}
+          {/* Floating Mobile Action Bar (lg:hidden) */}
           <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md p-3 border-t border-slate-800 text-white shadow-2xl flex items-center justify-between gap-2">
             <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">ยอดสุทธิ (Grand Total)</span>
