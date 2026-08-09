@@ -127,7 +127,7 @@ export default function FormDocumentModule({ accentColor, darkMode }: FormDocume
   const [currentDoc, setCurrentDoc] = useState<PetitionDoc>({ ...DEFAULT_DOC });
   const [searchQuery, setSearchQuery] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [previewZoom, setPreviewZoom] = useState(100);
+  const [previewZoom, setPreviewZoom] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 640) ? 45 : 100);
   const [isEditingClause, setIsEditingClause] = useState(false);
   const [printMode, setPrintMode] = useState<'blank-paper' | 'pre-printed'>('blank-paper');
   const [inkColor, setInkColor] = useState<'navy' | 'black'>('navy');

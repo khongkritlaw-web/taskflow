@@ -53,7 +53,7 @@ export default function DekaSearchModule({ accentColor, darkMode }: DekaSearchMo
       </div>
 
       {/* Main Full-Screen Web Frame Container */}
-      <div className="rounded-3xl border border-slate-800 bg-slate-950 overflow-hidden flex flex-col h-[calc(100vh-14rem)] min-h-[720px] shadow-2xl relative">
+      <div className="rounded-3xl border border-slate-800 bg-slate-950 overflow-hidden flex flex-col h-[calc(100vh-10rem)] min-h-[450px] sm:min-h-[720px] shadow-2xl relative">
         
         {/* Frame Contents */}
         <div className="flex-1 w-full h-full relative bg-slate-900">

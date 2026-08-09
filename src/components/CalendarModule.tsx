@@ -1319,19 +1319,21 @@ export default function CalendarModule({
       </div>
 
       {/* Grid wraps */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-        <div className="grid grid-cols-7 border-b border-slate-200 text-center font-bold text-[10.5px] text-slate-400 tracking-wider py-3.5 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30">
-          <div className="text-rose-500">อา.</div>
-          <div>จ.</div>
-          <div>อ.</div>
-          <div>พ.</div>
-          <div>พฤ.</div>
-          <div>ศ.</div>
-          <div className="text-blue-500">ส.</div>
-        </div>
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto dark:bg-slate-900 dark:border-slate-800">
+        <div className="min-w-[620px] sm:min-w-full">
+          <div className="grid grid-cols-7 border-b border-slate-200 text-center font-bold text-[10.5px] text-slate-400 tracking-wider py-3.5 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30">
+            <div className="text-rose-500">อา.</div>
+            <div>จ.</div>
+            <div>อ.</div>
+            <div>พ.</div>
+            <div>พฤ.</div>
+            <div>ศ.</div>
+            <div className="text-blue-500">ส.</div>
+          </div>
 
-        <div className="grid grid-cols-7 bg-slate-100 gap-[1px] dark:bg-slate-800">
-          {cells}
+          <div className="grid grid-cols-7 bg-slate-100 gap-[1px] dark:bg-slate-800">
+            {cells}
+          </div>
         </div>
       </div>
 

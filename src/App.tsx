@@ -2625,19 +2625,19 @@ export default function App() {
         )}
 
         {/* UPPER RESPONSIVE APP HEADER */}
-        <header className={`border-b border-slate-200/85 px-4 lg:px-8 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30 dark:bg-slate-900/80 dark:border-slate-800 transition-all duration-300 ${
-          headerCollapsed ? 'h-0 py-0 border-b-0 opacity-0 pointer-events-none overflow-hidden' : 'h-16'
+        <header className={`border-b border-slate-200/85 px-2.5 sm:px-4 lg:px-8 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30 dark:bg-slate-900/80 dark:border-slate-800 transition-all duration-300 ${
+          headerCollapsed ? 'h-0 py-0 border-b-0 opacity-0 pointer-events-none overflow-hidden' : 'min-h-[3.75rem] h-auto py-1.5 sm:py-0'
         }`}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden w-10 h-10 flex items-center justify-center border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+              className="lg:hidden w-10 h-10 flex items-center justify-center border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-100 flex-shrink-0 cursor-pointer active:scale-95"
             >
               <Menu className="w-4.5 h-4.5" />
             </button>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar py-0.5 max-w-[calc(100vw-3.5rem)] sm:max-w-none">
             {/* Live Chat Help Desk Support Widget */}
             <HeaderChatWidget
               sessionUser={sessionUser}
@@ -3000,7 +3000,7 @@ export default function App() {
         </header>
 
         {/* PRIMARY WINDOW CONTENT VIEW */}
-        <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-16"}>
+        <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-2.5 sm:p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-20 sm:pb-16 min-w-0"}>
           {activeTab.startsWith('link_') && (() => {
             const linkId = activeTab.replace('link_', '');
             const targetLink = visibleCustomLinks?.find(l => l.id === linkId);
