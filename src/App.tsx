@@ -3046,7 +3046,7 @@ export default function App() {
         </header>
 
         {/* PRIMARY WINDOW CONTENT VIEW */}
-        <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-2.5 sm:p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-20 sm:pb-16 min-w-0"}>
+        <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-2.5 sm:p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-28 sm:pb-16 min-w-0"}>
           {activeTab.startsWith('link_') && (() => {
             const linkId = activeTab.replace('link_', '');
             const targetLink = visibleCustomLinks?.find(l => l.id === linkId);
@@ -5001,6 +5001,84 @@ export default function App() {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* MOBILE BOTTOM NAVIGATION DOCK (Touch Friendly) */}
+      <nav 
+        className="fixed bottom-0 inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800/90 z-30 lg:hidden flex items-center justify-around px-1 py-1.5 shadow-xl select-none"
+        style={{ paddingBottom: 'calc(0.35rem + env(safe-area-inset-bottom))' }}
+      >
+        <button
+          type="button"
+          onClick={() => { setActiveTab('tasks'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
+            activeTab === 'tasks' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          style={activeTab === 'tasks' ? { color: settings.colorAccent } : {}}
+        >
+          <CheckSquare className="w-5 h-5 mb-0.5" />
+          <span>ภารกิจ</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveTab('expenses'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
+            activeTab === 'expenses' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          style={activeTab === 'expenses' ? { color: settings.colorAccent } : {}}
+        >
+          <Receipt className="w-5 h-5 mb-0.5" />
+          <span>ค่าใช้จ่าย</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveTab('dekaSearch'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
+            activeTab === 'dekaSearch' ? 'text-amber-500 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          style={activeTab === 'dekaSearch' ? { color: settings.colorAccent } : {}}
+        >
+          <Scale className="w-5 h-5 mb-0.5 text-amber-500" />
+          <span>สืบค้นฎีกา</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveTab('formDocument'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
+            activeTab === 'formDocument' ? 'text-amber-500 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          style={activeTab === 'formDocument' ? { color: settings.colorAccent } : {}}
+        >
+          <FileText className="w-5 h-5 mb-0.5 text-amber-500" />
+          <span>แบบฟอร์ม</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveTab('receipt'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
+            activeTab === 'receipt' ? 'text-emerald-500 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          style={activeTab === 'receipt' ? { color: settings.colorAccent } : {}}
+        >
+          <Receipt className="w-5 h-5 mb-0.5 text-emerald-400" />
+          <span>ใบเสร็จ</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveTab('settings'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
+            activeTab === 'settings' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          style={activeTab === 'settings' ? { color: settings.colorAccent } : {}}
+        >
+          <SettingsIcon className="w-5 h-5 mb-0.5" />
+          <span>ตั้งค่า</span>
+        </button>
+      </nav>
 
       {/* Nong Chalat AI Assistant Button - Visible to admin/assistant, toggled in settings */}
       {(sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && settings.aiAssistantEnabled !== false && (
