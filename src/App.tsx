@@ -1364,11 +1364,18 @@ export default function App() {
 
   const handleSaveAllSettings = async () => {
     if (!tempSettings) return;
+    const isConfirmed = await showConfirm(
+      'คุณต้องการบันทึกและยืนยันการเปลี่ยนแปลงการตั้งค่าทั้งหมดใช่หรือไม่?',
+      'ยืนยันการบันทึกการตั้งค่า',
+      'info'
+    );
+    if (!isConfirmed) return;
+
     try {
       await syncSettings(tempSettings);
       setSettingsSaveSuccess(true);
       setTimeout(() => setSettingsSaveSuccess(false), 3000);
-      await showAlert('บันทึกการตั้งค่าทั้งหมดเรียบร้อยแล้วค่ะ', 'สำเร็จ', 'success');
+      await showAlert('บันทึกและยืนยันการตั้งค่าทั้งหมดเรียบร้อยแล้วค่ะ', 'สำเร็จ', 'success');
     } catch (e) {
       console.error(e);
       await showAlert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า', 'เกิดข้อผิดพลาด', 'danger');
@@ -1396,6 +1403,13 @@ export default function App() {
       setProfileMessage({ text: 'รหัสผ่านใหม่ต้องมีความยาว 6 หลักเท่านั้นเพื่อความเป็นระเบียบ', type: 'err' });
       return;
     }
+
+    const isConfirmed = await showConfirm(
+      'คุณต้องการยืนยันอัปเดตไอดีผู้ใช้และรหัสผ่านใหม่ใช่หรือไม่?',
+      'ยืนยันการอัปเดตบัญชี',
+      'warning'
+    );
+    if (!isConfirmed) return;
 
     setProfileSaving(true);
     setProfileMessage(null);

@@ -120,6 +120,198 @@ export function bahtText(num: number): string {
 const STORAGE_KEY = 'dekasuite_receipts_history_v1';
 const ISSUER_STORAGE_KEY = 'dekasuite_saved_issuer_info_v1';
 
+export function ReceiptA4Sheet({ doc, printableId = 'printable-a4-receipt' }: { doc: ReceiptDoc; printableId?: string }) {
+  const getDocTypeName = (type: string) => {
+    switch (type) {
+      case 'receipt': return 'ใบเสร็จรับเงิน (RECEIPT)';
+      case 'tax_invoice': return 'ใบเสร็จรับเงิน / ใบกำกับภาษี (RECEIPT / TAX INVOICE)';
+      case 'invoice': return 'ใบแจ้งหนี้ / ใบวางบิล (INVOICE)';
+      case 'quotation': return 'ใบเสนอราคา (QUOTATION)';
+      case 'temp_receipt': return 'ใบเสร็จรับเงินชั่วคราว (TEMPORARY RECEIPT)';
+      default: return 'ใบเสร็จรับเงิน';
+    }
+  };
+
+  return (
+    <div 
+      id={printableId}
+      className="bg-white text-slate-900 p-8 rounded-sm shadow-2xl w-[210mm] min-w-[210mm] min-h-[297mm] text-xs space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden flex-shrink-0 text-left"
+      style={{ color: '#0f172a' }}
+    >
+      {/* Background Watermark Layer */}
+      {doc.showWatermark !== false && (
+        <div 
+          className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden z-0 select-none"
+          style={{ opacity: doc.watermarkOpacity ?? 0.12 }}
+        >
+          {doc.watermarkType === 'image' && (doc.watermarkImageUrl || doc.issuerLogoUrl) ? (
+            <img 
+              src={doc.watermarkImageUrl || doc.issuerLogoUrl} 
+              alt="Watermark" 
+              className="max-w-[340px] max-h-[340px] object-contain grayscale"
+            />
+          ) : (
+            <div className="transform -rotate-30 text-center px-4">
+              <span className="text-3xl sm:text-4xl font-black uppercase tracking-widest text-slate-800 border-4 border-slate-800 px-6 sm:px-8 py-3 sm:py-4 rounded-xl inline-block whitespace-nowrap">
+                {doc.watermarkText || doc.issuerName || 'OFFICIAL RECEIPT'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Header: Issuer Logo & Doc Title */}
+      <div className="flex justify-between items-start gap-4 pb-6 border-b-2 border-slate-900 relative z-10">
+        <div className="flex items-start gap-3.5 max-w-md">
+          {doc.showLogo !== false && doc.issuerLogoUrl && (
+            <img 
+              src={doc.issuerLogoUrl} 
+              alt="Company Logo" 
+              className="w-16 h-16 object-contain rounded-md border border-slate-200 p-0.5 bg-white flex-shrink-0"
+            />
+          )}
+          <div className="space-y-1">
+            <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
+              {doc.issuerName || 'สำนักงานกฎหมาย'}
+            </h2>
+            <p className="text-[11px] text-slate-600 leading-snug">
+              {doc.issuerAddress || '-'}
+            </p>
+            <div className="flex items-center gap-3 text-[10px] text-slate-600 font-medium pt-1">
+              <span>เลขภาษี: {doc.issuerTaxId || '-'}</span>
+              <span>({doc.issuerBranch || 'สำนักงานใหญ่'})</span>
+              <span>โทร: {doc.issuerPhone || '-'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-right space-y-2">
+          <div className="inline-block px-4 py-2 rounded border-2 border-slate-900 bg-slate-50 text-slate-900 font-black text-sm uppercase tracking-wider">
+            {getDocTypeName(doc.docType).split('(')[0]}
+          </div>
+          <div className="text-[11px] font-mono space-y-0.5 text-slate-700">
+            <p><span className="font-bold">เลขที่:</span> {doc.receiptNo || '-'}</p>
+            <p><span className="font-bold">วันที่:</span> {doc.issueDate || '-'}</p>
+            {doc.refNo && <p><span className="font-bold">อ้างอิง:</span> {doc.refNo}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Customer Box */}
+      <div className="p-4 rounded border border-slate-300 bg-slate-50/50 grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">ชื่อผู้ว่าจ้าง / ลูกค้า (Customer):</span>
+          <p className="font-bold text-sm text-slate-900">{doc.customerName || '(กรุณากรอกชื่อลูกค้า)'}</p>
+          <p className="text-[11px] text-slate-600">{doc.customerAddress || 'ไม่ระบุที่อยู่'}</p>
+        </div>
+
+        <div className="space-y-1 text-left pl-4 border-l border-slate-200">
+          <p className="text-[11px] text-slate-700"><span className="font-bold">เลขผู้เสียภาษี:</span> {doc.customerTaxId || '-'}</p>
+          <p className="text-[11px] text-slate-700"><span className="font-bold">โทรศัพท์:</span> {doc.customerPhone || '-'}</p>
+          <p className="text-[11px] text-slate-700"><span className="font-bold">อีเมล:</span> {doc.customerEmail || '-'}</p>
+        </div>
+      </div>
+
+      {/* Items Table */}
+      <table className="w-full border-collapse text-xs">
+        <thead>
+          <tr className="border-y-2 border-slate-900 bg-slate-100 text-slate-900 font-bold uppercase text-[10px]">
+            <th className="py-2.5 px-3 text-center w-12">ลำดับ</th>
+            <th className="py-2.5 px-3 text-left">รายการ (Description)</th>
+            <th className="py-2.5 px-3 text-center w-16">จำนวน</th>
+            <th className="py-2.5 px-3 text-center w-16">หน่วย</th>
+            <th className="py-2.5 px-3 text-right w-24">ราคา/หน่วย</th>
+            <th className="py-2.5 px-3 text-right w-28">จำนวนเงิน (บาท)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200">
+          {(doc.items || []).map((item, idx) => (
+            <tr key={idx} className="text-slate-800">
+              <td className="py-3 px-3 text-center font-mono">{idx + 1}</td>
+              <td className="py-3 px-3 font-semibold">{item.description || '-'}</td>
+              <td className="py-3 px-3 text-center font-mono">{item.quantity}</td>
+              <td className="py-3 px-3 text-center">{item.unit}</td>
+              <td className="py-3 px-3 text-right font-mono">{(item.unitPrice || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+              <td className="py-3 px-3 text-right font-mono font-bold">{(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Calculations & Total */}
+      <div className="pt-4 border-t-2 border-slate-900 grid grid-cols-12 gap-4">
+        <div className="col-span-7 space-y-3">
+          <div className="p-3 rounded border border-slate-200 bg-slate-50 text-[11px]">
+            <span className="font-bold text-slate-700 block mb-1">จำนวนเงินตัวหนังสือ:</span>
+            <p className="font-black text-slate-900 text-xs">({doc.grandTotalTextThai || 'ศูนย์บาทถ้วน'})</p>
+          </div>
+
+          <div className="text-[10px] text-slate-600 space-y-1">
+            <p><span className="font-bold">วิธีการชำระเงิน:</span> {doc.paymentMethod === 'transfer' ? `โอนเงินผ่านธนาคาร ${doc.bankName || ''} เลขบัญชี ${doc.bankAccountNo || ''}` : doc.paymentMethod}</p>
+            <p><span className="font-bold">หมายเหตุ:</span> {doc.notes || '-'}</p>
+          </div>
+        </div>
+
+        <div className="col-span-5 space-y-1.5 text-right font-mono text-xs">
+          <div className="flex justify-between">
+            <span className="text-slate-600 font-sans">รวมเงิน (Subtotal):</span>
+            <span className="font-bold">{(doc.subtotal || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+          </div>
+
+          {doc.discountAmount ? doc.discountAmount > 0 && (
+            <div className="flex justify-between text-rose-600">
+              <span className="font-sans">หัก ส่วนลด:</span>
+              <span>-{(doc.discountAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+            </div>
+          ) : null}
+
+          {doc.vatAmount ? doc.vatAmount > 0 && (
+            <div className="flex justify-between">
+              <span className="text-slate-600 font-sans">ภาษีมูลค่าเพิ่ม 7%:</span>
+              <span>+{(doc.vatAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+            </div>
+          ) : null}
+
+          {doc.withholdingTaxAmount ? doc.withholdingTaxAmount > 0 && (
+            <div className="flex justify-between text-rose-600">
+              <span className="font-sans">หัก ณ ที่จ่าย ({doc.withholdingTaxPercent}%):</span>
+              <span>-{(doc.withholdingTaxAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+            </div>
+          ) : null}
+
+          <div className="pt-2 border-t-2 border-slate-900 flex justify-between font-black text-sm text-slate-900">
+            <span className="font-sans">ยอดสุทธิ (Grand Total):</span>
+            <span>{(doc.grandTotal || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Signature Section */}
+      <div className="pt-8 sm:pt-10 grid grid-cols-2 gap-8 sm:gap-12 text-center text-xs">
+        <div className="space-y-8">
+          <div className="h-12 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
+            <span className="text-slate-400 text-[10px]">ลงนาม / Signature</span>
+          </div>
+          <div>
+            <p className="font-bold text-slate-900">({doc.collectorName || 'ผู้รับเงิน'})</p>
+            <p className="text-[10px] text-slate-500">ผู้รับเงิน / Collector</p>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="h-12 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
+            <span className="text-slate-400 text-[10px]">ลงนาม / Signature</span>
+          </div>
+          <div>
+            <p className="font-bold text-slate-900">({doc.approverName || 'ผู้มีอำนาจลงนาม'})</p>
+            <p className="text-[10px] text-slate-500">ผู้มีอำนาจลงนาม / Authorized Signature</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], expenses = [] }: ReceiptModuleProps) {
   const [receipts, setReceipts] = useState<ReceiptDoc[]>(() => {
     try {
@@ -669,6 +861,8 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     return matchesSearch && matchesType;
   });
 
+  const liveDoc = buildCurrentDoc();
+
   return (
     <div className="space-y-6 pb-20">
       {/* Top Header Card */}
@@ -726,7 +920,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       {activeSubTab === 'create' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
           {/* Left / Main Form Column */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="lg:col-span-6 space-y-6">
             
             {/* Quick Templates Bar */}
             <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs flex flex-wrap items-center justify-between gap-3">
@@ -779,7 +973,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   <select
                     value={docType}
                     onChange={(e) => setDocType(e.target.value as any)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-slate-900 dark:text-slate-900 font-bold focus:outline-none focus:border-indigo-600 shadow-xs"
                   >
                     <option value="receipt">🧾 ใบเสร็จรับเงิน (RECEIPT)</option>
                     <option value="tax_invoice">🏢 ใบเสร็จรับเงิน / ใบกำกับภาษี (RECEIPT / TAX INVOICE)</option>
@@ -796,7 +990,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     value={receiptNo}
                     onChange={(e) => setReceiptNo(e.target.value)}
                     placeholder="REC-202608-001"
-                    className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 focus:outline-none focus:border-indigo-500"
+                    className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white text-indigo-700 dark:text-indigo-700 focus:outline-none focus:border-indigo-600 shadow-xs"
                   />
                 </div>
 
@@ -806,7 +1000,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     type="date"
                     value={issueDate}
                     onChange={(e) => setIssueDate(e.target.value)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-bold text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
                   />
                 </div>
 
@@ -816,7 +1010,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-medium text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
                   />
                 </div>
 
@@ -827,7 +1021,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     value={refNo}
                     onChange={(e) => setRefNo(e.target.value)}
                     placeholder="อ้างอิงคดีดำที่ 123/2569"
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-400 bg-white dark:bg-white font-medium text-slate-900 dark:text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
                   />
                 </div>
               </div>
@@ -1512,63 +1706,64 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
 
           </div>
 
-          {/* Right Column: Live Summary Calculation Box */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-900 text-white shadow-xl space-y-5 sticky top-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <span className="text-xs font-black uppercase text-indigo-400 tracking-wider">สรุปยอดรวมสุทธิ</span>
-                <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] font-bold">
-                  {docType.toUpperCase()}
-                </span>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div className="flex justify-between text-slate-400">
-                  <span>รวมเป็นเงิน (Subtotal):</span>
-                  <span className="font-mono font-bold text-white">{subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+          {/* Right Column: Live A4 Document Sheet Preview */}
+          <div className="lg:col-span-6 space-y-6">
+            <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-900 text-white shadow-xl space-y-4 sticky top-4">
+              {/* Live Preview Header Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">
+                    พรีวิวเอกสาร A4 แบบเรียลไทม์ (Live Preview)
+                  </span>
                 </div>
 
-                {discountAmount > 0 && (
-                  <div className="flex justify-between text-amber-400">
-                    <span>หัก ส่วนลดพิเศษ:</span>
-                    <span className="font-mono font-bold">-{discountAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePreviewOnly}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                    title="ขยายใหญ่เต็มหน้าจอ"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>ขยายใหญ่</span>
+                  </button>
 
-                {vatAmount > 0 && (
-                  <div className="flex justify-between text-indigo-300">
-                    <span>ภาษีมูลค่าเพิ่ม VAT (7%):</span>
-                    <span className="font-mono font-bold">+{vatAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                  </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => handlePrint(liveDoc)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>สั่งพิมพ์ / PDF (A4)</span>
+                  </button>
+                </div>
+              </div>
 
-                {withholdingTaxAmount > 0 && (
-                  <div className="flex justify-between text-rose-400">
-                    <span>หัก ณ ที่จ่าย ({withholdingTaxPercent}%):</span>
-                    <span className="font-mono font-bold">-{withholdingTaxAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                  </div>
-                )}
-
-                <div className="pt-3 border-t border-slate-800 flex flex-col gap-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">จำนวนเงินรวมทั้งสิ้น (Grand Total)</span>
-                  <span className="text-2xl font-black font-mono text-emerald-400">
+              {/* Live Summary Calculation Banner */}
+              <div className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">ยอดรวมสุทธิ (Grand Total)</span>
+                  <span className="text-xl font-mono font-black text-emerald-400">
                     {grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
                   </span>
-                  <span className="text-[11px] font-bold text-slate-300 bg-slate-800/80 p-2 rounded-lg border border-slate-700/50 mt-1">
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-extrabold text-indigo-300 bg-indigo-950/90 px-2.5 py-1 rounded-lg border border-indigo-800/80 inline-block max-w-[180px] sm:max-w-none truncate">
                     ({grandTotalTextThai})
                   </span>
                 </div>
               </div>
 
-              {/* Quick Preview Button */}
-              <button
-                type="button"
-                onClick={handlePreviewOnly}
-                className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <Eye className="w-4 h-4" />
-                <span>เปิดดูตัวอย่างก่อนพิมพ์</span>
-              </button>
+              {/* Live Scaled A4 Sheet Container */}
+              <div className="w-full max-h-[720px] overflow-y-auto overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-2 sm:p-4 flex justify-center items-start shadow-inner">
+                <div className="transform scale-[0.48] xs:scale-[0.55] sm:scale-[0.62] md:scale-[0.68] lg:scale-[0.48] xl:scale-[0.58] 2xl:scale-[0.68] origin-top my-1 transition-all">
+                  <ReceiptA4Sheet doc={liveDoc} printableId="printable-a4-receipt" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1984,183 +2179,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   </span>
                 </div>
 
-                <div 
-                  id="printable-a4-receipt"
-                  className="bg-white text-slate-900 p-8 rounded-sm shadow-2xl w-[210mm] min-w-[210mm] min-h-[297mm] text-xs space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden flex-shrink-0 my-auto"
-                  style={{ color: '#0f172a' }}
-                >
-                  {/* Background Watermark Layer */}
-                  {selectedReceiptForPreview.showWatermark !== false && (
-                    <div 
-                      className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden z-0 select-none"
-                      style={{ opacity: selectedReceiptForPreview.watermarkOpacity ?? 0.12 }}
-                    >
-                      {selectedReceiptForPreview.watermarkType === 'image' && (selectedReceiptForPreview.watermarkImageUrl || selectedReceiptForPreview.issuerLogoUrl) ? (
-                        <img 
-                          src={selectedReceiptForPreview.watermarkImageUrl || selectedReceiptForPreview.issuerLogoUrl} 
-                          alt="Watermark" 
-                          className="max-w-[340px] max-h-[340px] object-contain grayscale"
-                        />
-                      ) : (
-                        <div className="transform -rotate-30 text-center px-4">
-                          <span className="text-3xl sm:text-4xl font-black uppercase tracking-widest text-slate-800 border-4 border-slate-800 px-6 sm:px-8 py-3 sm:py-4 rounded-xl inline-block whitespace-nowrap">
-                            {selectedReceiptForPreview.watermarkText || selectedReceiptForPreview.issuerName || 'OFFICIAL RECEIPT'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Header: Issuer Logo & Doc Title */}
-                  <div className="flex justify-between items-start gap-4 pb-6 border-b-2 border-slate-900 relative z-10">
-                    <div className="flex items-start gap-3.5 max-w-md">
-                      {selectedReceiptForPreview.showLogo !== false && selectedReceiptForPreview.issuerLogoUrl && (
-                        <img 
-                          src={selectedReceiptForPreview.issuerLogoUrl} 
-                          alt="Company Logo" 
-                          className="w-16 h-16 object-contain rounded-md border border-slate-200 p-0.5 bg-white flex-shrink-0"
-                        />
-                      )}
-                      <div className="space-y-1">
-                        <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
-                          {selectedReceiptForPreview.issuerName}
-                        </h2>
-                        <p className="text-[11px] text-slate-600 leading-snug">
-                          {selectedReceiptForPreview.issuerAddress}
-                        </p>
-                        <div className="flex items-center gap-3 text-[10px] text-slate-600 font-medium pt-1">
-                          <span>เลขภาษี: {selectedReceiptForPreview.issuerTaxId || '-'}</span>
-                          <span>({selectedReceiptForPreview.issuerBranch || 'สำนักงานใหญ่'})</span>
-                          <span>โทร: {selectedReceiptForPreview.issuerPhone}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right space-y-2">
-                      <div className="inline-block px-4 py-2 rounded border-2 border-slate-900 bg-slate-50 text-slate-900 font-black text-sm uppercase tracking-wider">
-                        {getDocTypeName(selectedReceiptForPreview.docType).split('(')[0]}
-                      </div>
-                      <div className="text-[11px] font-mono space-y-0.5 text-slate-700">
-                        <p><span className="font-bold">เลขที่:</span> {selectedReceiptForPreview.receiptNo}</p>
-                        <p><span className="font-bold">วันที่:</span> {selectedReceiptForPreview.issueDate}</p>
-                        {selectedReceiptForPreview.refNo && <p><span className="font-bold">อ้างอิง:</span> {selectedReceiptForPreview.refNo}</p>}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Customer Box */}
-                  <div className="p-4 rounded border border-slate-300 bg-slate-50/50 grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">ชื่อผู้ว่าจ้าง / ลูกค้า (Customer):</span>
-                      <p className="font-bold text-sm text-slate-900">{selectedReceiptForPreview.customerName}</p>
-                      <p className="text-[11px] text-slate-600">{selectedReceiptForPreview.customerAddress || 'ไม่ระบุที่อยู่'}</p>
-                    </div>
-
-                    <div className="space-y-1 text-left pl-4 border-l border-slate-200">
-                      <p className="text-[11px] text-slate-700"><span className="font-bold">เลขผู้เสียภาษี:</span> {selectedReceiptForPreview.customerTaxId || '-'}</p>
-                      <p className="text-[11px] text-slate-700"><span className="font-bold">โทรศัพท์:</span> {selectedReceiptForPreview.customerPhone || '-'}</p>
-                      <p className="text-[11px] text-slate-700"><span className="font-bold">อีเมล:</span> {selectedReceiptForPreview.customerEmail || '-'}</p>
-                    </div>
-                  </div>
-
-                  {/* Items Table */}
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="border-y-2 border-slate-900 bg-slate-100 text-slate-900 font-bold uppercase text-[10px]">
-                        <th className="py-2.5 px-3 text-center w-12">ลำดับ</th>
-                        <th className="py-2.5 px-3 text-left">รายการ (Description)</th>
-                        <th className="py-2.5 px-3 text-center w-16">จำนวน</th>
-                        <th className="py-2.5 px-3 text-center w-16">หน่วย</th>
-                        <th className="py-2.5 px-3 text-right w-24">ราคา/หน่วย</th>
-                        <th className="py-2.5 px-3 text-right w-28">จำนวนเงิน (บาท)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {selectedReceiptForPreview.items.map((item, idx) => (
-                        <tr key={idx} className="text-slate-800">
-                          <td className="py-3 px-3 text-center font-mono">{idx + 1}</td>
-                          <td className="py-3 px-3 font-semibold">{item.description}</td>
-                          <td className="py-3 px-3 text-center font-mono">{item.quantity}</td>
-                          <td className="py-3 px-3 text-center">{item.unit}</td>
-                          <td className="py-3 px-3 text-right font-mono">{item.unitPrice?.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                          <td className="py-3 px-3 text-right font-mono font-bold">{item.amount?.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  {/* Calculations & Total */}
-                  <div className="pt-4 border-t-2 border-slate-900 grid grid-cols-12 gap-4">
-                    <div className="col-span-7 space-y-3">
-                      <div className="p-3 rounded border border-slate-200 bg-slate-50 text-[11px]">
-                        <span className="font-bold text-slate-700 block mb-1">จำนวนเงินตัวหนังสือ:</span>
-                        <p className="font-black text-slate-900 text-xs">({selectedReceiptForPreview.grandTotalTextThai})</p>
-                      </div>
-
-                      <div className="text-[10px] text-slate-600 space-y-1">
-                        <p><span className="font-bold">วิธีการชำระเงิน:</span> {selectedReceiptForPreview.paymentMethod === 'transfer' ? `โอนเงินผ่านธนาคาร ${selectedReceiptForPreview.bankName} เลขบัญชี ${selectedReceiptForPreview.bankAccountNo}` : selectedReceiptForPreview.paymentMethod}</p>
-                        <p><span className="font-bold">หมายเหตุ:</span> {selectedReceiptForPreview.notes}</p>
-                      </div>
-                    </div>
-
-                    <div className="col-span-5 space-y-1.5 text-right font-mono text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-slate-600 font-sans">รวมเงิน (Subtotal):</span>
-                        <span className="font-bold">{selectedReceiptForPreview.subtotal?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                      </div>
-
-                      {selectedReceiptForPreview.discountAmount ? selectedReceiptForPreview.discountAmount > 0 && (
-                        <div className="flex justify-between text-rose-600">
-                          <span className="font-sans">หัก ส่วนลด:</span>
-                          <span>-{selectedReceiptForPreview.discountAmount?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                        </div>
-                      ) : null}
-
-                      {selectedReceiptForPreview.vatAmount ? selectedReceiptForPreview.vatAmount > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600 font-sans">ภาษีมูลค่าเพิ่ม 7%:</span>
-                          <span>+{selectedReceiptForPreview.vatAmount?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                        </div>
-                      ) : null}
-
-                      {selectedReceiptForPreview.withholdingTaxAmount ? selectedReceiptForPreview.withholdingTaxAmount > 0 && (
-                        <div className="flex justify-between text-rose-600">
-                          <span className="font-sans">หัก ณ ที่จ่าย ({selectedReceiptForPreview.withholdingTaxPercent}%):</span>
-                          <span>-{selectedReceiptForPreview.withholdingTaxAmount?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                        </div>
-                      ) : null}
-
-                      <div className="pt-2 border-t-2 border-slate-900 flex justify-between font-black text-sm text-slate-900">
-                        <span className="font-sans">ยอดสุทธิ (Grand Total):</span>
-                        <span>{selectedReceiptForPreview.grandTotal?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Signature Section */}
-                  <div className="pt-8 sm:pt-10 grid grid-cols-2 gap-8 sm:gap-12 text-center text-xs">
-                    <div className="space-y-8">
-                      <div className="h-12 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
-                        <span className="text-slate-400 text-[10px]">ลงนาม / Signature</span>
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900">({selectedReceiptForPreview.collectorName || 'ผู้รับเงิน'})</p>
-                        <p className="text-[10px] text-slate-500">ผู้รับเงิน / Collector</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-8">
-                      <div className="h-12 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
-                        <span className="text-slate-400 text-[10px]">ลงนาม / Signature</span>
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900">({selectedReceiptForPreview.approverName || 'ผู้มีอำนาจลงนาม'})</p>
-                        <p className="text-[10px] text-slate-500">ผู้มีอำนาจลงนาม / Authorized Signature</p>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
+                <ReceiptA4Sheet doc={selectedReceiptForPreview} printableId="printable-a4-receipt" />
               </div>
             </motion.div>
           </div>

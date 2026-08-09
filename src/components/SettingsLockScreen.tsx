@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Unlock, Eye, EyeOff, KeyRound, Delete } from 'lucide-react';
+import { Lock, Unlock, Eye, EyeOff, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface SettingsLockScreenProps {
   correctPassword: string;
@@ -13,6 +13,7 @@ export default function SettingsLockScreen({ correctPassword, onUnlock, accentCo
   const [showPin, setShowPin] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [shake, setShake] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto focus input on load
@@ -22,58 +23,47 @@ export default function SettingsLockScreen({ correctPassword, onUnlock, accentCo
     }
   }, []);
 
-  const handleUnlockAttempt = (enteredPin: string) => {
-    if (enteredPin === correctPassword) {
+  const handleUnlockAttempt = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (!pin.trim()) {
+      setErrorMsg('กรุณากรอกรหัสผ่านก่อนกดยืนยัน');
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+
+    if (pin === correctPassword) {
       setIsUnlocked(true);
       setErrorMsg('');
       setTimeout(() => {
         onUnlock();
-      }, 300); // Small delay to let green animation finish
+      }, 300);
     } else {
-      setErrorMsg('รหัสความปลอดภัยไม่ถูกต้อง กรุณาลองอีกครั้ง');
+      setErrorMsg('รหัสผ่านไม่ถูกต้อง! กรุณาตรวจสอบและลองใหม่อีกครั้ง');
       setPin('');
-      // Trigger short shake animation
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
       if (inputRef.current) {
         inputRef.current.focus();
       }
     }
   };
 
-  const handleKeyPress = (num: string) => {
-    setErrorMsg('');
-    const newPin = pin + num;
-    setPin(newPin);
-    
-    // Auto-attempt when PIN reaches correct password length if only numbers, but let's allow Enter key or custom length
-    if (newPin === correctPassword) {
-      handleUnlockAttempt(newPin);
-    }
-  };
-
-  const handleBackspace = () => {
-    setErrorMsg('');
-    setPin(prev => prev.slice(0, -1));
-  };
-
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    handleUnlockAttempt(pin);
-  };
-
   return (
-    <div id="settings-lock-screen" className="flex flex-col items-center justify-center min-h-[500px] p-6">
+    <div id="settings-lock-screen" className="flex flex-col items-center justify-center min-h-[450px] p-4 sm:p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: -15 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-2xl flex flex-col items-center select-none"
+        className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center select-none"
       >
         {/* Animated Icon Lock State */}
-        <div className="relative mb-6">
+        <div className="relative mb-5">
           <motion.div
-            animate={isUnlocked ? { scale: [1, 1.1, 0.9, 1], rotate: [0, 10, -10, 0] } : {}}
-            transition={{ duration: 0.5 }}
+            animate={isUnlocked ? { scale: [1, 1.1, 0.9, 1], rotate: [0, 10, -10, 0] } : shake ? { x: [-10, 10, -10, 10, 0] } : {}}
+            transition={{ duration: 0.4 }}
             className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-lg transition-colors duration-300"
             style={{ 
               backgroundColor: isUnlocked ? '#10b981' : (errorMsg ? '#ef4444' : accentColor),
@@ -86,21 +76,17 @@ export default function SettingsLockScreen({ correctPassword, onUnlock, accentCo
               <Lock className="w-10 h-10" />
             )}
           </motion.div>
-          
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] text-slate-500">
-            PIN
-          </div>
         </div>
 
-        <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight text-center">
-          เมนูตั้งค่านี้ถูกจำกัดสิทธิ์
+        <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight text-center">
+          ยืนยันรหัสผ่านเข้าสู่การตั้งค่า
         </h2>
-        <p className="text-xs text-slate-400 mt-1.5 font-semibold text-center leading-relaxed">
-          กรุณาป้อนรหัสความปลอดภัยผ่านแผงปุ่มด้านล่างเพื่อปลดล็อกเข้าสู่ตัวเลือก
+        <p className="text-xs text-slate-400 mt-1 font-medium text-center leading-relaxed">
+          กรุณาป้อนรหัสผ่าน และกดยืนยันเพื่อเข้าใช้งาน
         </p>
 
-        {/* Input PIN Box */}
-        <form onSubmit={handleSubmit} className="w-full mt-6 space-y-4">
+        {/* Form with Input + Confirm Button */}
+        <form onSubmit={handleUnlockAttempt} className="w-full mt-6 space-y-4">
           <div className="relative flex items-center">
             <input
               ref={inputRef}
@@ -110,10 +96,10 @@ export default function SettingsLockScreen({ correctPassword, onUnlock, accentCo
                 setErrorMsg('');
                 setPin(e.target.value);
               }}
-              placeholder="ป้อนรหัสล็อก (ค่าเริ่มต้นคือ 0000)"
-              className={`w-full h-12 px-4 pr-12 text-center text-lg tracking-[0.4em] font-black font-mono border rounded-2xl bg-slate-50 focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 transition-all duration-200 outline-none ${
+              placeholder="ป้อนรหัสผ่านการตั้งค่า..."
+              className={`w-full h-12 px-4 pr-12 text-center text-base tracking-[0.2em] font-black font-mono border rounded-2xl bg-slate-50 focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 transition-all duration-200 outline-none ${
                 errorMsg 
-                  ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
+                  ? 'border-rose-500 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
                   : 'border-slate-200 focus:border-accent focus:ring-2 focus:ring-accent/20'
               }`}
               style={{ '--accent': accentColor } as React.CSSProperties}
@@ -130,64 +116,31 @@ export default function SettingsLockScreen({ correctPassword, onUnlock, accentCo
 
           <AnimatePresence mode="wait">
             {errorMsg && (
-              <motion.p
+              <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
-                className="text-[11px] font-bold text-rose-500 text-center animate-shake"
+                className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-bold animate-shake"
               >
-                ⚠️ {errorMsg}
-              </motion.p>
+                <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-500" />
+                <span>⚠️ {errorMsg}</span>
+              </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Keypad Layout */}
-          <div className="grid grid-cols-3 gap-3 pt-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <motion.button
-                key={num}
-                type="button"
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleKeyPress(String(num))}
-                className="h-12 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center font-bold text-base text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs active:bg-slate-200"
-              >
-                {num}
-              </motion.button>
-            ))}
-            
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.95 }}
-              onClick={handleBackspace}
-              className="h-12 rounded-xl bg-slate-100/50 hover:bg-slate-150 text-slate-500 dark:bg-slate-950/50 dark:hover:bg-slate-900 flex items-center justify-center transition-all cursor-pointer border border-transparent dark:border-slate-800"
-              title="ลบตัวเลขหลังสุด"
-            >
-              <Delete className="w-5 h-5" />
-            </motion.button>
-
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleKeyPress('0')}
-              className="h-12 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center font-bold text-base text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs active:bg-slate-205"
-            >
-              0
-            </motion.button>
-
-            <motion.button
-              type="submit"
-              whileTap={{ scale: 0.95 }}
-              className="h-12 rounded-xl flex items-center justify-center text-xs font-black text-white hover:opacity-95 transition-all cursor-pointer shadow-md"
-              style={{ backgroundColor: accentColor }}
-            >
-              <KeyRound className="w-4 h-4 mr-1" />
-              ตกลง
-            </motion.button>
-          </div>
+          {/* Explicit Confirm Button */}
+          <button
+            type="submit"
+            className="w-full h-12 rounded-2xl flex items-center justify-center text-xs sm:text-sm font-black text-white hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer shadow-lg gap-2"
+            style={{ backgroundColor: accentColor }}
+          >
+            <ShieldCheck className="w-5 h-5" />
+            <span>ยืนยันเข้าใช้งาน</span>
+          </button>
           
-          <div className="text-center pt-2">
-            <span className="text-[10px] font-bold text-slate-400">
-              * รหัสล็อกป้องกันการแก้ไขค่าอุปกรณ์ส่วนตัว
+          <div className="text-center pt-1">
+            <span className="text-[10px] font-semibold text-slate-400">
+              * ต้องกดยืนยันรหัสผ่านเพื่อเข้าปรับแต่งระบบเสมอ
             </span>
           </div>
         </form>

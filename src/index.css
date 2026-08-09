@@ -66,9 +66,9 @@ body {
   border-radius: 999px;
 }
 
-/* FORCE VISIBILITY ON INPUTS, TEXTAREAS AND SELECTS ACROSS THE ENTIRE APP */
+/* FORCE VISIBILITY & HIGH CONTRAST ON INPUTS, TEXTAREAS AND SELECTS */
 input, textarea, select {
-  color: #1e293b !important; /* slate-800 default text color */
+  color: #0f172a !important; /* slate-900 default text color */
 }
 input:focus, textarea:focus, select:focus {
   background-color: #ffffff !important;
@@ -77,11 +77,17 @@ input:focus, textarea:focus, select:focus {
 
 /* DARK MODE OVERRIDES */
 .dark input, .dark textarea, .dark select {
-  color: #f8fafc !important; /* slate-50 dark mode text color */
+  color: #0f172a !important; /* High contrast text in white input boxes */
 }
 .dark input:focus, .dark textarea:focus, .dark select:focus {
-  background-color: #020617 !important; /* dark slate bg (slate-950) on focus */
-  color: #ffffff !important; /* pure white text color on focus */
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Allow dark background override if explicitly requested via class */
+.dark input.bg-slate-900, .dark textarea.bg-slate-900, .dark select.bg-slate-900,
+.dark input.bg-slate-950, .dark textarea.bg-slate-950, .dark select.bg-slate-950 {
+  color: #f8fafc !important;
 }
 
 /* Chrome/Safari Autofill fixes to keep text highly visible */
