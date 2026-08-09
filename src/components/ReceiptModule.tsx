@@ -416,10 +416,33 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
 
-  // Items
+  // Items (Default empty row for filling)
   const [items, setItems] = useState<ReceiptItem[]>([
-    { id: '1', description: 'ค่าบริการทางกฎหมาย และค่าตอบแทนวิชาชีพ', quantity: 1, unit: 'งวด', unitPrice: 15000, amount: 15000 }
+    { id: '1', description: '', quantity: 1, unit: 'รายการ', unitPrice: 0, amount: 0 }
   ]);
+
+  // Form Accordion Sections State (Sections 2..6 collapsible)
+  const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
+    sec2: false, // 2. ข้อมูลผู้ออกใบเสร็จ (ผู้ขาย/สำนักงาน)
+    sec3: true,  // 3. ข้อมูลผู้ว่าจ้าง / ลูกค้า (ผู้ชำระเงิน)
+    sec4: true,  // 4. รายการสินค้า / ค่าบริการ / ค่าใช้จ่าย
+    sec5: false, // 5. วิธีการชำระเงิน และหมายเหตุ
+    sec6: false  // 6. โลโก้บริษัทและลายน้ำ
+  });
+
+  const toggleSection = (secKey: string) => {
+    setOpenSections(prev => ({ ...prev, [secKey]: !prev[secKey] }));
+  };
+
+  const setAllSections = (isOpen: boolean) => {
+    setOpenSections({
+      sec2: isOpen,
+      sec3: isOpen,
+      sec4: isOpen,
+      sec5: isOpen,
+      sec6: isOpen
+    });
+  };
 
   // Tax & Discount
   const [discountType, setDiscountType] = useState<'flat' | 'percent'>('flat');
@@ -751,7 +774,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setCustomerAddress('');
     setCustomerPhone('');
     setCustomerEmail('');
-    setItems([{ id: Date.now().toString(), description: 'ค่าบริการทางกฎหมาย', quantity: 1, unit: 'งวด', unitPrice: 10000, amount: 10000 }]);
+    setItems([{ id: Date.now().toString(), description: '', quantity: 1, unit: 'รายการ', unitPrice: 0, amount: 0 }]);
     setDiscountValue(0);
     setVatType('no_vat');
     setWithholdingTaxPercent(0);
