@@ -44,13 +44,17 @@ const formatEmail = (id: string) => {
 export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenProps) {
   const [formType, setFormType] = useState<'login' | 'register' | 'forgot' | 'otp' | 'reset'>('login');
   
-  // Login input - Pre-filled for ultra fast login
+  // Login input - Secure, no prefilled password
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('remember_username_enabled') === 'true';
+  });
   const [loginId, setLoginId] = useState(() => {
-    return localStorage.getItem('last_login_id') || 'admin';
+    if (localStorage.getItem('remember_username_enabled') === 'true') {
+      return localStorage.getItem('remembered_login_id') || '';
+    }
+    return '';
   });
-  const [loginPass, setLoginPass] = useState(() => {
-    return localStorage.getItem('last_login_pass') || '000000';
-  });
+  const [loginPass, setLoginPass] = useState('');
   
   // Register input
   const [regId, setRegId] = useState('');
@@ -94,48 +98,6 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     setErrorMsg('');
   };
 
-  // Instant 1-Click Fast Login
-  const handleQuickLogin = (targetId: string, targetPass: string = '000000') => {
-    const cleanId = targetId.trim().toLowerCase() || 'admin';
-    const cleanPass = targetPass || '000000';
-    setLoginId(cleanId);
-    setLoginPass(cleanPass);
-    setIsLoading(true);
-    triggerSuccess(`⚡ เข้าสู่ระบบด่วนเป็น "${cleanId}" เรียบร้อยแล้ว!`);
-    
-    // Save for next auto login
-    localStorage.setItem('last_login_id', cleanId);
-    localStorage.setItem('last_login_pass', cleanPass);
-
-    setTimeout(() => {
-      onLoginSuccess(
-        cleanId, 
-        `${cleanId}@taskflow.space`, 
-        '0812345678', 
-        cleanId, 
-        cleanPass
-      );
-      setIsLoading(false);
-    }, 100);
-  };
-
-  const handleOfflineLogin = () => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    const trimmedId = loginId.trim().toLowerCase().replace(/\s/g, '') || 'admin';
-    const finalPass = loginPass || '000000';
-    setIsLoading(true);
-    triggerSuccess('กำลังเข้าสู่ระบบแบบด่วน...');
-    
-    localStorage.setItem('last_login_id', trimmedId);
-    localStorage.setItem('last_login_pass', finalPass);
-
-    setTimeout(() => {
-      onLoginSuccess(trimmedId, `${trimmedId}@taskflow.space`, '0812345678', '', finalPass);
-      setIsLoading(false);
-    }, 100);
-  };
-
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!loginId.trim() || !loginPass) {
@@ -151,17 +113,23 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     const emailFirebase = formatEmail(trimmedId);
     const finalPass = padPass(loginPass);
 
-    // Save for fast next time
-    localStorage.setItem('last_login_id', trimmedId);
-    localStorage.setItem('last_login_pass', loginPass);
+    // Save or clear remembered username
+    if (rememberMe) {
+      localStorage.setItem('remember_username_enabled', 'true');
+      localStorage.setItem('remembered_login_id', trimmedId);
+    } else {
+      localStorage.removeItem('remember_username_enabled');
+      localStorage.removeItem('remembered_login_id');
+    }
+    localStorage.removeItem('last_login_pass'); // Clean legacy insecure storage
 
     try {
-      // 1. Try to authenticate with Firebase Auth directly first
-      console.log('Firebase Auth attempt for email:', emailFirebase);
+      // 1. Authenticate via Firebase Auth
+      console.log('Firebase Auth login attempt:', emailFirebase);
       const userCredential = await signInWithEmailAndPassword(auth, emailFirebase, finalPass);
       const uid = userCredential.user.uid;
 
-      console.log('Firebase Auth success. Fetching user document from Firestore, uid:', uid);
+      console.log('Firebase Auth success. Fetching user document...');
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const udata = userDoc.data();
@@ -173,7 +141,6 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           password: loginPass,
           uid: uid
         };
-        // Save profiles locally
         localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
         localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
         localStorage.setItem(`user_profile_${(udata.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
@@ -189,117 +156,115 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           );
           setIsLoading(false);
         }, 100);
-      } else {
-        // Fallback user document write if profile was not created yet
-        const profile = {
-          userId: trimmedId,
-          email: `${trimmedId}@taskflow.space`,
-          phone: '0812345678',
-          password: loginPass,
-          uid: uid
-        };
-        await setDoc(doc(db, 'users', uid), profile);
-        
-        localStorage.setItem(`user_profile_${profile.email.toLowerCase()}`, JSON.stringify(profile));
-        localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profile));
-        localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profile));
-
-        triggerSuccess('เข้าสู่ระบบสำเร็จ...');
-        setTimeout(() => {
-          onLoginSuccess(trimmedId, profile.email, profile.phone, uid, loginPass);
-          setIsLoading(false);
-        }, 100);
+        return;
       }
-    } catch (error: any) {
-      console.log('Authentication error, entering direct Cloud-Sync fallback mode:', error);
-      
-      // Direct Cloud-Sync fallback: Let's read and write to Firestore using usernames directly as document IDs!
-      try {
-        const userDocRef = doc(db, 'users', trimmedId);
-        const userDocSnap = await getDoc(userDocRef);
+    } catch (authErr) {
+      console.log('Firebase Auth direct login failed/bypassed:', authErr);
+    }
 
-        if (userDocSnap.exists()) {
-          const udata = userDocSnap.data();
-          if (udata.password === loginPass) {
-            
-            const profileData = {
-              userId: udata.userId || trimmedId,
-              email: udata.email || `${trimmedId}@taskflow.space`,
-              phone: udata.phone || '0812345678',
-              password: loginPass,
-              uid: trimmedId
-            };
-            localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
-            localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
-            localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profileData));
+    // 2. Check Firestore User Record
+    try {
+      let udata: any = null;
+      let userDocSnap = await getDoc(doc(db, 'users', trimmedId));
 
-            triggerSuccess('เข้าสู่ระบบแบบซิงค์คลาวด์สำเร็จ...');
-            setTimeout(() => {
-              onLoginSuccess(
-                udata.userId || trimmedId,
-                udata.email || `${trimmedId}@taskflow.space`,
-                udata.phone || '0812345678',
-                trimmedId,
-                loginPass
-              );
-              setIsLoading(false);
-            }, 100);
-            return;
-          } else {
-            triggerError('⚠️ รหัสผ่านไม่ถูกต้องสำหรับไอดีผู้ใช้งานนี้');
-            setIsLoading(false);
-            return;
-          }
-        } else {
-          // If the profile does not exist under this username, register them immediately on Cloud Firestore!
-          const newProfile = {
-            userId: trimmedId,
-            email: `${trimmedId}@taskflow.space`,
-            phone: '0812345678',
+      if (userDocSnap.exists()) {
+        udata = userDocSnap.data();
+      } else {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('userId', '==', trimmedId));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          udata = qSnap.docs[0].data();
+        }
+      }
+
+      if (udata) {
+        // User exists! Strictly check password.
+        if (udata.password === loginPass || udata.password === finalPass) {
+          const profileData = {
+            userId: udata.userId || trimmedId,
+            email: udata.email || `${trimmedId}@taskflow.space`,
+            phone: udata.phone || '0812345678',
             password: loginPass,
-            uid: trimmedId
+            uid: udata.uid || trimmedId
           };
-          await setDoc(userDocRef, newProfile);
+          localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
+          localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
+          localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profileData));
 
-          localStorage.setItem(`user_profile_${newProfile.email.toLowerCase()}`, JSON.stringify(newProfile));
-          localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(newProfile));
-          localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(newProfile));
-
-          triggerSuccess('ต้อนรับบัญชีใหม่! เข้าสู่ระบบเรียบร้อยแล้ว...');
+          triggerSuccess('เข้าสู่ระบบสำเร็จ...');
           setTimeout(() => {
-            onLoginSuccess(trimmedId, newProfile.email, newProfile.phone, trimmedId, loginPass);
+            onLoginSuccess(
+              udata.userId || trimmedId,
+              udata.email || `${trimmedId}@taskflow.space`,
+              udata.phone || '0812345678',
+              udata.uid || trimmedId,
+              loginPass
+            );
             setIsLoading(false);
           }, 100);
           return;
-        }
-      } catch (fallbackError: any) {
-        console.error('Unified cloud sync fallback failed:', fallbackError);
-        
-        // Final offline local storage check if cloud is completely unreachable
-        const localProfStr = localStorage.getItem(`user_profile_${trimmedId}`) || localStorage.getItem(`user_profile_${emailFirebase.toLowerCase()}`);
-        if (localProfStr) {
-          const profile = JSON.parse(localProfStr);
-          if (profile.password === loginPass) {
-            triggerSuccess('เข้าสู่ระบบสำเร็จ...');
-            setTimeout(() => {
-              onLoginSuccess(trimmedId, profile.email, profile.phone || '0812345678', trimmedId, loginPass);
-              setIsLoading(false);
-            }, 100);
-            return;
-          } else {
-            triggerError('⚠️ รหัสผ่านเครื่องไม่ถูกต้องสำหรับไอดีผู้ใช้งานนี้');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // Fresh login local-fallback
-        triggerSuccess('เข้าสู่ระบบสำเร็จ...');
-        setTimeout(() => {
-          onLoginSuccess(trimmedId, `${trimmedId}@taskflow.space`, '0812345678', trimmedId, loginPass);
+        } else {
+          triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
           setIsLoading(false);
-        }, 100);
+          return;
+        }
       }
+
+      // 3. Check Local Profiles Cache
+      const localProfStr = localStorage.getItem(`user_profile_${trimmedId}`) || localStorage.getItem(`user_profile_${emailFirebase.toLowerCase()}`);
+      if (localProfStr) {
+        const profile = JSON.parse(localProfStr);
+        if (profile.password === loginPass || profile.password === finalPass) {
+          triggerSuccess('เข้าสู่ระบบสำเร็จ...');
+          setTimeout(() => {
+            onLoginSuccess(trimmedId, profile.email, profile.phone || '0812345678', trimmedId, loginPass);
+            setIsLoading(false);
+          }, 100);
+          return;
+        } else {
+          triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // 4. Admin Initial Setup Fallback (If admin is not yet stored in database)
+      if (trimmedId === 'admin') {
+        if (loginPass === '000000' || loginPass === 'admin1234') {
+          const adminProfile = {
+            userId: 'admin',
+            email: 'admin@taskflow.space',
+            phone: '0812345678',
+            password: loginPass,
+            uid: 'admin',
+            isApproved: true
+          };
+          try {
+            await setDoc(doc(db, 'users', 'admin'), adminProfile, { merge: true });
+          } catch (_) {}
+          localStorage.setItem('user_profile_admin', JSON.stringify(adminProfile));
+
+          triggerSuccess('เข้าสู่ระบบในฐานะ Admin...');
+          setTimeout(() => {
+            onLoginSuccess('admin', 'admin@taskflow.space', '0812345678', 'admin', loginPass);
+            setIsLoading(false);
+          }, 100);
+          return;
+        } else {
+          triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // If user does not exist in database or cache
+      triggerError('❌ ไม่พบไอดีผู้ใช้นี้ในระบบ กรุณาตรวจสอบไอดี หรือสมัครสมาชิกใหม่');
+      setIsLoading(false);
+    } catch (err: any) {
+      console.error('Login error:', err);
+      triggerError('เกิดข้อผิดพลาดในการตรวจสอบข้อมูลเข้าสู่ระบบ');
+      setIsLoading(false);
     }
   };
 
@@ -695,32 +660,29 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       >
         
         {/* Header Branding Ribbon */}
-        <div className="p-8 text-center bg-slate-50 border-b border-slate-100 dark:bg-slate-950 dark:border-slate-850">
-          <div className="w-16 h-16 bg-accent/10 text-accent rounded-2xl flex items-center justify-center mx-auto mb-4 border border-accent/20" style={{ '--accent': accentColor } as React.CSSProperties}>
-            {formType === 'login' && <Lock className="w-7 h-7" />}
+        <div className="p-6 sm:p-8 text-center bg-gradient-to-b from-slate-50 to-white border-b border-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
+          <div className="w-14 h-14 bg-accent/10 text-accent rounded-2xl flex items-center justify-center mx-auto mb-3 border border-accent/20 shadow-xs" style={{ '--accent': accentColor } as React.CSSProperties}>
+            {formType === 'login' && <ShieldCheck className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />}
             {formType === 'register' && <UserPlus className="w-7 h-7" />}
             {formType === 'forgot' && <HelpCircle className="w-7 h-7" />}
             {formType === 'otp' && <ShieldCheck className="w-7 h-7 animate-bounce" />}
             {formType === 'reset' && <Key className="w-7 h-7" />}
           </div>
-          <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-            {formType === 'login' && 'เข้าสู่ระบบบริหารภารกิจ'}
-            {formType === 'register' && 'สมัครบัญชีเครือข่ายใหม่'}
-            {formType === 'forgot' && 'ลืมรหัสผ่านหรือเปลี่ยนไอดี?'}
+          <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+            {formType === 'login' && 'เข้าสู่ระบบ TaskFlow Space'}
+            {formType === 'register' && 'สมัครบัญชีผู้ใช้งานใหม่'}
+            {formType === 'forgot' && 'ลืมรหัสผ่านหรือกู้คืนไอดี?'}
             {formType === 'otp' && 'ตรวจสอบความปลอดภัย OTP'}
-            {formType === 'reset' && 'ตั้งค่ารหัสความปลอดภัยเข้าใช้ใหม่'}
+            {formType === 'reset' && 'ตั้งค่ารหัสผ่านใหม่'}
           </h2>
-          <p className="text-xs text-slate-400 mt-1 font-medium leading-relaxed dark:text-slate-400">
-            {formType === 'login' && 'สแกนตรวจสอบสถิติและซิงค์ข้อมูลลงเซิร์ฟเวอร์แบบ Real-time'}
-            {formType === 'register' && 'บันทึกประวัติเพื่อใช้งานหลายอุปกรณ์แบบไร้รอยต่อ'}
-            {formType === 'forgot' && 'ค้นหาและซิงค์รหัสของคุณด้วยเลขโทรศัพท์และอีเมลเดิม'}
-            {formType === 'otp' && 'กรอกรหัสยืนยัน 6 หลักที่เราจัดส่งทางอีเมลความโปร่งใส'}
-            {formType === 'reset' && 'ไอดีผู้ใช้ของคุณถูกกู้คืนแล้ว คุณสามารถตั้งรหัสผ่านใหม่ได้ทันที'}
-          </p>
+          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+            <Lock className="w-3 h-3 text-emerald-500" />
+            <span>ระบบรักษาความปลอดภัย SSL Encrypted</span>
+          </div>
         </div>
         
         {/* Content Body */}
-        <div className="p-8">
+        <div className="p-6 sm:p-8">
           
           {errorMsg && (
             <div className="mb-4 p-3.5 bg-rose-50 border border-rose-150 text-rose-700 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
@@ -736,44 +698,12 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             </div>
           )}
 
-{/* 1. LOGIN FORM */}
+          {/* 1. LOGIN FORM */}
           {formType === 'login' && (
-            <div className="space-y-4">
-              {/* Quick 1-Click Login Ribbon */}
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl dark:bg-amber-500/5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                    <Zap className="w-3.5 h-3.5 fill-current" />
-                    ลงชื่อเข้าระบบด่วน 1-Click
-                  </span>
-                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                    ความเร็วสูง ⚡
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin('admin', '000000')}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all shadow-sm active:scale-95"
-                  >
-                    <User className="w-3.5 h-3.5 text-amber-500" />
-                    <span>👑 Admin (แอดมิน)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin(loginId || 'user', loginPass || '000000')}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all shadow-sm active:scale-95"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>⚡ เข้าด่วนทันที</span>
-                  </button>
-                </div>
-              </div>
-
-              <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 dark:text-slate-300 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-500" />
                   ไอดีผู้ใช้งาน (User ID)
                 </label>
                 <div className="relative">
@@ -781,69 +711,97 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                     type="text"
                     value={loginId}
                     onChange={(e) => setLoginId(e.target.value)}
-                    placeholder="ป้อนชื่อไอดีผู้ใช้งานของคุณ..."
-                    className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
+                    placeholder="กรอกไอดีผู้ใช้งานของคุณ..."
+                    className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 font-medium transition-all"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                     disabled={isLoading}
+                    autoComplete="username"
                   />
                 </div>
               </div>
+
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-400 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                  รหัสผ่าน
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 dark:text-slate-300 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  รหัสผ่าน (Password)
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={loginPass}
                     onChange={(e) => setLoginPass(e.target.value)}
-                    placeholder="ป้อนรหัสผ่าน..."
-                    className="w-full h-12 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-mono font-bold"
+                    placeholder="กรอกรหัสผ่านเข้าสู่ระบบ..."
+                    className="w-full h-12 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 font-medium transition-all"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                     disabled={isLoading}
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
                     title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-              
-              <div className="pt-1.5 animate-fade-in">
-                <button
-                  type="submit"
-                  className="w-full h-12 font-black text-xs text-white rounded-xl transition-all shadow-md shadow-accent/10 focus:outline-none hover:brightness-105 active:scale-98"
-                  style={{ backgroundColor: accentColor }}
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบเครือข่าย'}
-                </button>
-              </div>
 
-              <div className="pt-4 text-center flex flex-col space-y-2.5 border-t border-slate-100 dark:border-slate-850/50 mt-4">
-                <button
-                  type="button"
-                  onClick={() => { setFormType('register'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
-                  className="text-xs font-bold hover:underline"
-                  style={{ color: accentColor }}
-                >
-                  🆕 ยังไม่มีบัญชีใช้งานใหม่? สมัครสมาชิกที่นี่
-                </button>
+              <div className="flex items-center justify-between text-xs pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+                  />
+                  <span>จดจำไอดีผู้ใช้</span>
+                </label>
+
                 <button
                   type="button"
                   onClick={() => { setFormType('forgot'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
-                  className="text-xs font-bold text-slate-450 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center gap-1"
+                  className="font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
                 >
-                  🔑 ลืมรหัสผ่าน หรืออยากแก้คืนไอดีผู้ใช้? คลิกตรงนี้
+                  ลืมรหัสผ่าน?
                 </button>
               </div>
+
+              <div className="pt-2 animate-fade-in">
+                <button
+                  type="submit"
+                  className="w-full h-12 font-bold text-sm text-white rounded-xl transition-all shadow-md focus:outline-none hover:brightness-105 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+                  style={{ backgroundColor: accentColor }}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>กำลังยืนยันความปลอดภัย...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4.5 h-4.5" />
+                      <span>เข้าสู่ระบบอย่างปลอดภัย</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="pt-4 text-center border-t border-slate-100 dark:border-slate-800/80 mt-4 flex flex-col items-center gap-2">
+                <div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">ยังไม่มีบัญชีผู้ใช้งาน? </span>
+                  <button
+                    type="button"
+                    onClick={() => { setFormType('register'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
+                    className="text-xs font-bold hover:underline ml-1"
+                    style={{ color: accentColor }}
+                  >
+                    สมัครสมาชิกใหม่
+                  </button>
+                </div>
+              </div>
             </form>
-          </div>
           )}
 
           {/* 2. REGISTER FORM */}

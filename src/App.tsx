@@ -2340,15 +2340,17 @@ export default function App() {
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs lg:hidden transition-opacity"
         />
       )}
 
       {/* LEFT SIDEBAR AREA */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 h-screen bg-sidebar-bg text-sidebar-text z-40 flex flex-col overflow-hidden shadow-xl border-r border-slate-800 transition-all duration-300 ${
-          sidebarCollapsed ? 'w-16' : 'w-60'
-        } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+        className={`fixed top-0 bottom-0 left-0 h-screen bg-sidebar-bg text-sidebar-text z-50 flex flex-col overflow-hidden shadow-2xl border-r border-slate-800 transition-all duration-300 ${
+          mobileMenuOpen
+            ? 'w-[82vw] max-w-[280px] translate-x-0'
+            : (sidebarCollapsed ? 'w-16 -translate-x-full lg:translate-x-0' : 'w-60 -translate-x-full lg:translate-x-0')
+        }`}
       >
         {/* Core application brand area */}
         <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800 flex-shrink-0">
@@ -2369,7 +2371,7 @@ export default function App() {
               </div>
             )}
             
-            {!sidebarCollapsed && (
+            {(!sidebarCollapsed || mobileMenuOpen) && (
               <div className="flex flex-col min-w-0 leading-tight">
                 <span className="font-extrabold text-[11px] text-slate-100 truncate tracking-tight">
                   {settings.appName}
@@ -2383,16 +2385,24 @@ export default function App() {
 
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden lg:flex w-7 h-7 hover:bg-slate-800 text-slate-500 hover:text-slate-200 rounded-md items-center justify-center transition-all"
+            className="hidden lg:flex w-7 h-7 hover:bg-slate-800 text-slate-500 hover:text-slate-200 rounded-md items-center justify-center transition-all cursor-pointer"
             title="พับเก็บหรือกางเมนู"
           >
             <ChevronsLeft className={`w-4 h-4 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden w-8 h-8 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg flex items-center justify-center transition-all cursor-pointer"
+            title="ปิดเมนู"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Navigation Menus tabs */}
         <nav className="flex-1 p-2 space-y-1 py-4 overflow-y-auto">
-          {!sidebarCollapsed && (
+          {(!sidebarCollapsed || mobileMenuOpen) && (
             <div className="px-3 text-[9.5px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">
               ระบบวางแผนหลัก
             </div>
@@ -2400,7 +2410,7 @@ export default function App() {
 
           <button
             onClick={() => { setActiveTab('tasks'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'tasks'
                 ? 'bg-slate-800 text-white border-l-[3px]'
                 : 'hover:bg-slate-800'
@@ -2408,12 +2418,12 @@ export default function App() {
             style={activeTab === 'tasks' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <CheckSquare className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>รายการงานทั้งหมด</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>รายการงานทั้งหมด</span>}
           </button>
 
           <button
             onClick={() => { setActiveTab('expenses'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'expenses'
                 ? 'bg-slate-800 text-white border-l-[3px]'
                 : 'hover:bg-slate-800'
@@ -2421,12 +2431,12 @@ export default function App() {
             style={activeTab === 'expenses' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <Receipt className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>จัดการเงินค่าใช้จ่าย</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>จัดการเงินค่าใช้จ่าย</span>}
           </button>
 
           <button
             onClick={() => { setActiveTab('localFiles'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'localFiles'
                 ? 'bg-slate-800 text-white border-l-[3px]'
                 : 'hover:bg-slate-800'
@@ -2434,12 +2444,12 @@ export default function App() {
             style={activeTab === 'localFiles' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <FolderOpen className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>เปิดไฟล์ & มีเดียท้องถิ่น</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>เปิดไฟล์ & มีเดียท้องถิ่น</span>}
           </button>
 
           <button
             onClick={() => { setActiveTab('dekaSearch'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'dekaSearch'
                 ? 'bg-slate-800 text-white border-l-[3px]'
                 : 'hover:bg-slate-800'
@@ -2447,12 +2457,12 @@ export default function App() {
             style={activeTab === 'dekaSearch' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <Scale className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" />
-            {!sidebarCollapsed && <span>สืบค้นฎีกา</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>สืบค้นฎีกา</span>}
           </button>
 
           <button
             onClick={() => { setActiveTab('formDocument'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'formDocument'
                 ? 'bg-slate-800 text-white border-l-[3px]'
                 : 'hover:bg-slate-800'
@@ -2460,12 +2470,12 @@ export default function App() {
             style={activeTab === 'formDocument' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <FileText className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" />
-            {!sidebarCollapsed && <span>ออกเอกสารแบบฟอร์ม</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>ออกเอกสารแบบฟอร์ม</span>}
           </button>
 
           <button
             onClick={() => { setActiveTab('receipt'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'receipt'
                 ? 'bg-slate-800 text-white border-l-[3px]'
                 : 'hover:bg-slate-800'
@@ -2473,7 +2483,7 @@ export default function App() {
             style={activeTab === 'receipt' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <Receipt className="w-4.5 h-4.5 flex-shrink-0 text-emerald-400" />
-            {!sidebarCollapsed && <span>ออกใบเสร็จรับเงิน</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>ออกใบเสร็จรับเงิน</span>}
           </button>
 
           {/* Inline custom menu links - Opens directly in a new tab */}
@@ -2487,17 +2497,17 @@ export default function App() {
                   window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
                   setMobileMenuOpen(false); 
                 }}
-                className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer"
                 title={`${link.title} (เปิดในแท็บใหม่)`}
               >
                 <IconComponent className="w-4.5 h-4.5 flex-shrink-0 text-slate-400 group-hover:text-white" />
-                {!sidebarCollapsed && <span className="truncate">{link.title}</span>}
-                {!sidebarCollapsed && <ExternalLink className="w-3.5 h-3.5 ml-auto text-slate-500 opacity-60 flex-shrink-0" />}
+                {(!sidebarCollapsed || mobileMenuOpen) && <span className="truncate">{link.title}</span>}
+                {(!sidebarCollapsed || mobileMenuOpen) && <ExternalLink className="w-3.5 h-3.5 ml-auto text-slate-500 opacity-60 flex-shrink-0" />}
               </button>
             );
           })}
 
-          {!sidebarCollapsed && (
+          {(!sidebarCollapsed || mobileMenuOpen) && (
             <div className="px-3 pt-6 text-[9.5px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">
               การจัดการระบบ
             </div>
@@ -2506,7 +2516,7 @@ export default function App() {
           {(sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && (
             <button
               onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }}
-              className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+              className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
                 activeTab === 'admin'
                   ? 'bg-slate-800 text-white border-l-[3px]'
                   : 'hover:bg-slate-800'
@@ -2514,7 +2524,7 @@ export default function App() {
               style={activeTab === 'admin' ? { borderLeftColor: settings.colorAccent } : {}}
             >
               <Shield className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" />
-              {!sidebarCollapsed && (
+              {(!sidebarCollapsed || mobileMenuOpen) && (
                 <span>
                   {sessionUser.userId === 'admin' ? '👑 แดชบอร์ดแอดมิน' : '🛡️ แดชบอร์ดผู้ช่วย'}
                 </span>
@@ -2524,7 +2534,7 @@ export default function App() {
 
           <button
             onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all ${
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'settings'
                 ? 'bg-slate-800 text-white border-l-[3px]'
                 : 'hover:bg-slate-800'
@@ -2532,7 +2542,7 @@ export default function App() {
             style={activeTab === 'settings' ? { borderLeftColor: settings.colorAccent } : {}}
           >
             <SettingsIcon className="w-4.5 h-4.5 flex-shrink-0" />
-            {!sidebarCollapsed && <span>ตกแต่ง & ตั้งค่ารวม</span>}
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>ตกแต่ง & ตั้งค่ารวม</span>}
           </button>
         </nav>
 
@@ -2667,7 +2677,7 @@ export default function App() {
                     className="fixed inset-0 z-40 bg-transparent" 
                     onClick={() => setShowNotificationFlyout(false)} 
                   />
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                  <div className="fixed inset-x-3 top-16 max-h-[85vh] sm:max-h-none sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 flex flex-col">
                     {/* Header */}
                     <div className="p-4 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
                       <div className="flex items-center gap-2">

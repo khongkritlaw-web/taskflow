@@ -194,14 +194,14 @@ export default function AiAssistant({
       {/* Floating Trigger Badge */}
       <motion.div
         ref={widgetRef}
-        className="fixed bottom-6 right-6 z-[999]"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[999]"
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 260, damping: 20 }}
       >
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none transition-all duration-300 hover:scale-110 relative cursor-pointer"
+          className="w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none transition-all duration-300 hover:scale-110 active:scale-95 relative cursor-pointer"
           style={{ backgroundColor: themeAccent }}
           title="ปรึกษาน้องฉลาด (เลขา AI ส่วนตัว)"
         >
@@ -209,7 +209,7 @@ export default function AiAssistant({
             <X className="w-6 h-6 animate-spin-once" />
           ) : (
             <>
-              <Bot className="w-7 h-7" />
+              <Bot className="w-6 h-6 sm:w-7 sm:h-7" />
               <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-bounce">
                 AI
               </span>
@@ -221,7 +221,16 @@ export default function AiAssistant({
       {/* Expandable Chat Panel */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 w-full sm:w-[420px] h-full sm:h-[600px] z-[9998] flex flex-col justify-end pointer-events-none p-0 sm:p-2">
+          <>
+            {/* Mobile Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[9997] sm:hidden"
+            />
+            <div className="fixed inset-x-2 bottom-2 sm:inset-auto sm:bottom-24 sm:right-6 w-auto sm:w-[420px] h-[85vh] max-h-[680px] sm:h-[600px] z-[9998] flex flex-col justify-end pointer-events-none p-0 sm:p-2">
             <motion.div
               initial={{ opacity: 0, y: 100, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -370,6 +379,7 @@ export default function AiAssistant({
               </div>
             </motion.div>
           </div>
+        </>
         )}
       </AnimatePresence>
     </>
