@@ -154,56 +154,70 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
       const uid = userCredential.user.uid;
 
       console.log('Firebase Auth success. Fetching user document...');
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      if (userDoc.exists()) {
-        const udata = userDoc.data();
-
-        // Enforce Admin portal access check
-        if (authRole === 'admin' && !checkIsAdminUser(udata, trimmedId)) {
-          triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
-          setIsLoading(false);
-          return;
+      let udata: any = null;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          udata = userDoc.data();
         }
+      } catch (docErr) {
+        console.warn('Firestore user doc lookup skipped (offline):', docErr);
+      }
 
-        // Enforce User portal access check (prevent Admin logging in on User tab)
-        if (authRole === 'user' && checkIsAdminUser(udata, trimmedId)) {
-          triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
-          setIsLoading(false);
-          return;
-        }
+      const effectiveData = udata || {
+        userId: trimmedId,
+        email: `${trimmedId}@taskflow.space`,
+        phone: '0812345678',
+        password: loginPass,
+        uid: uid,
+        isAssistant: trimmedId === 'admin'
+      };
 
-        const profileData = {
-          userId: udata.userId || trimmedId,
-          email: udata.email || `${trimmedId}@taskflow.space`,
-          phone: udata.phone || '0812345678',
-          password: loginPass,
-          uid: uid,
-          isAssistant: udata.isAssistant
-        };
-        localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
-        localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
-        localStorage.setItem(`user_profile_${(udata.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
-
-        triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
-        setTimeout(() => {
-          onLoginSuccess(
-            udata.userId || trimmedId, 
-            udata.email || `${trimmedId}@taskflow.space`, 
-            udata.phone || '0812345678', 
-            uid, 
-            loginPass
-          );
-          setIsLoading(false);
-        }, 100);
+      // Enforce Admin portal access check
+      if (authRole === 'admin' && !checkIsAdminUser(effectiveData, trimmedId)) {
+        triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+        setIsLoading(false);
         return;
       }
+
+      // Enforce User portal access check (prevent Admin logging in on User tab)
+      if (authRole === 'user' && checkIsAdminUser(effectiveData, trimmedId)) {
+        triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
+        setIsLoading(false);
+        return;
+      }
+
+      const profileData = {
+        userId: effectiveData.userId || trimmedId,
+        email: effectiveData.email || `${trimmedId}@taskflow.space`,
+        phone: effectiveData.phone || '0812345678',
+        password: loginPass,
+        uid: uid,
+        isAssistant: effectiveData.isAssistant
+      };
+      localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
+      localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
+      localStorage.setItem(`user_profile_${(effectiveData.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
+
+      triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
+      setTimeout(() => {
+        onLoginSuccess(
+          effectiveData.userId || trimmedId, 
+          effectiveData.email || `${trimmedId}@taskflow.space`, 
+          effectiveData.phone || '0812345678', 
+          uid, 
+          loginPass
+        );
+        setIsLoading(false);
+      }, 100);
+      return;
     } catch (authErr) {
       console.log('Firebase Auth direct login failed/bypassed:', authErr);
     }
 
     // 2. Check Firestore User Record
+    let udata: any = null;
     try {
-      let udata: any = null;
       let userDocSnap = await getDoc(doc(db, 'users', trimmedId));
 
       if (userDocSnap.exists()) {
@@ -216,7 +230,11 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           udata = qSnap.docs[0].data();
         }
       }
+    } catch (fsErr) {
+      console.warn('Firestore user fetch error (offline or unreachable):', fsErr);
+    }
 
+    try {
       if (udata) {
         // User exists! Strictly check password.
         if (udata.password === loginPass || udata.password === finalPass) {
