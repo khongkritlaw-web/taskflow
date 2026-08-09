@@ -817,17 +817,17 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         initial={{ opacity: 0, scale: 0.9, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 150, damping: 16 }}
-        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transition-all dark:bg-slate-900 dark:border-slate-850"
+        className="w-full max-w-md bg-slate-900 text-slate-100 rounded-3xl shadow-2xl border border-slate-800/80 overflow-hidden transition-all"
       >
         
         {/* Header Branding Ribbon */}
-        <div className="p-6 sm:p-8 text-center bg-gradient-to-b from-slate-50 to-white border-b border-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
+        <div className="pt-7 pb-3 px-6 sm:px-8 text-center bg-transparent">
           <div className="w-14 h-14 bg-accent/10 text-accent rounded-2xl flex items-center justify-center mx-auto mb-3 border border-accent/20 shadow-xs" style={{ '--accent': accentColor } as React.CSSProperties}>
             {formType === 'login' && (
               authRole === 'admin' ? (
                 <Crown className="w-7 h-7 text-amber-500 animate-pulse" />
               ) : (
-                <ShieldCheck className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
+                <ShieldCheck className="w-7 h-7 text-indigo-400" />
               )
             )}
             {formType === 'register' && <UserPlus className="w-7 h-7" />}
@@ -835,14 +835,14 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             {formType === 'otp' && <ShieldCheck className="w-7 h-7 animate-bounce" />}
             {formType === 'reset' && <Key className="w-7 h-7" />}
           </div>
-          <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-            {formType === 'login' && (authRole === 'admin' ? 'เข้าสู่ระบบผู้ดูแลระบบ (Admin)' : 'เข้าสู่ระบบ TaskFlow Space')}
+          <h2 className="text-lg sm:text-xl font-black text-slate-100 uppercase tracking-tight">
+            {formType === 'login' && (authRole === 'admin' ? 'เข้าสู่ระบบผู้ดูแลระบบ (ADMIN)' : 'เข้าสู่ระบบ TaskFlow Space')}
             {formType === 'register' && 'สมัครบัญชีผู้ใช้งานใหม่'}
             {formType === 'forgot' && 'ลืมรหัสผ่านหรือกู้คืนไอดี?'}
             {formType === 'otp' && 'ตรวจสอบความปลอดภัย OTP'}
             {formType === 'reset' && 'ตั้งค่ารหัสผ่านใหม่'}
           </h2>
-          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+          <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-[11px] font-medium text-slate-300">
             {authRole === 'admin' && formType === 'login' ? (
               <>
                 <Crown className="w-3 h-3 text-amber-500" />
@@ -858,18 +858,18 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         </div>
         
         {/* Content Body */}
-        <div className="p-6 sm:p-8">
+        <div className="px-6 sm:px-8 pb-7 pt-2">
           
           {errorMsg && (
-            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-150 text-rose-700 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-500" />
+            <div className="mb-4 p-3.5 bg-rose-950/40 border border-rose-900/80 text-rose-300 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-400" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-150 text-emerald-800 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-400">
-              <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-500 animate-pulse" />
+            <div className="mb-4 p-3.5 bg-emerald-950/40 border border-emerald-900/80 text-emerald-300 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2">
+              <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-400 animate-pulse" />
               <span>{successMsg}</span>
             </div>
           )}
@@ -879,7 +879,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
             <form onSubmit={handleLogin} className="space-y-4">
               
               {/* Role Selection Tabs (Admin vs User) */}
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950/80 rounded-2xl mb-4 border border-slate-200/80 dark:border-slate-800">
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/90 rounded-2xl mb-4 border border-slate-800">
                 <button
                   type="button"
                   onClick={() => {
@@ -889,11 +889,11 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   }}
                   className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     authRole === 'user'
-                      ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs border border-slate-200 dark:border-slate-700'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      ? 'bg-slate-800 text-slate-100 shadow-xs border border-slate-700'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <User className={`w-4 h-4 ${authRole === 'user' ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
+                  <User className={`w-4 h-4 ${authRole === 'user' ? 'text-indigo-400' : ''}`} />
                   <span>ผู้ใช้งานทั่วไป</span>
                 </button>
 
@@ -907,7 +907,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     authRole === 'admin'
                       ? 'bg-amber-500 text-white shadow-xs shadow-amber-500/20'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   <Crown className={`w-4 h-4 ${authRole === 'admin' ? 'text-amber-100' : 'text-amber-500'}`} />
@@ -916,8 +916,8 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 dark:text-slate-300 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-slate-500" />
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
                   {authRole === 'admin' ? 'ไอดีผู้ดูแลระบบ / ผู้ช่วย (Admin ID)' : 'ไอดีผู้ใช้งาน (User ID)'}
                 </label>
                 <div className="relative">
@@ -926,7 +926,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                     value={loginId}
                     onChange={(e) => setLoginId(e.target.value)}
                     placeholder={authRole === 'admin' ? 'กรอกไอดี Admin...' : 'กรอกไอดีผู้ใช้งานของคุณ...'}
-                    className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 font-medium transition-all"
+                    className="w-full h-12 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent font-medium transition-all"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                     disabled={isLoading}
                     autoComplete="username"
@@ -935,8 +935,8 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 dark:text-slate-300 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
                   รหัสผ่าน (Password)
                 </label>
                 <div className="relative">
@@ -945,7 +945,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                     value={loginPass}
                     onChange={(e) => setLoginPass(e.target.value)}
                     placeholder="กรอกรหัสผ่านเข้าสู่ระบบ..."
-                    className="w-full h-12 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-800 dark:text-slate-100 font-medium transition-all"
+                    className="w-full h-12 pl-3.5 pr-10 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent font-medium transition-all"
                     style={{ '--accent': accentColor } as React.CSSProperties}
                     disabled={isLoading}
                     autoComplete="current-password"
@@ -953,7 +953,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
                     title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -962,12 +962,12 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
               </div>
 
               <div className="flex items-center justify-between text-xs pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-400 select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
                   />
                   <span>จดจำไอดีผู้ใช้</span>
                 </label>
@@ -975,7 +975,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 <button
                   type="button"
                   onClick={() => { setFormType('forgot'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
-                  className="font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                  className="font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 >
                   ลืมรหัสผ่าน?
                 </button>
@@ -1002,10 +1002,10 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 </button>
               </div>
 
-              <div className="pt-4 text-center border-t border-slate-100 dark:border-slate-800/80 mt-4 flex flex-col items-center gap-2">
+              <div className="pt-4 text-center border-t border-slate-800 mt-4 flex flex-col items-center gap-2">
                 {authRole === 'user' ? (
                   <div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">ยังไม่มีบัญชีผู้ใช้งาน? </span>
+                    <span className="text-xs text-slate-400">ยังไม่มีบัญชีผู้ใช้งาน? </span>
                     <button
                       type="button"
                       onClick={() => { setFormType('register'); setErrorMsg(''); setSuccessMsg(''); setDiagnosticError(null); }}
@@ -1016,7 +1016,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                     </button>
                   </div>
                 ) : (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-700 dark:text-amber-400 font-medium text-center flex items-center justify-center gap-2 w-full">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-400 font-medium text-center flex items-center justify-center gap-2 w-full">
                     <ShieldAlert className="w-4 h-4 text-amber-500 flex-shrink-0" />
                     <span>เฉพาะผู้ดูแลระบบและผู้ช่วยเท่านั้น (ไม่สามารถสมัครบัญชีใหม่ในช่องทาง Admin ได้)</span>
                   </div>
@@ -1029,7 +1029,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           {formType === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-slate-400" />
                   ระบุไอดีผู้ใช้ใหม่ * (ห้ามมีช่องว่าง)
                 </label>
@@ -1038,13 +1038,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   value={regId}
                   onChange={(e) => setRegId(e.target.value)}
                   placeholder="เช่น user123 (ภาษาอังกฤษตัวพิมพ์เล็กหรือตัวเลข)"
-                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
+                  className="w-full h-11 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent font-medium"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                   disabled={isLoading}
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-slate-400" />
                   อีเมลทางการพิมพ์ *
                 </label>
@@ -1053,13 +1053,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   placeholder="example@yourdomain.com"
-                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
+                  className="w-full h-11 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent font-medium"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                   disabled={isLoading}
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5 text-slate-400" />
                   เบอร์โทรศัพท์สำหรับกู้ข้อมูลผู้ใช้ *
                 </label>
@@ -1068,13 +1068,13 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
                   placeholder="เช่น 0812345678"
-                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium"
+                  className="w-full h-11 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent font-medium"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                   disabled={isLoading}
                 />
               </div>
                <div>
-                 <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 flex items-center gap-1.5">
+                 <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
                    <Lock className="w-3.5 h-3.5 text-slate-400" />
                    กำหนดรหัสผ่านเข้าใช้งาน (ความยาว 6 หลักเท่านั้น) *
                  </label>
@@ -1085,14 +1085,14 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                      onChange={(e) => setRegPass(e.target.value)}
                      maxLength={6}
                      placeholder="ระบุรหัสสัมบูรณ์ความยาว 6 หลัก"
-                     className="w-full h-11 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-bold font-mono"
+                     className="w-full h-11 pl-3.5 pr-10 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent font-bold font-mono"
                      style={{ '--accent': accentColor } as React.CSSProperties}
                      disabled={isLoading}
                    />
                    <button
                      type="button"
                      onClick={() => setShowPassword(!showPassword)}
-                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
                    >
                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                    </button>
@@ -1125,7 +1125,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
            {formType === 'forgot' && (
              <form onSubmit={handleRequestForgotOTP} className="space-y-4">
                <div>
-                 <label className="block text-xs font-bold text-slate-800 mb-1.5 dark:text-slate-200">
+                 <label className="block text-xs font-bold text-slate-300 mb-1.5">
                    📧 ระบุอีเมลเดิมที่ลงทะเบียนไว้ในระบบ เพื่อรับรหัสยืนยัน
                  </label>
                  <input
@@ -1133,7 +1133,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                    value={forgotEmail}
                    onChange={(e) => setForgotEmail(e.target.value)}
                    placeholder="เช่น user@example.com"
-                   className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100 font-medium font-mono animate-fade-in"
+                   className="w-full h-11 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent font-medium font-mono animate-fade-in"
                    style={{ '--accent': accentColor } as React.CSSProperties}
                    required
                  />
@@ -1160,7 +1160,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                  <button
                    type="button"
                    onClick={() => { setFormType('login'); setErrorMsg(''); setSuccessMsg(''); }}
-                   className="text-xs font-bold hover:underline flex items-center justify-center gap-1.5 mx-auto text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                   className="text-xs font-bold hover:underline flex items-center justify-center gap-1.5 mx-auto text-slate-400 hover:text-slate-200"
                  >
                    <ArrowLeft className="w-3.5 h-3.5" />
                    ย้อนกลับสู่หน้าเข้าสู่ระบบหลัก
@@ -1172,24 +1172,24 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           {/* 4. OTP CONFIRMATION FORM */}
           {formType === 'otp' && (
             <form onSubmit={handleVerifyOTP} className="space-y-4">
-              <div className="p-5 bg-amber-50 border border-amber-150 rounded-2xl text-center space-y-1.5 dark:bg-amber-950/20 dark:border-amber-900">
-                <p className="text-[10.5px] font-black text-amber-800 dark:text-amber-400 flex items-center justify-center gap-1.5">
+              <div className="p-5 bg-amber-950/20 border border-amber-900/80 rounded-2xl text-center space-y-1.5">
+                <p className="text-[10.5px] font-black text-amber-400 flex items-center justify-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-amber-500" />
                   บอร์ดคาสท์รหัส OTP ด่วนล่าสุด (จำลองความปลอดภัย)
                 </p>
-                <p className="text-3xl font-black font-mono tracking-[0.3em] text-slate-850 dark:text-white pl-3">{generatedOTP}</p>
+                <p className="text-3xl font-black font-mono tracking-[0.3em] text-white pl-3">{generatedOTP}</p>
                 <p className="text-[9.5px] text-slate-400 mt-0.5">กรอกหมายเลข 6 หลักด้านบนเพื่อดำเนินการปลดล็อกสิทธิ์บันทึกใหม่</p>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5 dark:text-slate-450 text-center">พิมพ์รหัสความปลอดภัย OTP</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 text-center">พิมพ์รหัสความปลอดภัย OTP</label>
                 <input
                   type="text"
                   maxLength={6}
                   value={otpValue}
                   onChange={(e) => setOtpValue(e.target.value)}
                   placeholder="xxxxxx"
-                  className="w-full h-12 text-center font-mono text-xl font-bold tracking-widest bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-accent focus:bg-white dark:bg-slate-950 dark:border-slate-850 dark:text-slate-100"
+                  className="w-full h-12 text-center font-mono text-xl font-bold tracking-widest bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-accent text-slate-100"
                   style={{ '--accent': accentColor } as React.CSSProperties}
                   disabled={isLoading}
                 />
@@ -1208,7 +1208,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
                 <button
                   type="button"
                   onClick={() => { setFormType('forgot'); setErrorMsg(''); setSuccessMsg(''); }}
-                  className="text-xs text-slate-450 font-bold hover:text-slate-600 dark:hover:text-slate-300"
+                  className="text-xs text-slate-400 font-bold hover:text-slate-200"
                 >
                   ย้อนกลับไปร้องขอรหัสใหม่
                 </button>
