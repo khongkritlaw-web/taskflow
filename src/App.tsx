@@ -160,20 +160,59 @@ function isFrameRestricted(url: string | undefined): boolean {
 
 export default function App() {
   const { showAlert, showConfirm } = useDialog();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [sessionUser, setSessionUser] = useState({ 
-    userId: '', 
-    email: '', 
-    phone: '', 
-    password: '', 
-    displayName: '', 
-    avatarUrl: '',
-    isApproved: localStorage.getItem('user_approved') === 'true' || localStorage.getItem('sess_userId') === 'admin',
-    isLocked: localStorage.getItem('user_locked') === 'true',
-    isAssistant: localStorage.getItem('user_assistant') === 'true'
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      return localStorage.getItem('isLoggedIn') === 'true' && !!localStorage.getItem('sess_userId');
+    } catch {
+      return false;
+    }
+  });
+  const [sessionUser, setSessionUser] = useState(() => {
+    try {
+      const savedUserId = localStorage.getItem('sess_userId') || '';
+      const localSessProfileStr = savedUserId ? localStorage.getItem(`profile_${savedUserId}`) : null;
+      let loadedDisplayName = '';
+      let loadedAvatarUrl = '';
+      if (localSessProfileStr) {
+        try {
+          const parsed = JSON.parse(localSessProfileStr);
+          loadedDisplayName = parsed.displayName || '';
+          loadedAvatarUrl = parsed.avatarUrl || '';
+        } catch (e) {}
+      }
+      return { 
+        userId: savedUserId, 
+        email: localStorage.getItem('user_email') || '', 
+        phone: localStorage.getItem('user_phone') || '', 
+        password: localStorage.getItem('user_password') || '000000', 
+        displayName: loadedDisplayName, 
+        avatarUrl: loadedAvatarUrl, 
+        isApproved: localStorage.getItem('user_approved') === 'true' || savedUserId === 'admin', 
+        isLocked: localStorage.getItem('user_locked') === 'true', 
+        isAssistant: localStorage.getItem('user_assistant') === 'true' 
+      };
+    } catch {
+      return { 
+        userId: '', 
+        email: '', 
+        phone: '', 
+        password: '', 
+        displayName: '', 
+        avatarUrl: '', 
+        isApproved: false, 
+        isLocked: false, 
+        isAssistant: false 
+      };
+    }
   });
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(() => {
+    try {
+      return localStorage.getItem('isLoggedIn') === 'true' && !!localStorage.getItem('sess_userId');
+    } catch {
+      return false;
+    }
+  });
   const [showNotificationFlyout, setShowNotificationFlyout] = useState(false);
   
   // Settings Page States
@@ -181,48 +220,77 @@ export default function App() {
   const [settingsSubTab, setSettingsSubTab] = useState<string>('branding');
   const [settingsSaveSuccess, setSettingsSaveSuccess] = useState<boolean>(false);
 
-  // App data states
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({
-    appName: 'TaskFlow Space Executive Pro',
-    appDesc: 'ระบบบอร์ดงาน ปฏิทินจดจำสรุปกิจกรรม และจัดการค่าชำระส่วนบุคคลสำหรับผู้บริหาร',
-    appLogoUrl: '',
-    bgStyle: 'theme-custom',
-    customBgUrl: '',
-    darkMode: false,
-    categories: DEFAULT_CATEGORIES,
-    expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
-    emailRecipient: '',
-    emailNotificationEnabled: true,
-    emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
-    smtpHost: '',
-    smtpPort: 587,
-    smtpUser: '',
-    smtpPass: '',
-    smtpSecure: false,
-    smtpSenderName: '',
-    autoSendEnabled: false,
-    lastAutoSentDate: '',
-    alertDays: [0, 1, 3],
-    themePreset: 'indigo-dream',
-    colorAccent: '#2563eb',
-    colorAccentHover: '#1d4ed8',
-    colorAccentLight: '#dbeafe',
-    colorAccentText: '#ffffff',
-    colorSidebarBg: '#0f172a',
-    colorSidebarText: '#94a3b8',
-    colorSidebarActive: '#2563eb',
-    colorBgAppStart: '#f8fafc',
-    colorBgAppEnd: '#e2e8f0',
-    bgType: 'gradient',
-    settingsPassword: '0000',
-    soundEnabled: true,
-    soundType: 'chime',
-    soundVolume: 80,
-    soundOnComplete: true,
-    soundOnAdd: true,
-    customMenuLinks: []
+  // App data states (Pre-loaded from local cache for 0ms instant display)
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    try {
+      const savedUserId = localStorage.getItem('sess_userId');
+      if (savedUserId) {
+        const saved = localStorage.getItem(`tasks_${savedUserId}`);
+        if (saved) return JSON.parse(saved);
+      }
+    } catch {}
+    return [];
+  });
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    try {
+      const savedUserId = localStorage.getItem('sess_userId');
+      if (savedUserId) {
+        const saved = localStorage.getItem(`expenses_${savedUserId}`);
+        if (saved) return JSON.parse(saved);
+      }
+    } catch {}
+    return [];
+  });
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const defaultInit = {
+      appName: 'TaskFlow Space Executive Pro',
+      appDesc: 'ระบบบอร์ดงาน ปฏิทินจดจำสรุปกิจกรรม และจัดการค่าชำระส่วนบุคคลสำหรับผู้บริหาร',
+      appLogoUrl: '',
+      bgStyle: 'theme-custom' as const,
+      customBgUrl: '',
+      darkMode: false,
+      categories: DEFAULT_CATEGORIES,
+      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
+      emailRecipient: '',
+      emailNotificationEnabled: true,
+      emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
+      smtpHost: '',
+      smtpPort: 587,
+      smtpUser: '',
+      smtpPass: '',
+      smtpSecure: false,
+      smtpSenderName: '',
+      autoSendEnabled: false,
+      lastAutoSentDate: '',
+      alertDays: [0, 1, 3],
+      themePreset: 'indigo-dream',
+      colorAccent: '#2563eb',
+      colorAccentHover: '#1d4ed8',
+      colorAccentLight: '#dbeafe',
+      colorAccentText: '#ffffff',
+      colorSidebarBg: '#0f172a',
+      colorSidebarText: '#94a3b8',
+      colorSidebarActive: '#2563eb',
+      colorBgAppStart: '#f8fafc',
+      colorBgAppEnd: '#e2e8f0',
+      bgType: 'gradient' as const,
+      settingsPassword: '0000',
+      soundEnabled: true,
+      soundType: 'chime' as const,
+      soundVolume: 80,
+      soundOnComplete: true,
+      soundOnAdd: true,
+      aiAssistantEnabled: true,
+      customMenuLinks: []
+    };
+    try {
+      const savedUserId = localStorage.getItem('sess_userId');
+      if (savedUserId) {
+        const saved = localStorage.getItem(`settings_${savedUserId}`);
+        if (saved) return { ...defaultInit, ...JSON.parse(saved) };
+      }
+    } catch {}
+    return defaultInit;
   });
 
   // UI state controllers
@@ -260,8 +328,20 @@ export default function App() {
 
   // Admin and Multi-profile states
   const [allUsersList, setAllUsersList] = useState<{ userId: string; email: string; phone: string; uid: string }[]>([]);
-  const [currentViewUid, setCurrentViewUid] = useState<string>('');
-  const [currentViewUserId, setCurrentViewUserId] = useState<string>('');
+  const [currentViewUid, setCurrentViewUid] = useState<string>(() => {
+    try {
+      return localStorage.getItem('sess_uid') || localStorage.getItem('sess_userId') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [currentViewUserId, setCurrentViewUserId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('sess_userId') || '';
+    } catch {
+      return '';
+    }
+  });
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
 
   useEffect(() => {
@@ -822,35 +902,14 @@ export default function App() {
       localStorage.setItem('user_password', password);
     }
     
-    let uid = firebaseUid || localStorage.getItem('sess_uid') || '';
+    let uid = firebaseUid || localStorage.getItem('sess_uid') || userId || '';
     if (uid) {
       localStorage.setItem('sess_uid', uid);
     }
     
-    let userIsApproved = userId === 'admin';
-    let userIsLocked = false;
-    let userIsAssistant = false;
-    try {
-      const userDocRef = doc(db, 'users', userId);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        const udata = userDocSnap.data();
-        if (udata.isApproved !== undefined) {
-          userIsApproved = udata.isApproved;
-        }
-        if (udata.isLocked !== undefined) {
-          userIsLocked = udata.isLocked;
-        }
-        if (udata.isAssistant !== undefined) {
-          userIsAssistant = udata.isAssistant;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to fetch approval/lock/assistant state from Firestore on login:', e);
-    }
-    localStorage.setItem('user_approved', userIsApproved ? 'true' : 'false');
-    localStorage.setItem('user_locked', userIsLocked ? 'true' : 'false');
-    localStorage.setItem('user_assistant', userIsAssistant ? 'true' : 'false');
+    let userIsApproved = userId === 'admin' || localStorage.getItem('user_approved') === 'true';
+    let userIsLocked = localStorage.getItem('user_locked') === 'true';
+    let userIsAssistant = localStorage.getItem('user_assistant') === 'true';
 
     const localSessProfileStr = localStorage.getItem(`profile_${userId}`);
     let loadedDisplayName = '';
@@ -862,6 +921,8 @@ export default function App() {
         loadedAvatarUrl = parsed.avatarUrl || '';
       } catch (e) {}
     }
+
+    // Immediately activate session with zero-latency
     setSessionUser({ 
       userId, 
       email, 
@@ -875,91 +936,64 @@ export default function App() {
     });
     setIsLoggedIn(true);
 
-    const defaultSet = {
-      appName: 'TaskFlow Space Executive Pro',
-      appDesc: 'ระบบบอร์ดงาน ปฏิทินจดจำสรุปกิจกรรม และจัดการค่าชำระส่วนบุคคลสำหรับผู้บริหาร',
-      appLogoUrl: '',
-      bgStyle: 'theme-custom' as const,
-      customBgUrl: '',
-      darkMode: false,
-      categories: DEFAULT_CATEGORIES,
-      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
-      emailRecipient: email || '',
-      emailNotificationEnabled: true,
-      emailMessageTemplate: 'เรียน คุณท่าน\n\nเรื่อง รายงานสรุปรายการภารกิจคงค้างและแจ้งเตือนยอดค่าใช้จ่ายที่ครบกำหนดชำระ ประจำวันที่ {date}\n\nตามที่ระบบ {appName} ได้ทำการประเมินและคัดกรองข้อมูลรายการความก้าวหน้าของภารกิจงาน และรายการบิลค่าใช้จ่ายที่กำหนดรอบชำระประจำวันที่ {date} หรือที่เลยกำหนดเรียบร้อยแล้วนั้น\n\nทางระบบเรียนสรุปรายละเอียดงานสำคัญเรียน คุณท่าน เพื่อโปรดพิจารณาและดำเนินการตามที่สมควร ดังดีลรายงานด้านล่างนี้:\n\n📋 รายการภารกิจสำคัญ (กำหนดเสร็จสิ้นวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{tasks}\n━━━━━━━━━━━━━━━━━━━━\n\n💰 รายการค่าใช้จ่ายค้างจัดการ (กำหนดชำระวันนี้ หรือ เลยกำหนด):\n━━━━━━━━━━━━━━━━━━━━\n{expenses}\n━━━━━━━━━━━━━━━━━━━━\n\nขอความกรุณา คุณท่าน โปรดพิจารณาตรวจสอบความเสร็จสิ้นและชำระบิลตามกำหนดการที่ระบุไว้\n\nด้วยความเคารพอย่างสูง,\nระบบจัดส่งข้อมูลอัตโนมัติ {appName}',
-      smtpHost: '',
-      smtpPort: 587,
-      smtpUser: '',
-      smtpPass: '',
-      smtpSecure: false,
-      smtpSenderName: '',
-      autoSendEnabled: false,
-      lastAutoSentDate: '',
-      alertDays: [0, 1, 3],
-      themePreset: 'indigo-dream',
-      colorAccent: '#2563eb',
-      colorAccentHover: '#1d4ed8',
-      colorAccentLight: '#dbeafe',
-      colorAccentText: '#ffffff',
-      colorSidebarBg: '#0f172a',
-      colorSidebarText: '#94a3b8',
-      colorSidebarActive: '#2563eb',
-      colorBgAppStart: '#f8fafc',
-      colorBgAppEnd: '#e2e8f0',
-      bgType: 'gradient' as const,
-      settingsPassword: '0000',
-      soundEnabled: true,
-      soundType: 'chime' as const,
-      soundVolume: 80,
-      soundOnComplete: true,
-      soundOnAdd: true,
-      aiAssistantEnabled: true,
-      customMenuLinks: []
-    };
+    // Instant local state prefill
+    try {
+      const savedTasks = localStorage.getItem(`tasks_${userId}`);
+      if (savedTasks) setTasks(JSON.parse(savedTasks));
 
-    setCustomHolidays({
-      '2026-01-01': 'วันขึ้นปีใหม่',
-      '2026-04-13': 'วันมหาสงกรานต์',
-      '2026-05-01': 'วันแรงงานแห่งชาติ',
-      '2026-08-12': 'วันแม่แห่งชาติ'
-    });
+      const savedExpenses = localStorage.getItem(`expenses_${userId}`);
+      if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
 
-    // Default viewing profile set to self
+      const savedSettings = localStorage.getItem(`settings_${userId}`);
+      if (savedSettings) setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+    } catch (_) {}
+
     setCurrentViewUid(uid);
     setCurrentViewUserId(userId);
+    setDataLoaded(true);
 
-    // Fetch registered profiles for multi-profile administrative management if user is 'admin'
-    if (userId === 'admin' && uid) {
+    // Asynchronously fetch approval/lock in background without blocking UI
+    (async () => {
       try {
-        const usersCol = collection(db, 'users');
-        const usersSnap = await getDocs(usersCol);
-        const usersList: any[] = [];
-        usersSnap.forEach((docRef) => {
-          usersList.push(docRef.data());
-        });
-        setAllUsersList(usersList);
+        const userDocRef = doc(db, 'users', userId);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const udata = userDocSnap.data();
+          const uApproved = udata.isApproved !== undefined ? udata.isApproved : (userId === 'admin');
+          const uLocked = udata.isLocked !== undefined ? udata.isLocked : false;
+          const uAssistant = udata.isAssistant !== undefined ? udata.isAssistant : false;
+          localStorage.setItem('user_approved', uApproved ? 'true' : 'false');
+          localStorage.setItem('user_locked', uLocked ? 'true' : 'false');
+          localStorage.setItem('user_assistant', uAssistant ? 'true' : 'false');
+          setSessionUser(prev => ({
+            ...prev,
+            isApproved: uApproved,
+            isLocked: uLocked,
+            isAssistant: uAssistant,
+            displayName: udata.displayName || prev.displayName,
+            avatarUrl: udata.avatarUrl || prev.avatarUrl
+          }));
+        }
       } catch (e) {
-        console.error('Failed to fetch user profiles for administration:', e);
+        console.warn('Background profile verification:', e);
       }
-    }
+    })();
 
-    if (!uid) {
-      // Local fallback if no Firebase session logged in
-      const savedTasks = localStorage.getItem(`tasks_${userId}`);
-      const savedExpenses = localStorage.getItem(`expenses_${userId}`);
-      const savedSettings = localStorage.getItem(`settings_${userId}`);
-
-      if (savedTasks) setTasks(JSON.parse(savedTasks));
-      else setTasks([]);
-
-      if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
-      else setExpenses([]);
-
-      if (savedSettings) setSettings(JSON.parse(savedSettings));
-      else setSettings(defaultSet);
-      setIsCloudSynced(false);
-      setDataLoaded(true);
-      return;
+    // Background fetch registered profiles if admin
+    if (userId === 'admin' && uid) {
+      (async () => {
+        try {
+          const usersCol = collection(db, 'users');
+          const usersSnap = await getDocs(usersCol);
+          const usersList: any[] = [];
+          usersSnap.forEach((docRef) => {
+            usersList.push(docRef.data());
+          });
+          setAllUsersList(usersList);
+        } catch (e) {
+          console.error('Failed to fetch user profiles for administration:', e);
+        }
+      })();
     }
   };
 
@@ -968,7 +1002,6 @@ export default function App() {
     if (!isLoggedIn || !currentViewUid) return;
 
     let active = true;
-    setDataLoaded(false);
 
     const defaultSet = {
       appName: 'TaskFlow Space Executive Pro',
@@ -1014,99 +1047,103 @@ export default function App() {
 
     const loadAndSetupProfile = async () => {
       const targetUserId = currentViewUserId;
-      // UNIFIED CROSS-MACHINE CLOUD SYNC: ALWAYS use the canonical username (targetUserId)
-      // as the Firestore document subcollection path key. This ensures perfect sync across all devices
-      // and different login techniques.
       const uid = targetUserId;
 
+      // 1. Instantly ensure cached data is visible
       try {
-        // 0. Fetch user profile from Firestore
+        const savedSettings = localStorage.getItem(`settings_${targetUserId}`);
+        if (savedSettings && active) {
+          setSettings({ ...defaultSet, ...JSON.parse(savedSettings) });
+        }
+        const savedTasks = localStorage.getItem(`tasks_${targetUserId}`);
+        if (savedTasks && active) {
+          setTasks(JSON.parse(savedTasks));
+        }
+        const savedExpenses = localStorage.getItem(`expenses_${targetUserId}`);
+        if (savedExpenses && active) {
+          setExpenses(JSON.parse(savedExpenses));
+        }
+        if (active) setDataLoaded(true);
+      } catch (_) {}
+
+      try {
         const userDocRef = doc(db, 'users', targetUserId);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          if (active) {
-            setSessionUser(prev => {
-              const uApproved = userData.isApproved !== undefined ? userData.isApproved : (targetUserId === 'admin' ? true : false);
-              localStorage.setItem('user_approved', uApproved ? 'true' : 'false');
-              const uLocked = userData.isLocked !== undefined ? userData.isLocked : false;
-              localStorage.setItem('user_locked', uLocked ? 'true' : 'false');
-              const updated = {
-                ...prev,
-                displayName: userData.displayName || '',
-                avatarUrl: userData.avatarUrl || '',
-                email: userData.email || prev.email,
-                phone: userData.phone || prev.phone,
-                password: userData.password || prev.password,
-                isApproved: uApproved,
-                isLocked: uLocked
-              };
-              localStorage.setItem(`profile_${targetUserId}`, JSON.stringify(updated));
-              return updated;
-            });
-          }
-        } else {
-          const savedProfile = localStorage.getItem(`profile_${targetUserId}`);
-          if (savedProfile && active) {
-            try {
-              setSessionUser(prev => ({ ...prev, ...JSON.parse(savedProfile) }));
-            } catch (e) {}
-          }
+        const settingsRef = doc(db, 'users', uid, 'settings', 'app');
+        const tasksCol = collection(db, 'users', uid, 'tasks');
+        const expensesCol = collection(db, 'users', uid, 'expenses');
+
+        // Parallel Concurrent Firestore Fetching
+        const [profileRes, settingsRes, tasksRes, expensesRes] = await Promise.allSettled([
+          getDoc(userDocRef),
+          getDoc(settingsRef),
+          getDocs(tasksCol),
+          getDocs(expensesCol)
+        ]);
+
+        if (!active) return;
+
+        // Process Profile Result
+        if (profileRes.status === 'fulfilled' && profileRes.value.exists()) {
+          const userData = profileRes.value.data();
+          setSessionUser(prev => {
+            const uApproved = userData.isApproved !== undefined ? userData.isApproved : (targetUserId === 'admin' ? true : false);
+            localStorage.setItem('user_approved', uApproved ? 'true' : 'false');
+            const uLocked = userData.isLocked !== undefined ? userData.isLocked : false;
+            localStorage.setItem('user_locked', uLocked ? 'true' : 'false');
+            const uAssistant = userData.isAssistant !== undefined ? userData.isAssistant : false;
+            localStorage.setItem('user_assistant', uAssistant ? 'true' : 'false');
+            const updated = {
+              ...prev,
+              displayName: userData.displayName || '',
+              avatarUrl: userData.avatarUrl || '',
+              email: userData.email || prev.email,
+              phone: userData.phone || prev.phone,
+              password: userData.password || prev.password,
+              isApproved: uApproved,
+              isLocked: uLocked,
+              isAssistant: uAssistant
+            };
+            localStorage.setItem(`profile_${targetUserId}`, JSON.stringify(updated));
+            return updated;
+          });
         }
 
-        // 1. Fetch settings from Firestore
-        const settingsRef = doc(db, 'users', uid, 'settings', 'app');
-        const settingsSnap = await getDoc(settingsRef);
-
+        // Process Settings Result
         let currentSettings = defaultSet;
-        if (settingsSnap.exists()) {
-          currentSettings = { ...defaultSet, ...settingsSnap.data() };
-          if (active) setSettings(currentSettings);
+        if (settingsRes.status === 'fulfilled' && settingsRes.value.exists()) {
+          currentSettings = { ...defaultSet, ...settingsRes.value.data() };
+          setSettings(currentSettings);
           localStorage.setItem(`settings_${targetUserId}`, JSON.stringify(currentSettings));
         } else {
           const savedSettings = localStorage.getItem(`settings_${targetUserId}`);
           if (savedSettings) {
             try { currentSettings = { ...defaultSet, ...JSON.parse(savedSettings) }; } catch (e) {}
           }
-          if (active) setSettings(currentSettings);
-          await setDoc(settingsRef, currentSettings);
+          setSettings(currentSettings);
+          setDoc(settingsRef, currentSettings).catch(() => {});
         }
 
-        // 2. Fetch tasks from Firestore
-        const tasksCol = collection(db, 'users', uid, 'tasks');
-        const tasksSnap = await getDocs(tasksCol);
-
-        if (!tasksSnap.empty) {
+        // Process Tasks Result
+        if (tasksRes.status === 'fulfilled' && !tasksRes.value.empty) {
           const tasksList: Task[] = [];
-          tasksSnap.forEach((doc) => {
-            tasksList.push(doc.data() as Task);
+          tasksRes.value.forEach((d) => {
+            tasksList.push(d.data() as Task);
           });
-          if (active) setTasks(tasksList);
+          setTasks(tasksList);
           localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify(tasksList));
-        } else {
-          if (active) setTasks([]);
-          localStorage.setItem(`tasks_${targetUserId}`, JSON.stringify([]));
         }
 
-        // 3. Fetch expenses from Firestore
-        const expensesCol = collection(db, 'users', uid, 'expenses');
-        const expensesSnap = await getDocs(expensesCol);
-
-        if (!expensesSnap.empty) {
+        // Process Expenses Result
+        if (expensesRes.status === 'fulfilled' && !expensesRes.value.empty) {
           const expensesList: Expense[] = [];
-          expensesSnap.forEach((doc) => {
-            expensesList.push(doc.data() as Expense);
+          expensesRes.value.forEach((d) => {
+            expensesList.push(d.data() as Expense);
           });
-          if (active) setExpenses(expensesList);
+          setExpenses(expensesList);
           localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify(expensesList));
-        } else {
-          if (active) setExpenses([]);
-          localStorage.setItem(`expenses_${targetUserId}`, JSON.stringify([]));
         }
 
-        if (!active) return;
-
-        // 4. Hook up real-time sync subscribers to Firestore for multi-device sync
+        // Hook up real-time sync subscribers to Firestore for multi-device sync
         cleanupSubscriptions();
 
         dbUnsubscribersRef.current.settings = onSnapshot(settingsRef, (docSnap) => {
@@ -1179,28 +1216,11 @@ export default function App() {
           setDataLoaded(true);
         }
       } catch (err) {
-        console.error('Failed to sync or migrate from Firestore on login:', err);
-        if (active) setIsCloudSynced(false);
-        
-        // Fail-safe load from localStorage when Firestore is offline or disconnected
-        const savedTasks = localStorage.getItem(`tasks_${targetUserId}`);
-        if (savedTasks && active) {
-          try { setTasks(JSON.parse(savedTasks)); } catch (e) {}
+        console.error('Failed to sync from Firestore on login:', err);
+        if (active) {
+          setIsCloudSynced(false);
+          setDataLoaded(true);
         }
-        
-        const savedExpenses = localStorage.getItem(`expenses_${targetUserId}`);
-        if (savedExpenses && active) {
-          try { setExpenses(JSON.parse(savedExpenses)); } catch (e) {}
-        }
-        
-        const savedSettings = localStorage.getItem(`settings_${targetUserId}`);
-        if (savedSettings && active) {
-          try { setSettings({ ...defaultSet, ...JSON.parse(savedSettings) }); } catch (e) {}
-        } else {
-          if (active) setSettings(defaultSet);
-        }
-        
-        if (active) setDataLoaded(true);
       }
     };
 

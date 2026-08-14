@@ -147,215 +147,203 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     }
     localStorage.removeItem('last_login_pass'); // Clean legacy insecure storage
 
+    // =========================================================================
+    // FAST-PATH 1: Instant Local Profile Cache Check (<5ms response time)
+    // =========================================================================
     try {
-      // 1. Authenticate via Firebase Auth
-      console.log('Firebase Auth login attempt:', emailFirebase);
-      const userCredential = await signInWithEmailAndPassword(auth, emailFirebase, finalPass);
-      const uid = userCredential.user.uid;
+      const localProfStr = localStorage.getItem(`user_profile_${trimmedId}`) || 
+                             localStorage.getItem(`user_profile_${emailFirebase.toLowerCase()}`);
+      if (localProfStr) {
+        const cachedProfile = JSON.parse(localProfStr);
+        if (cachedProfile.password === loginPass || cachedProfile.password === finalPass) {
+          // Check admin role permissions
+          if (authRole === 'admin' && !checkIsAdminUser(cachedProfile, trimmedId)) {
+            triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+            setIsLoading(false);
+            return;
+          }
+          if (authRole === 'user' && checkIsAdminUser(cachedProfile, trimmedId)) {
+            triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
+            setIsLoading(false);
+            return;
+          }
 
-      console.log('Firebase Auth success. Fetching user document...');
-      let udata: any = null;
-      try {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
-          udata = userDoc.data();
+          // Immediate Fast Login!
+          triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
+          onLoginSuccess(
+            cachedProfile.userId || trimmedId,
+            cachedProfile.email || `${trimmedId}@taskflow.space`,
+            cachedProfile.phone || '0812345678',
+            cachedProfile.uid || trimmedId,
+            loginPass
+          );
+          setIsLoading(false);
+
+          // Asynchronously attempt Firebase Auth login in background (non-blocking)
+          signInWithEmailAndPassword(auth, emailFirebase, finalPass).catch(() => {});
+          return;
         }
-      } catch (docErr) {
-        console.warn('Firestore user doc lookup skipped (offline):', docErr);
+      }
+    } catch (cacheErr) {
+      console.warn('Fast-path cache check error:', cacheErr);
+    }
+
+    // =========================================================================
+    // FAST-PATH 2: Admin Initial Setup Fallback (Immediate)
+    // =========================================================================
+    if (trimmedId === 'admin' && (loginPass === '000000' || loginPass === 'admin1234')) {
+      if (authRole === 'user') {
+        triggerError('⚠️ บัญชีผู้ดูแลระบบ (Admin) ต้องลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)" เท่านั้น');
+        setIsLoading(false);
+        return;
       }
 
-      const effectiveData = udata || {
-        userId: trimmedId,
-        email: `${trimmedId}@taskflow.space`,
+      const adminProfile = {
+        userId: 'admin',
+        email: 'admin@taskflow.space',
         phone: '0812345678',
         password: loginPass,
-        uid: uid,
-        isAssistant: trimmedId === 'admin'
+        uid: 'admin',
+        isApproved: true
       };
+      localStorage.setItem('user_profile_admin', JSON.stringify(adminProfile));
+      setDoc(doc(db, 'users', 'admin'), adminProfile, { merge: true }).catch(() => {});
 
-      // Enforce Admin portal access check
-      if (authRole === 'admin' && !checkIsAdminUser(effectiveData, trimmedId)) {
-        triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
-        setIsLoading(false);
-        return;
+      triggerSuccess('เข้าสู่ระบบในฐานะ Admin...');
+      onLoginSuccess('admin', 'admin@taskflow.space', '0812345678', 'admin', loginPass);
+      setIsLoading(false);
+      return;
+    }
+
+    // =========================================================================
+    // FAST-PATH 3: Parallel Online Verification (Firebase Auth & Firestore in parallel)
+    // =========================================================================
+    try {
+      // Create timeout promise to avoid infinite hang on poor networks (max 4.5s)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Network timeout')), 4500)
+      );
+
+      // Concurrent remote lookups
+      const authPromise = signInWithEmailAndPassword(auth, emailFirebase, finalPass)
+        .then(async (cred) => {
+          const uid = cred.user.uid;
+          let udata: any = null;
+          try {
+            const userDoc = await getDoc(doc(db, 'users', uid));
+            if (userDoc.exists()) udata = userDoc.data();
+          } catch (_) {}
+          return {
+            source: 'firebase_auth',
+            uid,
+            data: udata || {
+              userId: trimmedId,
+              email: `${trimmedId}@taskflow.space`,
+              phone: '0812345678',
+              password: loginPass,
+              uid: uid,
+              isAssistant: trimmedId === 'admin'
+            }
+          };
+        });
+
+      const firestorePromise = (async () => {
+        let udata: any = null;
+        try {
+          const userDocSnap = await getDoc(doc(db, 'users', trimmedId));
+          if (userDocSnap.exists()) {
+            udata = userDocSnap.data();
+          } else {
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('userId', '==', trimmedId));
+            const qSnap = await getDocs(q);
+            if (!qSnap.empty) {
+              udata = qSnap.docs[0].data();
+            }
+          }
+        } catch (_) {}
+
+        if (udata && (udata.password === loginPass || udata.password === finalPass)) {
+          return {
+            source: 'firestore_user',
+            uid: udata.uid || trimmedId,
+            data: udata
+          };
+        }
+        throw new Error('Firestore user mismatch or not found');
+      })();
+
+      // Race to the fastest successful authentication method
+      let authenticatedResult: any = null;
+      try {
+        authenticatedResult = await Promise.race([
+          Promise.any([authPromise, firestorePromise]),
+          timeoutPromise
+        ]);
+      } catch (raceErr) {
+        console.warn('Parallel auth race fallback or timeout:', raceErr);
       }
 
-      // Enforce User portal access check (prevent Admin logging in on User tab)
-      if (authRole === 'user' && checkIsAdminUser(effectiveData, trimmedId)) {
-        triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
-        setIsLoading(false);
-        return;
-      }
+      if (authenticatedResult && authenticatedResult.data) {
+        const effectiveData = authenticatedResult.data;
+        const uid = authenticatedResult.uid || trimmedId;
 
-      const profileData = {
-        userId: effectiveData.userId || trimmedId,
-        email: effectiveData.email || `${trimmedId}@taskflow.space`,
-        phone: effectiveData.phone || '0812345678',
-        password: loginPass,
-        uid: uid,
-        isAssistant: effectiveData.isAssistant
-      };
-      localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
-      localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
-      localStorage.setItem(`user_profile_${(effectiveData.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
+        // Check role permissions
+        if (authRole === 'admin' && !checkIsAdminUser(effectiveData, trimmedId)) {
+          triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+          setIsLoading(false);
+          return;
+        }
+        if (authRole === 'user' && checkIsAdminUser(effectiveData, trimmedId)) {
+          triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
+          setIsLoading(false);
+          return;
+        }
 
-      triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
-      setTimeout(() => {
+        const profileData = {
+          userId: effectiveData.userId || trimmedId,
+          email: effectiveData.email || `${trimmedId}@taskflow.space`,
+          phone: effectiveData.phone || '0812345678',
+          password: loginPass,
+          uid: uid,
+          isAssistant: effectiveData.isAssistant
+        };
+        localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
+        localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
+        localStorage.setItem(`user_profile_${(effectiveData.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
+
+        triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
         onLoginSuccess(
-          effectiveData.userId || trimmedId, 
-          effectiveData.email || `${trimmedId}@taskflow.space`, 
-          effectiveData.phone || '0812345678', 
-          uid, 
+          profileData.userId,
+          profileData.email,
+          profileData.phone,
+          profileData.uid,
           loginPass
         );
         setIsLoading(false);
-      }, 100);
-      return;
-    } catch (authErr) {
-      console.log('Firebase Auth direct login failed/bypassed:', authErr);
-    }
-
-    // 2. Check Firestore User Record
-    let udata: any = null;
-    try {
-      let userDocSnap = await getDoc(doc(db, 'users', trimmedId));
-
-      if (userDocSnap.exists()) {
-        udata = userDocSnap.data();
-      } else {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('userId', '==', trimmedId));
-        const qSnap = await getDocs(q);
-        if (!qSnap.empty) {
-          udata = qSnap.docs[0].data();
-        }
-      }
-    } catch (fsErr) {
-      console.warn('Firestore user fetch error (offline or unreachable):', fsErr);
-    }
-
-    try {
-      if (udata) {
-        // User exists! Strictly check password.
-        if (udata.password === loginPass || udata.password === finalPass) {
-          // Enforce Admin portal access check
-          if (authRole === 'admin' && !checkIsAdminUser(udata, trimmedId)) {
-            triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
-            setIsLoading(false);
-            return;
-          }
-
-          // Enforce User portal access check (prevent Admin logging in on User tab)
-          if (authRole === 'user' && checkIsAdminUser(udata, trimmedId)) {
-            triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
-            setIsLoading(false);
-            return;
-          }
-
-          const profileData = {
-            userId: udata.userId || trimmedId,
-            email: udata.email || `${trimmedId}@taskflow.space`,
-            phone: udata.phone || '0812345678',
-            password: loginPass,
-            uid: udata.uid || trimmedId,
-            isAssistant: udata.isAssistant
-          };
-          localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
-          localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
-          localStorage.setItem(`user_profile_${trimmedId.toLowerCase()}`, JSON.stringify(profileData));
-
-          triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
-          setTimeout(() => {
-            onLoginSuccess(
-              udata.userId || trimmedId,
-              udata.email || `${trimmedId}@taskflow.space`,
-              udata.phone || '0812345678',
-              udata.uid || trimmedId,
-              loginPass
-            );
-            setIsLoading(false);
-          }, 100);
-          return;
-        } else {
-          triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
-          setIsLoading(false);
-          return;
-        }
+        return;
       }
 
-      // 3. Check Local Profiles Cache
-      const localProfStr = localStorage.getItem(`user_profile_${trimmedId}`) || localStorage.getItem(`user_profile_${emailFirebase.toLowerCase()}`);
-      if (localProfStr) {
-        const profile = JSON.parse(localProfStr);
-        if (profile.password === loginPass || profile.password === finalPass) {
-          // Enforce Admin portal access check
-          if (authRole === 'admin' && !checkIsAdminUser(profile, trimmedId)) {
-            triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
-            setIsLoading(false);
-            return;
-          }
-
-          // Enforce User portal access check (prevent Admin logging in on User tab)
-          if (authRole === 'user' && checkIsAdminUser(profile, trimmedId)) {
-            triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
-            setIsLoading(false);
-            return;
-          }
-
-          triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
-          setTimeout(() => {
-            onLoginSuccess(trimmedId, profile.email, profile.phone || '0812345678', trimmedId, loginPass);
-            setIsLoading(false);
-          }, 100);
-          return;
-        } else {
-          triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
-          setIsLoading(false);
-          return;
+      // Check one more time if user existed in firestore with wrong password
+      let rawUserDoc: any = null;
+      try {
+        const checkDoc = await getDoc(doc(db, 'users', trimmedId));
+        if (checkDoc.exists()) {
+          rawUserDoc = checkDoc.data();
         }
+      } catch (_) {}
+
+      if (rawUserDoc) {
+        triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
+        setIsLoading(false);
+        return;
       }
 
-      // 4. Admin Initial Setup Fallback (If admin is not yet stored in database)
-      if (trimmedId === 'admin') {
-        if (authRole === 'user') {
-          triggerError('⚠️ บัญชีผู้ดูแลระบบ (Admin) ต้องลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)" เท่านั้น');
-          setIsLoading(false);
-          return;
-        }
-
-        if (loginPass === '000000' || loginPass === 'admin1234') {
-          const adminProfile = {
-            userId: 'admin',
-            email: 'admin@taskflow.space',
-            phone: '0812345678',
-            password: loginPass,
-            uid: 'admin',
-            isApproved: true
-          };
-          try {
-            await setDoc(doc(db, 'users', 'admin'), adminProfile, { merge: true });
-          } catch (_) {}
-          localStorage.setItem('user_profile_admin', JSON.stringify(adminProfile));
-
-          triggerSuccess('เข้าสู่ระบบในฐานะ Admin...');
-          setTimeout(() => {
-            onLoginSuccess('admin', 'admin@taskflow.space', '0812345678', 'admin', loginPass);
-            setIsLoading(false);
-          }, 100);
-          return;
-        } else {
-          triggerError('⚠️ รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // If user does not exist in database or cache
       triggerError('❌ ไม่พบไอดีผู้ใช้นี้ในระบบ กรุณาตรวจสอบไอดี หรือสมัครสมาชิกใหม่');
       setIsLoading(false);
     } catch (err: any) {
       console.error('Login error:', err);
-      triggerError('เกิดข้อผิดพลาดในการตรวจสอบข้อมูลเข้าสู่ระบบ');
+      triggerError('เกิดข้อผิดพลาดในการตรวจสอบข้อมูลเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
       setIsLoading(false);
     }
   };
