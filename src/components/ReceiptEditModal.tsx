@@ -210,13 +210,13 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
           {activeStep === 1 && (
             <div className="space-y-4 animate-fadeIn">
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   ประเภทเอกสารที่ต้องการออก *
                 </label>
                 <select
                   value={props.docType}
                   onChange={(e) => props.setDocType(e.target.value as any)}
-                  className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:border-indigo-600 shadow-xs"
+                  className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                 >
                   <option value="receipt">🧾 ใบเสร็จรับเงิน (RECEIPT)</option>
                   <option value="tax_invoice">🏢 ใบเสร็จรับเงิน / ใบกำกับภาษี (RECEIPT / TAX INVOICE)</option>
@@ -229,7 +229,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">เลขที่เอกสาร (Document No.) *</label>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">เลขที่เอกสาร (Document No.) *</label>
                     <button
                       type="button"
                       onClick={() => props.setReceiptNo(props.generateAutoNo(props.docType))}
@@ -243,38 +243,38 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                     value={props.receiptNo}
                     onChange={(e) => props.setReceiptNo(e.target.value)}
                     placeholder="REC-202608-001"
-                    className="w-full h-11 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">วันที่ออกเอกสาร *</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">วันที่ออกเอกสาร *</label>
                   <input
                     type="date"
                     value={props.issueDate}
                     onChange={(e) => props.setIssueDate(e.target.value)}
-                    className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">กำหนดชำระเงิน (ถ้ามี)</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">กำหนดชำระเงิน (ถ้ามี)</label>
                   <input
                     type="date"
                     value={props.dueDate}
                     onChange={(e) => props.setDueDate(e.target.value)}
-                    className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">เลขที่อ้างอิง / คดี / สัญญา</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">เลขที่อ้างอิง / คดี / สัญญา</label>
                   <input
                     type="text"
                     value={props.refNo}
                     onChange={(e) => props.setRefNo(e.target.value)}
                     placeholder="อ้างอิงคดีดำที่ 123/2569"
-                    className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs rounded-xl border border-slate-300 bg-white font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
               </div>
@@ -306,69 +306,69 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
               )}
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">ชื่อสำนักงาน / บริษัท / ผู้ออกเอกสาร *</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">ชื่อสำนักงาน / บริษัท / ผู้ออกเอกสาร *</label>
                 <input
                   type="text"
                   value={props.issuerName}
                   onChange={(e) => props.setIssuerName(e.target.value)}
                   placeholder="สำนักงานกฎหมาย & ทนายความ เดชา นิติธรรม"
-                  className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                  className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">เลขประจำตัวผู้เสียภาษี (13 หลัก)</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">เลขประจำตัวผู้เสียภาษี (13 หลัก)</label>
                   <input
                     type="text"
                     value={props.issuerTaxId}
                     onChange={(e) => props.setIssuerTaxId(e.target.value)}
                     placeholder="0105551234567"
-                    className="w-full h-11 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">สาขา</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">สาขา</label>
                   <input
                     type="text"
                     value={props.issuerBranch}
                     onChange={(e) => props.setIssuerBranch(e.target.value)}
                     placeholder="สำนักงานใหญ่"
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">ที่อยู่สถานประกอบการ</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">ที่อยู่สถานประกอบการ</label>
                 <textarea
                   rows={2}
                   value={props.issuerAddress}
                   onChange={(e) => props.setIssuerAddress(e.target.value)}
                   placeholder="เลขที่ 123/45 ถนนรัชดาภิเษก แขวงจอมพล เขตจตุจักร กรุงเทพฯ 10900"
-                  className="w-full p-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs resize-none"
+                  className="w-full p-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">เบอร์โทรศัพท์</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">เบอร์โทรศัพท์</label>
                   <input
                     type="text"
                     value={props.issuerPhone}
                     onChange={(e) => props.setIssuerPhone(e.target.value)}
                     placeholder="02-123-4567, 089-123-4567"
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">อีเมล</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">อีเมล</label>
                   <input
                     type="text"
                     value={props.issuerEmail}
                     onChange={(e) => props.setIssuerEmail(e.target.value)}
                     placeholder="contact@lawfirm.co.th"
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
               </div>
@@ -379,7 +379,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
           {activeStep === 3 && (
             <div className="space-y-4 animate-fadeIn">
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   ชื่อลูกค้า / บริษัทผู้ว่าจ้าง (ผู้ชำระเงิน) *
                 </label>
                 <input
@@ -388,63 +388,63 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                   placeholder="บริษัท เอบีซี จำกัด / นายสมชาย ใจดี"
                   value={props.customerName}
                   onChange={(e) => props.setCustomerName(e.target.value)}
-                  className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                  className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">เลขประจำตัวผู้เสียภาษี / บัตรประชาชน</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">เลขประจำตัวผู้เสียภาษี / บัตรประชาชน</label>
                   <input
                     type="text"
                     placeholder="13 หลัก"
                     value={props.customerTaxId}
                     onChange={(e) => props.setCustomerTaxId(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">สาขา</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">สาขา</label>
                   <input
                     type="text"
                     placeholder="สำนักงานใหญ่ / สาขา 00001"
                     value={props.customerBranch}
                     onChange={(e) => props.setCustomerBranch(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">ที่อยู่สำหรับออกใบเสร็จ</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">ที่อยู่สำหรับออกใบเสร็จ</label>
                 <textarea
                   rows={2}
                   placeholder="ที่อยู่สำหรับลงในใบเสร็จ / ใบกำกับภาษี..."
                   value={props.customerAddress}
                   onChange={(e) => props.setCustomerAddress(e.target.value)}
-                  className="w-full p-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs resize-none"
+                  className="w-full p-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">เบอร์โทรศัพท์</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">เบอร์โทรศัพท์</label>
                   <input
                     type="text"
                     placeholder="081-234-5678"
                     value={props.customerPhone}
                     onChange={(e) => props.setCustomerPhone(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">อีเมล</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">อีเมล</label>
                   <input
                     type="text"
                     placeholder="client@email.com"
                     value={props.customerEmail}
                     onChange={(e) => props.setCustomerEmail(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 shadow-xs"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
               </div>
@@ -520,7 +520,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                           placeholder="รายละเอียดสินค้าหรือค่าบริการ..."
                           value={item.description}
                           onChange={(e) => props.handleUpdateItem(item.id, 'description', e.target.value)}
-                          className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                          className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                         />
                       </div>
                       <div className="sm:col-span-2">
@@ -530,7 +530,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                           placeholder="จำนวน"
                           value={item.quantity}
                           onChange={(e) => props.handleUpdateItem(item.id, 'quantity', e.target.value)}
-                          className="w-full h-10 px-2 text-center text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                          className="w-full h-10 px-2 text-center text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                         />
                       </div>
                       <div className="sm:col-span-2">
@@ -539,7 +539,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                           placeholder="หน่วย"
                           value={item.unit}
                           onChange={(e) => props.handleUpdateItem(item.id, 'unit', e.target.value)}
-                          className="w-full h-10 px-2 text-center text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                          className="w-full h-10 px-2 text-center text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                         />
                       </div>
                       <div className="sm:col-span-2">
@@ -549,7 +549,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                           placeholder="ราคา/หน่วย"
                           value={item.unitPrice}
                           onChange={(e) => props.handleUpdateItem(item.id, 'unitPrice', e.target.value)}
-                          className="w-full h-10 px-2 text-right text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                          className="w-full h-10 px-2 text-right text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                         />
                       </div>
                     </div>
@@ -582,7 +582,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
             <div className="space-y-4 animate-fadeIn">
               {/* Payment Method Selector */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-2">ช่องทางการชำระเงิน</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2">ช่องทางการชำระเงิน</label>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {[
                     { id: 'transfer', label: '🏦 โอนผ่านธนาคาร' },
@@ -598,7 +598,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                       className={`h-11 px-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                         props.paymentMethod === m.id
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50'
                       }`}
                     >
                       {m.label}
@@ -610,30 +610,33 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
               {props.paymentMethod === 'transfer' && (
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ธนาคาร</label>
+                    <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">ธนาคาร</label>
                     <input
                       type="text"
+                      placeholder="เช่น กสิกรไทย, ไทยพาณิชย์"
                       value={props.bankName}
                       onChange={(e) => props.setBankName(e.target.value)}
-                      className="w-full h-10 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold"
+                      className="w-full h-10 px-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">เลขที่บัญชี</label>
+                    <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">เลขที่บัญชี</label>
                     <input
                       type="text"
+                      placeholder="xxx-x-xxxxx-x"
                       value={props.bankAccountNo}
                       onChange={(e) => props.setBankAccountNo(e.target.value)}
-                      className="w-full h-10 px-2.5 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                      className="w-full h-10 px-2.5 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ชื่อบัญชี</label>
+                    <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">ชื่อบัญชี</label>
                     <input
                       type="text"
+                      placeholder="ชื่อบัญชีรับเงิน"
                       value={props.bankAccountName}
                       onChange={(e) => props.setBankAccountName(e.target.value)}
-                      className="w-full h-10 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold"
+                      className="w-full h-10 px-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                     />
                   </div>
                 </div>
@@ -642,18 +645,18 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
               {/* Tax & Discount Calculations */}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ส่วนลดพิเศษ (Discount)</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">ส่วนลดพิเศษ (Discount)</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
                       value={props.discountValue}
                       onChange={(e) => props.setDiscountValue(Number(e.target.value))}
-                      className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                      className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                     />
                     <select
                       value={props.discountType}
                       onChange={(e) => props.setDiscountType(e.target.value as any)}
-                      className="h-10 px-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold"
+                      className="h-10 px-2 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                     >
                       <option value="flat">บาท</option>
                       <option value="percent">%</option>
@@ -662,11 +665,11 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ภาษีมูลค่าเพิ่ม (VAT 7%)</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">ภาษีมูลค่าเพิ่ม (VAT 7%)</label>
                   <select
                     value={props.vatType}
                     onChange={(e) => props.setVatType(e.target.value as any)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   >
                     <option value="no_vat">ไม่มี VAT (No VAT)</option>
                     <option value="vat_7_add">+ VAT 7% (แยกจากราคาสินค้า)</option>
@@ -675,11 +678,11 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">ภาษีหัก ณ ที่จ่าย (Withholding Tax)</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">ภาษีหัก ณ ที่จ่าย (Withholding Tax)</label>
                   <select
                     value={props.withholdingTaxPercent}
                     onChange={(e) => props.setWithholdingTaxPercent(Number(e.target.value))}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold"
+                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   >
                     <option value={0}>ไม่มีการหัก ณ ที่จ่าย (0%)</option>
                     <option value={1}>หัก ณ ที่จ่าย 1% (ขนส่ง)</option>
@@ -730,32 +733,35 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
           {activeStep === 6 && (
             <div className="space-y-4 animate-fadeIn">
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">หมายเหตุท้ายใบเสร็จ / เงื่อนไข</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">หมายเหตุท้ายใบเสร็จ / เงื่อนไข</label>
                 <textarea
                   rows={2}
                   value={props.notes}
                   onChange={(e) => props.setNotes(e.target.value)}
-                  className="w-full p-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 resize-none"
+                  placeholder="เช่น ชำระเงินครบถ้วนแล้ว / ใบเสร็จรับเงินนี้จะสมบูรณ์เมื่อเรียกเก็บเงินตามเช็คได้แล้ว"
+                  className="w-full p-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">ชื่อผู้รับเงิน / ผู้สร้างเอกสาร</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">ชื่อผู้รับเงิน / ผู้สร้างเอกสาร</label>
                   <input
                     type="text"
+                    placeholder="นายสมศักดิ์ นิติการ"
                     value={props.collectorName}
                     onChange={(e) => props.setCollectorName(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">ชื่อผู้มีอำนาจลงนาม / อนุมัติ</label>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">ชื่อผู้มีอำนาจลงนาม / อนุมัติ</label>
                   <input
                     type="text"
+                    placeholder="ทนายความผู้มีอำนาจลงนาม"
                     value={props.approverName}
                     onChange={(e) => props.setApproverName(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
               </div>
@@ -781,7 +787,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                 {props.showLogo && (
                   <div className="flex items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
                     {props.issuerLogoUrl ? (
-                      <div className="relative group w-12 h-12 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-1 flex items-center justify-center flex-shrink-0">
+                      <div className="relative group w-12 h-12 rounded-lg border border-slate-300 dark:border-slate-700 bg-white p-1 flex items-center justify-center flex-shrink-0">
                         <img src={props.issuerLogoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
                         <button
                           type="button"
@@ -831,18 +837,18 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                 {props.showWatermark && (
                   <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">ข้อความลายน้ำ</label>
+                      <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">ข้อความลายน้ำ</label>
                       <input 
                         type="text" 
                         value={props.watermarkText} 
                         onChange={(e) => props.setWatermarkText(e.target.value)}
                         placeholder="ตัวอย่าง: OFFICIAL RECEIPT / สำนักงานกฎหมาย" 
-                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                       />
                     </div>
 
                     <div>
-                      <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                      <div className="flex justify-between text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                         <span>ความโปร่งแสงลายน้ำ: {Math.round(props.watermarkOpacity * 100)}%</span>
                       </div>
                       <input 

@@ -204,3 +204,27 @@ export interface ReceiptDoc {
   status: 'active' | 'void';
 }
 
+export type PaperSizePreset = 
+  | 'a4' 
+  | 'a5' 
+  | 'a5_landscape' 
+  | 'a6' 
+  | 'letter' 
+  | 'slip_80' 
+  | 'slip_58' 
+  | 'custom';
+
+export interface PaperSizeConfig {
+  preset: PaperSizePreset;
+  name: string;
+  widthMm: number; // width in mm
+  heightMm: number; // height in mm
+  unit: 'mm' | 'cm' | 'in';
+  customWidth: number;
+  customHeight: number;
+  orientation: 'portrait' | 'landscape';
+  marginMm: number;
+  scale: number; // 0.5 - 1.2
+  isSlip?: boolean;
+}
+

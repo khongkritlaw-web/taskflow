@@ -30,10 +30,20 @@ import {
   ChevronUp,
   Filter,
   ArrowRight,
-  Download
+  Download,
+  Sliders,
+  Maximize2
 } from 'lucide-react';
-import { ReceiptDoc, ReceiptItem, AppSettings, Task, Expense } from '../types';
+import { ReceiptDoc, ReceiptItem, AppSettings, Task, Expense, PaperSizeConfig, PaperSizePreset } from '../types';
 import { ReceiptEditModal, STEP_ITEMS } from './ReceiptEditModal';
+import { 
+  ReceiptPrintSheet, 
+  PAPER_SIZE_PRESETS, 
+  PAPER_SIZE_PRESETS_LIST,
+  DEFAULT_PAPER_CONFIG,
+  getDocTypeName 
+} from './ReceiptPrintSheet';
+import { ReceiptPaperSizeModal } from './ReceiptPaperSizeModal';
 
 interface ReceiptModuleProps {
   accentColor: string;
@@ -121,197 +131,10 @@ export function bahtText(num: number): string {
 
 const STORAGE_KEY = 'dekasuite_receipts_history_v1';
 const ISSUER_STORAGE_KEY = 'dekasuite_saved_issuer_info_v1';
+const PAPER_STORAGE_KEY = 'dekasuite_receipt_paper_config_v1';
 
 export function ReceiptA4Sheet({ doc, printableId = 'printable-a4-receipt' }: { doc: ReceiptDoc; printableId?: string }) {
-  const getDocTypeName = (type: string) => {
-    switch (type) {
-      case 'receipt': return 'ใบเสร็จรับเงิน (RECEIPT)';
-      case 'tax_invoice': return 'ใบเสร็จรับเงิน / ใบกำกับภาษี (RECEIPT / TAX INVOICE)';
-      case 'invoice': return 'ใบแจ้งหนี้ / ใบวางบิล (INVOICE)';
-      case 'quotation': return 'ใบเสนอราคา (QUOTATION)';
-      case 'temp_receipt': return 'ใบเสร็จรับเงินชั่วคราว (TEMPORARY RECEIPT)';
-      default: return 'ใบเสร็จรับเงิน';
-    }
-  };
-
-  return (
-    <div 
-      id={printableId}
-      className="bg-white text-slate-900 p-8 rounded-sm shadow-2xl w-[210mm] min-w-[210mm] min-h-[297mm] text-xs space-y-5 border border-slate-300 relative font-sans leading-normal overflow-hidden flex-shrink-0 text-left"
-      style={{ color: '#0f172a' }}
-    >
-      {/* Background Watermark Layer */}
-      {doc.showWatermark !== false && (
-        <div 
-          className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden z-0 select-none"
-          style={{ opacity: doc.watermarkOpacity ?? 0.12 }}
-        >
-          {doc.watermarkType === 'image' && (doc.watermarkImageUrl || doc.issuerLogoUrl) ? (
-            <img 
-              src={doc.watermarkImageUrl || doc.issuerLogoUrl} 
-              alt="Watermark" 
-              className="max-w-[340px] max-h-[340px] object-contain grayscale"
-            />
-          ) : (
-            <div className="transform -rotate-30 text-center px-4">
-              <span className="text-3xl sm:text-4xl font-black uppercase tracking-widest text-slate-800 border-4 border-slate-800 px-6 sm:px-8 py-3 sm:py-4 rounded-xl inline-block whitespace-nowrap">
-                {doc.watermarkText || doc.issuerName || 'OFFICIAL RECEIPT'}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Header: Issuer Logo & Doc Title */}
-      <div className="flex justify-between items-start gap-4 pb-6 border-b-2 border-slate-900 relative z-10">
-        <div className="flex items-start gap-3.5 max-w-md">
-          {doc.showLogo !== false && doc.issuerLogoUrl && (
-            <img 
-              src={doc.issuerLogoUrl} 
-              alt="Company Logo" 
-              className="w-16 h-16 object-contain rounded-md border border-slate-200 p-0.5 bg-white flex-shrink-0"
-            />
-          )}
-          <div className="space-y-1">
-            <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
-              {doc.issuerName || 'สำนักงานกฎหมาย'}
-            </h2>
-            <p className="text-[11px] text-slate-600 leading-snug">
-              {doc.issuerAddress || '-'}
-            </p>
-            <div className="flex items-center gap-3 text-[10px] text-slate-600 font-medium pt-1">
-              <span>เลขภาษี: {doc.issuerTaxId || '-'}</span>
-              <span>({doc.issuerBranch || 'สำนักงานใหญ่'})</span>
-              <span>โทร: {doc.issuerPhone || '-'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-right space-y-2">
-          <div className="inline-block px-4 py-2 rounded border-2 border-slate-900 bg-slate-50 text-slate-900 font-black text-sm uppercase tracking-wider">
-            {getDocTypeName(doc.docType).split('(')[0]}
-          </div>
-          <div className="text-[11px] font-mono space-y-0.5 text-slate-700">
-            <p><span className="font-bold">เลขที่:</span> {doc.receiptNo || '-'}</p>
-            <p><span className="font-bold">วันที่:</span> {doc.issueDate || '-'}</p>
-            {doc.refNo && <p><span className="font-bold">อ้างอิง:</span> {doc.refNo}</p>}
-          </div>
-        </div>
-      </div>
-
-      {/* Customer Box */}
-      <div className="p-4 rounded border border-slate-300 bg-slate-50/50 grid grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">ชื่อผู้ว่าจ้าง / ลูกค้า (Customer):</span>
-          <p className="font-bold text-sm text-slate-900">{doc.customerName || '(กรุณากรอกชื่อลูกค้า)'}</p>
-          <p className="text-[11px] text-slate-600">{doc.customerAddress || 'ไม่ระบุที่อยู่'}</p>
-        </div>
-
-        <div className="space-y-1 text-left pl-4 border-l border-slate-200">
-          <p className="text-[11px] text-slate-700"><span className="font-bold">เลขผู้เสียภาษี:</span> {doc.customerTaxId || '-'}</p>
-          <p className="text-[11px] text-slate-700"><span className="font-bold">โทรศัพท์:</span> {doc.customerPhone || '-'}</p>
-          <p className="text-[11px] text-slate-700"><span className="font-bold">อีเมล:</span> {doc.customerEmail || '-'}</p>
-        </div>
-      </div>
-
-      {/* Items Table */}
-      <table className="w-full border-collapse text-xs">
-        <thead>
-          <tr className="border-y-2 border-slate-900 bg-slate-100 text-slate-900 font-bold uppercase text-[10px]">
-            <th className="py-2.5 px-3 text-center w-12">ลำดับ</th>
-            <th className="py-2.5 px-3 text-left">รายการ (Description)</th>
-            <th className="py-2.5 px-3 text-center w-16">จำนวน</th>
-            <th className="py-2.5 px-3 text-center w-16">หน่วย</th>
-            <th className="py-2.5 px-3 text-right w-24">ราคา/หน่วย</th>
-            <th className="py-2.5 px-3 text-right w-28">จำนวนเงิน (บาท)</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {(doc.items || []).map((item, idx) => (
-            <tr key={idx} className="text-slate-800">
-              <td className="py-3 px-3 text-center font-mono">{idx + 1}</td>
-              <td className="py-3 px-3 font-semibold">{item.description || '-'}</td>
-              <td className="py-3 px-3 text-center font-mono">{item.quantity}</td>
-              <td className="py-3 px-3 text-center">{item.unit}</td>
-              <td className="py-3 px-3 text-right font-mono">{(item.unitPrice || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-              <td className="py-3 px-3 text-right font-mono font-bold">{(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* Calculations & Total */}
-      <div className="pt-4 border-t-2 border-slate-900 grid grid-cols-12 gap-4">
-        <div className="col-span-7 space-y-3">
-          <div className="p-3 rounded border border-slate-200 bg-slate-50 text-[11px]">
-            <span className="font-bold text-slate-700 block mb-1">จำนวนเงินตัวหนังสือ:</span>
-            <p className="font-black text-slate-900 text-xs">({doc.grandTotalTextThai || 'ศูนย์บาทถ้วน'})</p>
-          </div>
-
-          <div className="text-[10px] text-slate-600 space-y-1">
-            <p><span className="font-bold">วิธีการชำระเงิน:</span> {doc.paymentMethod === 'transfer' ? `โอนเงินผ่านธนาคาร ${doc.bankName || ''} เลขบัญชี ${doc.bankAccountNo || ''}` : doc.paymentMethod}</p>
-            <p><span className="font-bold">หมายเหตุ:</span> {doc.notes || '-'}</p>
-          </div>
-        </div>
-
-        <div className="col-span-5 space-y-1.5 text-right font-mono text-xs">
-          <div className="flex justify-between">
-            <span className="text-slate-600 font-sans">รวมเงิน (Subtotal):</span>
-            <span className="font-bold">{(doc.subtotal || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-          </div>
-
-          {doc.discountAmount ? doc.discountAmount > 0 && (
-            <div className="flex justify-between text-rose-600">
-              <span className="font-sans">หัก ส่วนลด:</span>
-              <span>-{(doc.discountAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-            </div>
-          ) : null}
-
-          {doc.vatAmount ? doc.vatAmount > 0 && (
-            <div className="flex justify-between">
-              <span className="text-slate-600 font-sans">ภาษีมูลค่าเพิ่ม 7%:</span>
-              <span>+{(doc.vatAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-            </div>
-          ) : null}
-
-          {doc.withholdingTaxAmount ? doc.withholdingTaxAmount > 0 && (
-            <div className="flex justify-between text-rose-600">
-              <span className="font-sans">หัก ณ ที่จ่าย ({doc.withholdingTaxPercent}%):</span>
-              <span>-{(doc.withholdingTaxAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-            </div>
-          ) : null}
-
-          <div className="pt-2 border-t-2 border-slate-900 flex justify-between font-black text-sm text-slate-900">
-            <span className="font-sans">ยอดสุทธิ (Grand Total):</span>
-            <span>{(doc.grandTotal || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Signature Section */}
-      <div className="pt-8 sm:pt-10 grid grid-cols-2 gap-8 sm:gap-12 text-center text-xs">
-        <div className="space-y-8">
-          <div className="h-12 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
-            <span className="text-slate-400 text-[10px]">ลงนาม / Signature</span>
-          </div>
-          <div>
-            <p className="font-bold text-slate-900">({doc.collectorName || 'ผู้รับเงิน'})</p>
-            <p className="text-[10px] text-slate-500">ผู้รับเงิน / Collector</p>
-          </div>
-        </div>
-
-        <div className="space-y-8">
-          <div className="h-12 border-b border-dashed border-slate-400 flex items-end justify-center pb-1">
-            <span className="text-slate-400 text-[10px]">ลงนาม / Signature</span>
-          </div>
-          <div>
-            <p className="font-bold text-slate-900">({doc.approverName || 'ผู้มีอำนาจลงนาม'})</p>
-            <p className="text-[10px] text-slate-500">ผู้มีอำนาจลงนาม / Authorized Signature</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <ReceiptPrintSheet doc={doc} paperConfig={DEFAULT_PAPER_CONFIG} printableId={printableId} />;
 }
 
 export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], expenses = [] }: ReceiptModuleProps) {
@@ -379,6 +202,73 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     } catch (e) {
       alert('ไม่สามารถบันทึกข้อมูลผู้ออกใบเสร็จได้');
     }
+  };
+
+  // Paper Size & Printing Configuration
+  const [paperConfig, setPaperConfig] = useState<PaperSizeConfig>(() => {
+    try {
+      const saved = localStorage.getItem(PAPER_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return DEFAULT_PAPER_CONFIG;
+  });
+  const [showPaperSizeModal, setShowPaperSizeModal] = useState(false);
+
+  // Save paper config on change
+  useEffect(() => {
+    try {
+      localStorage.setItem(PAPER_STORAGE_KEY, JSON.stringify(paperConfig));
+    } catch (e) {}
+  }, [paperConfig]);
+
+  // Apply dynamic print styles into document head before printing
+  const applyPrintStyles = (config: PaperSizeConfig) => {
+    let styleTag = document.getElementById('dynamic-print-paper-size');
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = 'dynamic-print-paper-size';
+      document.head.appendChild(styleTag);
+    }
+
+    let width = config.widthMm;
+    let height = config.heightMm;
+    if (config.preset === 'custom') {
+      let rawW = config.customWidth;
+      let rawH = config.customHeight;
+      if (config.unit === 'cm') { rawW *= 10; rawH *= 10; }
+      else if (config.unit === 'in') { rawW *= 25.4; rawH *= 25.4; }
+      if (config.orientation === 'landscape' && rawW < rawH) {
+        width = rawH; height = rawW;
+      } else if (config.orientation === 'portrait' && rawW > rawH) {
+        width = rawH; height = rawW;
+      } else {
+        width = rawW; height = rawH;
+      }
+    } else if (config.orientation === 'landscape' && config.preset !== 'a5_landscape') {
+      if (width < height) { const t = width; width = height; height = t; }
+    }
+
+    const margin = config.marginMm ?? 10;
+    const isSlip = config.isSlip || config.preset === 'slip_80' || config.preset === 'slip_58' || width <= 85;
+
+    styleTag.innerHTML = `
+      @media print {
+        @page {
+          size: ${width}mm ${height}mm;
+          margin: ${margin}mm;
+        }
+        #printable-active-receipt, 
+        #printable-active-receipt-top,
+        #printable-a4-receipt, 
+        .printable-active-sheet {
+          width: ${width}mm !important;
+          min-height: ${height}mm !important;
+          padding: ${isSlip ? '3mm 2mm' : `${margin}mm`} !important;
+          box-shadow: none !important;
+          border: none !important;
+        }
+      }
+    `;
   };
 
   // Top Live Preview Settings
@@ -827,8 +717,11 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     }
   };
 
-  // Print Document Trigger
-  const handlePrint = (doc: ReceiptDoc) => {
+  // Print Document Trigger with dynamic paper sizing support
+  const handlePrint = (doc: ReceiptDoc, overrideConfig?: PaperSizeConfig) => {
+    const activeConfig = overrideConfig || paperConfig;
+    applyPrintStyles(activeConfig);
+
     if (isPreviewUnsaved) {
       setReceipts(prev => {
         const exists = prev.some(r => r.id === doc.id);
@@ -885,9 +778,15 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                 <Receipt className="w-3.5 h-3.5" />
                 ระบบออกเอกสารการเงิน
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
-                A4 Printable
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowPaperSizeModal(true)}
+                className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-bold border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1"
+                title="คลิกเพื่อเปลี่ยนหรือกำหนดขนาดพิมพ์"
+              >
+                <span>📄 ขนาดพิมพ์: {paperConfig.name}</span>
+                <Sliders className="w-2.5 h-2.5" />
+              </button>
             </div>
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2.5">
               <span>ออกใบเสร็จรับเงิน / ใบกำกับภาษี</span>
@@ -1208,7 +1107,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             </div>
           </div>
 
-          {/* 2. CENTER STAGE LIVE A4 PREVIEW (พรีวิว A4 แสดงเด่นชัดเจนด้านล่างข้อต่างๆ) */}
+          {/* 2. CENTER STAGE LIVE PREVIEW (พรีวิวเอกสารตามขนาดกระดาษที่เลือกแบบเรียลไทม์) */}
           <div className="p-4 sm:p-5 rounded-2xl border border-slate-700 dark:border-slate-800 bg-slate-900 text-white shadow-2xl space-y-4">
             {/* Live Preview Header Controls */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
@@ -1220,10 +1119,13 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">
-                      พรีวิวเอกสาร A4 แบบเรียลไทม์ (Live A4 Preview)
+                      พรีวิวเอกสารแบบเรียลไทม์ (Live Preview)
                     </span>
                     <span className="px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800/60 text-[10px] font-bold">
                       {liveDoc.receiptNo || 'REC-AUTO'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-mono">
+                      {paperConfig.preset === 'custom' ? `กำหนดเอง (${paperConfig.customWidth}×${paperConfig.customHeight} ${paperConfig.unit})` : paperConfig.name}
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-300 font-medium">
@@ -1268,20 +1170,68 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-emerald-500 hover:from-indigo-400 hover:to-emerald-400 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <span>สั่งพิมพ์ / PDF</span>
+                    <span>พิมพ์ ({paperConfig.name})</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Zoom Controls & Thai Baht Text */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px]">
-              <span className="text-[10px] text-indigo-300 bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-800/60 font-bold">
-                ({grandTotalTextThai})
-              </span>
+            {/* Paper Size Preset Selection Bar & Zoom Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+                  <Printer className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>ขนาดกระดาษพิมพ์:</span>
+                </span>
+                
+                {PAPER_SIZE_PRESETS_LIST.map((preset) => {
+                  const isActive = paperConfig.preset === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setPaperConfig({
+                          preset: preset.id,
+                          name: preset.name,
+                          widthMm: preset.widthMm,
+                          heightMm: preset.heightMm,
+                          orientation: preset.orientation || 'portrait',
+                          customWidth: preset.widthMm,
+                          customHeight: preset.heightMm,
+                          unit: 'mm',
+                          isSlip: preset.isSlip,
+                          marginMm: preset.isSlip ? 3 : 10
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span>{preset.icon}</span>
+                      <span>{preset.name}</span>
+                    </button>
+                  );
+                })}
 
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] text-slate-400 mr-1">สเกลพรีวิว:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPaperSizeModal(true)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    paperConfig.preset === 'custom'
+                      ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-400'
+                      : 'bg-slate-800/80 text-amber-300 hover:bg-slate-700 hover:text-amber-200 border border-amber-500/30'
+                  }`}
+                >
+                  <Sliders className="w-3 h-3 text-amber-400" />
+                  <span>⚙️ กำหนดขนาดเอง...</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <span className="text-[10px] text-slate-400">สเกลพรีวิว:</span>
                 {[
                   { scale: 0.50, label: '50%' },
                   { scale: 0.65, label: '65%' },
@@ -1304,13 +1254,27 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               </div>
             </div>
 
-            {/* A4 Sheet Container */}
+            {/* Thai Baht Text Badge */}
+            <div className="flex items-center justify-between gap-2 px-1 text-[11px]">
+              <span className="text-[10px] text-indigo-300 bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-800/60 font-bold">
+                ({grandTotalTextThai})
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">
+                สัดส่วนกระดาษ: {paperConfig.widthMm} × {paperConfig.heightMm} mm ({paperConfig.orientation === 'landscape' ? 'แนวนอน' : 'แนวตั้ง'})
+              </span>
+            </div>
+
+            {/* Sheet Container */}
             <div className="w-full min-h-[550px] max-h-[750px] overflow-y-auto overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-3 sm:p-6 flex justify-center items-start shadow-inner">
               <div 
                 style={{ transform: `scale(${topPreviewScale})`, transformOrigin: 'top center' }}
                 className="my-2 transition-all duration-200"
               >
-                <ReceiptA4Sheet doc={liveDoc} printableId="printable-a4-receipt-top" />
+                <ReceiptPrintSheet 
+                  doc={liveDoc} 
+                  paperConfig={paperConfig} 
+                  printableId="printable-active-receipt-top" 
+                />
               </div>
             </div>
           </div>
@@ -1746,15 +1710,15 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
         </div>
       )}
 
-      {/* A4 PRINT & PREVIEW MODAL */}
+      {/* DYNAMIC PAPER PRINT & PREVIEW MODAL */}
       <AnimatePresence>
         {selectedReceiptForPreview && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 overflow-y-auto">
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden text-left shadow-2xl"
+              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-5xl w-full max-h-[95vh] flex flex-col overflow-hidden text-left shadow-2xl"
             >
               {/* Modal Top Control Bar */}
               <div className="p-3 sm:p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950 flex-shrink-0">
@@ -1762,7 +1726,10 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   <Printer className="w-5 h-5 text-indigo-400 flex-shrink-0" />
                   <div className="min-w-0">
                     <h3 className="text-xs sm:text-sm font-extrabold text-white flex flex-wrap items-center gap-2">
-                      <span>ตัวอย่างเอกสาร A4 ก่อนสั่งพิมพ์</span>
+                      <span>ตัวอย่างเอกสารก่อนสั่งพิมพ์</span>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30">
+                        {paperConfig.name} ({paperConfig.widthMm}×{paperConfig.heightMm} mm)
+                      </span>
                       {isPreviewUnsaved && (
                         <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
                           <AlertCircle className="w-3 h-3 text-amber-400" />
@@ -1781,7 +1748,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     className="flex-1 sm:flex-none h-10 sm:h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95"
                   >
                     <Printer className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                    <span>{isPreviewUnsaved ? 'สั่งพิมพ์และบันทึก (A4)' : 'สั่งพิมพ์ / บันทึก PDF (A4)'}</span>
+                    <span>{isPreviewUnsaved ? `สั่งพิมพ์ & บันทึก (${paperConfig.name})` : `สั่งพิมพ์ / บันทึก PDF (${paperConfig.name})`}</span>
                   </button>
 
                   <button
@@ -1797,24 +1764,87 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                 </div>
               </div>
 
-              {/* Printable A4 Document Sheet View */}
-              <div className="p-3 sm:p-8 overflow-y-auto overflow-x-auto flex-1 bg-slate-800/50 flex flex-col items-center justify-start min-w-0">
-                {/* Mobile Scroll Hint Banner */}
-                <div className="sm:hidden w-full max-w-[210mm] mb-2.5 px-3 py-2 bg-indigo-500/20 border border-indigo-500/30 rounded-xl text-indigo-200 text-[11px] font-bold flex items-center justify-between gap-2 flex-shrink-0">
-                  <span className="flex items-center gap-1.5">
-                    📄 แสดงผลสัดส่วนกระดาษ A4 จริง (ไม่ย่อส่วน)
+              {/* Modal Paper Presets Selector Bar */}
+              <div className="px-3 py-2 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between gap-2 overflow-x-auto flex-shrink-0 text-xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
+                    <Printer className="w-3 h-3 text-indigo-400" />
+                    <span>เปลี่ยนขนาดกระดาษ:</span>
                   </span>
-                  <span className="text-[10px] text-indigo-300 font-semibold">
-                    เลื่อนซ้าย-ขวาเพื่อดูเต็มฉบับ ↔️
-                  </span>
+                  {PAPER_SIZE_PRESETS_LIST.map((preset) => {
+                    const isActive = paperConfig.preset === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setPaperConfig({
+                            preset: preset.id,
+                            name: preset.name,
+                            widthMm: preset.widthMm,
+                            heightMm: preset.heightMm,
+                            orientation: preset.orientation || 'portrait',
+                            customWidth: preset.widthMm,
+                            customHeight: preset.heightMm,
+                            unit: 'mm',
+                            isSlip: preset.isSlip,
+                            marginMm: preset.isSlip ? 3 : 10
+                          });
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                          isActive
+                            ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        <span>{preset.icon}</span>
+                        <span>{preset.name}</span>
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPaperSizeModal(true)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                      paperConfig.preset === 'custom'
+                        ? 'bg-amber-600 text-white ring-1 ring-amber-400'
+                        : 'bg-slate-800/80 text-amber-300 hover:bg-slate-700 border border-amber-500/30'
+                    }`}
+                  >
+                    <Sliders className="w-3 h-3 text-amber-400" />
+                    <span>⚙️ กำหนดขนาดเอง</span>
+                  </button>
                 </div>
 
-                <ReceiptA4Sheet doc={selectedReceiptForPreview} printableId="printable-a4-receipt" />
+                <span className="text-[10px] text-slate-400 font-mono hidden md:inline-block">
+                  ระยะขอบ: {paperConfig.marginMm ?? 10} mm
+                </span>
+              </div>
+
+              {/* Printable Document Sheet View */}
+              <div className="p-3 sm:p-8 overflow-y-auto overflow-x-auto flex-1 bg-slate-800/50 flex flex-col items-center justify-start min-w-0">
+                <ReceiptPrintSheet 
+                  doc={selectedReceiptForPreview} 
+                  paperConfig={paperConfig} 
+                  printableId="printable-active-receipt" 
+                />
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* CUSTOM PAPER SIZE CONFIGURATION MODAL */}
+      <ReceiptPaperSizeModal
+        isOpen={showPaperSizeModal}
+        onClose={() => setShowPaperSizeModal(false)}
+        paperConfig={paperConfig}
+        onSaveConfig={(newConfig) => {
+          setPaperConfig(newConfig);
+          applyPrintStyles(newConfig);
+        }}
+      />
     </div>
   );
 }
