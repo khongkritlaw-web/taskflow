@@ -1,0 +1,66 @@
+{
+  "name": "TaskFlow Space Executive Pro",
+  "short_name": "TaskFlow Pro",
+  "description": "ระบบจัดการภารกิจ ปฏิทินรายวัน และสรุปรายการค่าใช้จ่ายครบกำหนด",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "lang": "th",
+  "dir": "ltr",
+  "categories": ["productivity", "business", "utilities", "finance"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x48 72x72 96x96 128x128 256x256",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "รายการภารกิจ (Tasks)",
+      "short_name": "ภารกิจ",
+      "description": "เปิดดูรายการภารกิจและงานค้างทำ",
+      "url": "/?tab=tasks",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "ปฏิทินงาน (Calendar)",
+      "short_name": "ปฏิทิน",
+      "description": "เปิดดูปฏิทินและตารางงานนัดหมาย",
+      "url": "/?tab=calendar",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "สรุปค่าใช้จ่าย (Expenses)",
+      "short_name": "ค่าใช้จ่าย",
+      "description": "บันทึกและตรวจสอบค่าใช้จ่ายครบกำหนด",
+      "url": "/?tab=expenses",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "ออกใบเสร็จ (Receipts)",
+      "short_name": "ใบเสร็จ",
+      "description": "ออกใบเสร็จรับเงิน A4 พร้อมพิมพ์",
+      "url": "/?tab=receipt",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -47,7 +47,10 @@ import {
   UserX,
   Edit,
   FolderOpen,
-  Scale
+  Scale,
+  Download,
+  Smartphone,
+  Sparkles
 } from 'lucide-react';
 import { Task, Expense, AppSettings, CustomMenuLink, Announcement } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor, getDarkToneFromColor } from './themePresets';
@@ -58,6 +61,7 @@ import { db, auth } from './firebase';
 import { useDialog } from './components/CustomDialog';
 import { playNotificationSound } from './lib/soundUtils';
 import AiAssistant from './components/AiAssistant';
+import { AppInstallModal, AppInstallButton } from './components/AppInstallModal';
 
 const padPass = (pass: string) => {
   if (pass.length >= 6) return pass;
@@ -238,6 +242,7 @@ export default function App() {
     } catch (e) {}
   };
   const [activeTab, setActiveTab] = useState<string>('tasks');
+  const [showInstallAppModal, setShowInstallAppModal] = useState<boolean>(false);
   const [linkPopupData, setLinkPopupData] = useState<{ url: string; title: string; visible: boolean }>({ url: '', title: '', visible: false });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSettingsUnlocked, setIsSettingsUnlocked] = useState(false);
@@ -2575,6 +2580,21 @@ export default function App() {
             <SettingsIcon className="w-4.5 h-4.5 flex-shrink-0" />
             {(!sidebarCollapsed || mobileMenuOpen) && <span>ตกแต่ง & ตั้งค่ารวม</span>}
           </button>
+
+          {/* Quick PWA App Installation button in sidebar */}
+          <button
+            onClick={() => { setShowInstallAppModal(true); setMobileMenuOpen(false); }}
+            className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 cursor-pointer group"
+            title="ติดตั้ง TaskFlow Pro เป็นแอปพลิเคชัน (Add to Home Screen / PWA)"
+          >
+            <Smartphone className="w-4.5 h-4.5 flex-shrink-0 text-indigo-400 group-hover:scale-110 transition-transform" />
+            {(!sidebarCollapsed || mobileMenuOpen) && (
+              <span className="flex items-center gap-1.5">
+                <span>ติดตั้งเป็นแอป</span>
+                <span className="text-[9px] px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 rounded-md font-bold uppercase">PWA</span>
+              </span>
+            )}
+          </button>
         </nav>
 
         {/* Sidebar Footer account section */}
@@ -2946,6 +2966,12 @@ export default function App() {
               sessionUser={sessionUser}
               accentColor={settings.colorAccent}
               darkMode={settings.darkMode}
+            />
+
+            {/* Quick Install App Button */}
+            <AppInstallButton
+              accentColor={settings.colorAccent}
+              onClick={() => setShowInstallAppModal(true)}
             />
 
             {/* Quick Dark Mode / Light Mode Toggle Button */}
@@ -3634,7 +3660,8 @@ export default function App() {
                         { id: 'account', label: 'ผู้ใช้ & ความปลอดภัย', icon: 'Shield' },
                         { id: 'notifications', label: 'การแจ้งเตือน & ระบบส่งเมล', icon: 'Bell' },
                         { id: 'reports_links', label: 'พิมพ์สรุป & ลิงก์เสริม', icon: 'FileText' },
-                        { id: 'backup', label: 'สำรองข้อมูล & Google Drive / Excel', icon: 'Database' }
+                        { id: 'backup', label: 'สำรองข้อมูล & Google Drive / Excel', icon: 'Database' },
+                        { id: 'pwa_app', label: 'ติดตั้งเป็นแอป (PWA App)', icon: 'Smartphone' }
                       ].map(tab => {
                         const isActive = settingsSubTab === tab.id;
                         return (
@@ -3655,6 +3682,7 @@ export default function App() {
                               {tab.icon === 'Bell' && '🔔'}
                               {tab.icon === 'FileText' && '📄'}
                               {tab.icon === 'Database' && '💾'}
+                              {tab.icon === 'Smartphone' && '📱'}
                             </span>
                             <span>{tab.label}</span>
                           </button>
@@ -4776,6 +4804,96 @@ export default function App() {
                           />
                         </div>
                       )}
+
+                      {/* SUB-TAB: PWA APP INSTALLATION & CAPABILITIES */}
+                      {settingsSubTab === 'pwa_app' && (
+                        <div className="space-y-6 animate-fade-in text-left">
+                          <div className="bg-slate-50 dark:bg-slate-950/40 p-6 rounded-2xl border border-slate-150 dark:border-slate-800/80 space-y-5">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-200/50 dark:border-slate-800">
+                              <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <span>📱</span> การติดตั้งใช้งานเป็นแอปพลิเคชัน (Progressive Web App - PWA)
+                              </h4>
+                              <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                PWA Ready ✓
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                              คุณสามารถเปลี่ยนการใช้งานจากเว็บไซต์ปกติ ให้กลายเป็น <strong>แอปพลิเคชันเต็มรูปแบบ (Native Web App)</strong> ติดตั้งลงบนหน้าจอมือถือ iPhone, iPad, Android หรือคอมพิวเตอร์ Windows / Mac เพื่อความรวดเร็วและเปิดใช้งานได้ทันทีโดยไม่ต้องเข้าเบราว์เซอร์
+                            </p>
+
+                            {/* Action Install Button */}
+                            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 p-2 shadow-inner">
+                                  <img src="/favicon.svg" alt="App Icon" className="w-full h-full object-contain" />
+                                </div>
+                                <div>
+                                  <h5 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                                    TaskFlow Space Executive Pro
+                                  </h5>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    เวอร์ชัน Progressive Web App พร้อมระบบออฟไลน์แคช
+                                  </p>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setShowInstallAppModal(true)}
+                                className="w-full sm:w-auto px-5 py-3 rounded-xl text-white font-black text-xs flex items-center justify-center gap-2 shadow-md hover:brightness-105 active:scale-95 transition-all cursor-pointer"
+                                style={{ backgroundColor: (tempSettings || settings).colorAccent }}
+                              >
+                                <Download className="w-4 h-4" />
+                                <span>เปิดคำแนะนำ & ติดตั้งแอป</span>
+                              </button>
+                            </div>
+
+                            {/* Features list */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800/80 flex items-start gap-3">
+                                <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400 flex-shrink-0 text-xs font-black">
+                                  1
+                                </div>
+                                <div className="text-xs">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200">หน้าจอเต็มตา ไร้แถบ URL</div>
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">ทำงานในโหมด Standalone Display เสมือนแอปแท้ 100%</div>
+                                </div>
+                              </div>
+
+                              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800/80 flex items-start gap-3">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center text-emerald-600 dark:text-emerald-400 flex-shrink-0 text-xs font-black">
+                                  2
+                                </div>
+                                <div className="text-xs">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200">แคชข้อมูล & ออฟไลน์โหลดไว</div>
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Service Worker บันทึกแคชหน้าจอ ช่วยให้เปิดแอปได้ในเสี้ยววินาที</div>
+                                </div>
+                              </div>
+
+                              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800/80 flex items-start gap-3">
+                                <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950 flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0 text-xs font-black">
+                                  3
+                                </div>
+                                <div className="text-xs">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200">ทางลัดด่วน (App Shortcuts)</div>
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">กดค้างที่ไอคอนแอปบนหน้าจอเพื่อเข้าสู่ ภารกิจ, ปฏิทิน, ค่าใช้จ่ายได้ทันที</div>
+                                </div>
+                              </div>
+
+                              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800/80 flex items-start gap-3">
+                                <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950 flex items-center justify-center text-purple-600 dark:text-purple-400 flex-shrink-0 text-xs font-black">
+                                  4
+                                </div>
+                                <div className="text-xs">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200">รองรับทุกอุปกรณ์</div>
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">ใช้ได้ทั้ง iPhone, iPad, สมาร์ตโฟน Android, แท็บเล็ต, โน้ตบุ๊ก และ PC</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       </div>
 
                     {/* BOTTOM STICKY CONTROL BAR */}
@@ -5108,6 +5226,13 @@ export default function App() {
           settings={settings}
         />
       )}
+
+      {/* App Install Prompt Modal for PWA */}
+      <AppInstallModal
+        isOpen={showInstallAppModal}
+        onClose={() => setShowInstallAppModal(false)}
+        accentColor={settings.colorAccent}
+      />
     </div>
   );
 }
