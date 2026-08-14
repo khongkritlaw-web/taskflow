@@ -34,7 +34,7 @@ import {
   Sliders,
   Maximize2
 } from 'lucide-react';
-import { ReceiptDoc, ReceiptItem, AppSettings, Task, Expense, PaperSizeConfig, PaperSizePreset } from '../types';
+import { ReceiptDoc, ReceiptItem, AppSettings, Task, Expense, PaperSizeConfig, PaperSizePreset, SavedIssuerProfile, SavedCustomerProfile } from '../types';
 import { ReceiptEditModal, STEP_ITEMS } from './ReceiptEditModal';
 import { 
   ReceiptPrintSheet, 
@@ -131,7 +131,13 @@ export function bahtText(num: number): string {
 
 const STORAGE_KEY = 'dekasuite_receipts_history_v1';
 const ISSUER_STORAGE_KEY = 'dekasuite_saved_issuer_info_v1';
+const ISSUER_PROFILES_STORAGE_KEY = 'dekasuite_saved_issuer_profiles_v1';
+const CUSTOMER_PROFILES_STORAGE_KEY = 'dekasuite_saved_customer_profiles_v1';
+const LAST_ISSUER_ID_KEY = 'dekasuite_last_used_issuer_id_v1';
+const LAST_CUSTOMER_ID_KEY = 'dekasuite_last_used_customer_id_v1';
 const PAPER_STORAGE_KEY = 'dekasuite_receipt_paper_config_v1';
+const WATERMARK_STORAGE_KEY = 'dekasuite_receipt_watermark_settings_v1';
+const SIGNATURES_STORAGE_KEY = 'dekasuite_receipt_show_signatures_v1';
 
 export function ReceiptA4Sheet({ doc, printableId = 'printable-a4-receipt' }: { doc: ReceiptDoc; printableId?: string }) {
   return <ReceiptPrintSheet doc={doc} paperConfig={DEFAULT_PAPER_CONFIG} printableId={printableId} />;
@@ -146,10 +152,75 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     return [];
   });
 
-  // Load Saved Issuer Info
+  // Load Saved Issuer Profiles list
+  const [issuerProfiles, setIssuerProfiles] = useState<SavedIssuerProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem(ISSUER_PROFILES_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+      // Migrate from legacy single issuer info if exists
+      const legacy = localStorage.getItem(ISSUER_STORAGE_KEY);
+      if (legacy) {
+        const parsed = JSON.parse(legacy);
+        if (parsed?.issuerName) {
+          const initialProf: SavedIssuerProfile = {
+            id: 'iss_default',
+            name: parsed.issuerName,
+            taxId: parsed.issuerTaxId || '',
+            branch: parsed.issuerBranch || '',
+            address: parsed.issuerAddress || '',
+            phone: parsed.issuerPhone || '',
+            email: parsed.issuerEmail || '',
+            logoUrl: parsed.issuerLogoUrl || '',
+            showLogo: parsed.showLogo !== undefined ? parsed.showLogo : true,
+            createdAt: new Date().toISOString(),
+            lastUsedAt: new Date().toISOString()
+          };
+          return [initialProf];
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  // Load Saved Customer Profiles list
+  const [customerProfiles, setCustomerProfiles] = useState<SavedCustomerProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOMER_PROFILES_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+
+  // Determine last used profile IDs
+  const [selectedIssuerProfileId, setSelectedIssuerProfileId] = useState<string>(() => {
+    try {
+      const lastId = localStorage.getItem(LAST_ISSUER_ID_KEY);
+      if (lastId) return lastId;
+    } catch (e) {}
+    return '';
+  });
+
+  const [selectedCustomerProfileId, setSelectedCustomerProfileId] = useState<string>(() => {
+    try {
+      const lastId = localStorage.getItem(LAST_CUSTOMER_ID_KEY);
+      if (lastId) return lastId;
+    } catch (e) {}
+    return '';
+  });
+
+  // Load Saved Issuer Info (Legacy fallback)
   const [savedIssuerInfo, setSavedIssuerInfo] = useState<any>(() => {
     try {
       const saved = localStorage.getItem(ISSUER_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  });
+
+  // Load Saved Watermark & Logo Info
+  const [savedWatermarkInfo, setSavedWatermarkInfo] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem(WATERMARK_STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return null;
@@ -171,36 +242,212 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
   const [dueDate, setDueDate] = useState('');
   const [refNo, setRefNo] = useState('');
 
-  // Issuer Info (Defaults to saved issuer info if available)
-  const [issuerName, setIssuerName] = useState(() => savedIssuerInfo?.issuerName || settings.appName || 'สำนักงานกฎหมาย และที่ปรึกษา');
-  const [issuerTaxId, setIssuerTaxId] = useState(() => savedIssuerInfo?.issuerTaxId || '0105560000000');
-  const [issuerBranch, setIssuerBranch] = useState(() => savedIssuerInfo?.issuerBranch || 'สำนักงานใหญ่');
-  const [issuerAddress, setIssuerAddress] = useState(() => savedIssuerInfo?.issuerAddress || '123/45 ถนนรัชดาภิเษก แขวงจอมพล เขตจตุจักร กรุงเทพมหานคร 10900');
-  const [issuerPhone, setIssuerPhone] = useState(() => savedIssuerInfo?.issuerPhone || '02-123-4567');
-  const [issuerEmail, setIssuerEmail] = useState(() => savedIssuerInfo?.issuerEmail || settings.emailRecipient || 'contact@firm.com');
-  const [issuerLogoUrl, setIssuerLogoUrl] = useState(() => savedIssuerInfo?.issuerLogoUrl || settings.appLogoUrl || '');
-  const [showLogo, setShowLogo] = useState(() => savedIssuerInfo?.showLogo !== undefined ? savedIssuerInfo.showLogo : true);
+  // Initial Issuer Info (Defaults to last used issuer profile, or legacy saved issuer info, or fallback)
+  const lastUsedIssuer = issuerProfiles.find(p => p.id === selectedIssuerProfileId) || issuerProfiles[0];
+  const [issuerName, setIssuerName] = useState(() => lastUsedIssuer?.name || savedIssuerInfo?.issuerName || settings.appName || 'สำนักงานกฎหมาย และที่ปรึกษา');
+  const [issuerTaxId, setIssuerTaxId] = useState(() => lastUsedIssuer?.taxId || savedIssuerInfo?.issuerTaxId || '0105560000000');
+  const [issuerBranch, setIssuerBranch] = useState(() => lastUsedIssuer?.branch || savedIssuerInfo?.issuerBranch || 'สำนักงานใหญ่');
+  const [issuerAddress, setIssuerAddress] = useState(() => lastUsedIssuer?.address || savedIssuerInfo?.issuerAddress || '123/45 ถนนรัชดาภิเษก แขวงจอมพล เขตจตุจักร กรุงเทพมหานคร 10900');
+  const [issuerPhone, setIssuerPhone] = useState(() => lastUsedIssuer?.phone || savedIssuerInfo?.issuerPhone || '02-123-4567');
+  const [issuerEmail, setIssuerEmail] = useState(() => lastUsedIssuer?.email || savedIssuerInfo?.issuerEmail || settings.emailRecipient || 'contact@firm.com');
+  const [issuerLogoUrl, setIssuerLogoUrl] = useState(() => lastUsedIssuer?.logoUrl || savedIssuerInfo?.issuerLogoUrl || savedWatermarkInfo?.issuerLogoUrl || settings.appLogoUrl || '');
+  const [showLogo, setShowLogo] = useState(() => {
+    if (lastUsedIssuer?.showLogo !== undefined) return lastUsedIssuer.showLogo;
+    if (savedWatermarkInfo?.showLogo !== undefined) return savedWatermarkInfo.showLogo;
+    if (savedIssuerInfo?.showLogo !== undefined) return savedIssuerInfo.showLogo;
+    return true;
+  });
   const [issuerSaveSuccessMsg, setIssuerSaveSuccessMsg] = useState(false);
+  const [issuerSaveMessage, setIssuerSaveMessage] = useState('');
 
-  // Save Issuer Info explicitly to LocalStorage
+  // Issuer Profile Handlers
   const handleSaveIssuerInfo = () => {
-    const issuerData = {
-      issuerName,
-      issuerTaxId,
-      issuerBranch,
-      issuerAddress,
-      issuerPhone,
-      issuerEmail,
-      issuerLogoUrl,
-      showLogo
-    };
+    if (!issuerName.trim()) {
+      alert('กรุณาระบุชื่อสำนักงาน / ผู้ออกเอกสาร');
+      return;
+    }
+
+    const trimmedName = issuerName.trim();
+    const trimmedTaxId = issuerTaxId.trim();
+    const trimmedBranch = issuerBranch.trim();
+    const trimmedAddress = issuerAddress.trim();
+    const trimmedPhone = issuerPhone.trim();
+    const trimmedEmail = issuerEmail.trim();
+
+    // Check if identical profile already exists
+    const existingIndex = issuerProfiles.findIndex(p => 
+      p.name.trim().toLowerCase() === trimmedName.toLowerCase() &&
+      p.taxId.trim() === trimmedTaxId &&
+      p.branch.trim() === trimmedBranch &&
+      p.address.trim() === trimmedAddress &&
+      p.phone.trim() === trimmedPhone &&
+      p.email.trim() === trimmedEmail
+    );
+
+    let updatedProfiles: SavedIssuerProfile[];
+    let activeProfileId: string;
+
+    if (existingIndex >= 0) {
+      // Already exists: update lastUsedAt and select it
+      activeProfileId = issuerProfiles[existingIndex].id;
+      updatedProfiles = issuerProfiles.map((p, idx) => 
+        idx === existingIndex 
+          ? { ...p, lastUsedAt: new Date().toISOString(), logoUrl: issuerLogoUrl, showLogo }
+          : p
+      );
+      setIssuerSaveMessage('ข้อมูลนี้มีบันทึกไว้อยู่แล้ว (ระบบเลือกใช้อัตโนมัติ)');
+    } else {
+      // Create new profile
+      activeProfileId = `iss_${Date.now()}`;
+      const newProfile: SavedIssuerProfile = {
+        id: activeProfileId,
+        name: trimmedName,
+        taxId: trimmedTaxId,
+        branch: trimmedBranch,
+        address: trimmedAddress,
+        phone: trimmedPhone,
+        email: trimmedEmail,
+        logoUrl: issuerLogoUrl,
+        showLogo: showLogo,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: new Date().toISOString()
+      };
+      updatedProfiles = [newProfile, ...issuerProfiles];
+      setIssuerSaveMessage('บันทึกข้อมูลผู้ออกเอกสารใหม่สำเร็จ! ระบบจะจดจำไว้ให้ตลอด');
+    }
+
     try {
-      localStorage.setItem(ISSUER_STORAGE_KEY, JSON.stringify(issuerData));
-      setSavedIssuerInfo(issuerData);
+      localStorage.setItem(ISSUER_PROFILES_STORAGE_KEY, JSON.stringify(updatedProfiles));
+      localStorage.setItem(LAST_ISSUER_ID_KEY, activeProfileId);
+      // Legacy backup
+      localStorage.setItem(ISSUER_STORAGE_KEY, JSON.stringify({
+        issuerName: trimmedName,
+        issuerTaxId: trimmedTaxId,
+        issuerBranch: trimmedBranch,
+        issuerAddress: trimmedAddress,
+        issuerPhone: trimmedPhone,
+        issuerEmail: trimmedEmail,
+        issuerLogoUrl,
+        showLogo
+      }));
+      setIssuerProfiles(updatedProfiles);
+      setSelectedIssuerProfileId(activeProfileId);
       setIssuerSaveSuccessMsg(true);
-      setTimeout(() => setIssuerSaveSuccessMsg(false), 3000);
+      setTimeout(() => setIssuerSaveSuccessMsg(false), 3500);
     } catch (e) {
       alert('ไม่สามารถบันทึกข้อมูลผู้ออกใบเสร็จได้');
+    }
+  };
+
+  const handleSelectIssuerProfile = (id: string) => {
+    if (!id) {
+      setSelectedIssuerProfileId('');
+      try {
+        localStorage.removeItem(LAST_ISSUER_ID_KEY);
+      } catch (e) {}
+      return;
+    }
+
+    const prof = issuerProfiles.find(p => p.id === id);
+    if (!prof) return;
+
+    setIssuerName(prof.name);
+    setIssuerTaxId(prof.taxId || '');
+    setIssuerBranch(prof.branch || '');
+    setIssuerAddress(prof.address || '');
+    setIssuerPhone(prof.phone || '');
+    setIssuerEmail(prof.email || '');
+    if (prof.logoUrl !== undefined) setIssuerLogoUrl(prof.logoUrl);
+    if (prof.showLogo !== undefined) setShowLogo(prof.showLogo);
+
+    setSelectedIssuerProfileId(id);
+    try {
+      localStorage.setItem(LAST_ISSUER_ID_KEY, id);
+      // Update lastUsedAt
+      const updated = issuerProfiles.map(p => p.id === id ? { ...p, lastUsedAt: new Date().toISOString() } : p);
+      setIssuerProfiles(updated);
+      localStorage.setItem(ISSUER_PROFILES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  const handleDeleteIssuerProfile = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm('ต้องการลบโปรไฟล์ผู้ออกเอกสารนี้ใช่หรือไม่?')) return;
+
+    const updated = issuerProfiles.filter(p => p.id !== id);
+    setIssuerProfiles(updated);
+    try {
+      localStorage.setItem(ISSUER_PROFILES_STORAGE_KEY, JSON.stringify(updated));
+      if (selectedIssuerProfileId === id) {
+        setSelectedIssuerProfileId('');
+        localStorage.removeItem(LAST_ISSUER_ID_KEY);
+      }
+    } catch (e) {}
+  };
+
+  const handleClearIssuerForm = () => {
+    setIssuerName('');
+    setIssuerTaxId('');
+    setIssuerBranch('');
+    setIssuerAddress('');
+    setIssuerPhone('');
+    setIssuerEmail('');
+    setSelectedIssuerProfileId('');
+    try {
+      localStorage.removeItem(LAST_ISSUER_ID_KEY);
+    } catch (e) {}
+  };
+
+  // Watermark Settings (Restored from savedWatermarkInfo if exists)
+  const [showWatermark, setShowWatermark] = useState(() => savedWatermarkInfo?.showWatermark !== undefined ? savedWatermarkInfo.showWatermark : true);
+  const [watermarkType, setWatermarkType] = useState<'text' | 'image'>(() => savedWatermarkInfo?.watermarkType || 'text');
+  const [watermarkText, setWatermarkText] = useState(() => savedWatermarkInfo?.watermarkText || 'สำนักงานกฎหมาย / OFFICIAL RECEIPT');
+  const [watermarkImageUrl, setWatermarkImageUrl] = useState(() => savedWatermarkInfo?.watermarkImageUrl || '');
+  const [watermarkOpacity, setWatermarkOpacity] = useState(() => savedWatermarkInfo?.watermarkOpacity !== undefined ? savedWatermarkInfo.watermarkOpacity : 0.12);
+  const [logoWatermarkSaveSuccessMsg, setLogoWatermarkSaveSuccessMsg] = useState(false);
+
+  // Signature Section Visibility Toggle (Restored from localStorage)
+  const [showSignatures, setShowSignatures] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(SIGNATURES_STORAGE_KEY);
+      if (saved !== null) return JSON.parse(saved);
+    } catch (e) {}
+    return true;
+  });
+
+  // Save showSignatures to localStorage whenever changed
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIGNATURES_STORAGE_KEY, JSON.stringify(showSignatures));
+    } catch (e) {}
+  }, [showSignatures]);
+
+  // Save Logo & Watermark Settings explicitly to LocalStorage
+  const handleSaveLogoAndWatermark = () => {
+    const watermarkData = {
+      showLogo,
+      issuerLogoUrl,
+      showWatermark,
+      watermarkType,
+      watermarkText,
+      watermarkImageUrl,
+      watermarkOpacity
+    };
+    try {
+      localStorage.setItem(WATERMARK_STORAGE_KEY, JSON.stringify(watermarkData));
+      setSavedWatermarkInfo(watermarkData);
+
+      // Also sync logo back to issuer settings if present
+      if (savedIssuerInfo) {
+        const updatedIssuer = { ...savedIssuerInfo, issuerLogoUrl, showLogo };
+        localStorage.setItem(ISSUER_STORAGE_KEY, JSON.stringify(updatedIssuer));
+        setSavedIssuerInfo(updatedIssuer);
+      }
+
+      setLogoWatermarkSaveSuccessMsg(true);
+      setTimeout(() => setLogoWatermarkSaveSuccessMsg(false), 3000);
+    } catch (e) {
+      alert('ไม่สามารถบันทึกข้อมูลโลโก้และลายน้ำได้');
     }
   };
 
@@ -255,17 +502,36 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       @media print {
         @page {
           size: ${width}mm ${height}mm;
-          margin: ${margin}mm;
+          margin: 0;
         }
-        #printable-active-receipt, 
-        #printable-active-receipt-top,
-        #printable-a4-receipt, 
-        .printable-active-sheet {
+        html, body {
+          width: 100% !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          background: #ffffff !important;
+        }
+        body * {
+          visibility: hidden !important;
+        }
+        #printable-active-receipt,
+        #printable-active-receipt * {
+          visibility: visible !important;
+        }
+        #printable-active-receipt {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
           width: ${width}mm !important;
-          min-height: ${height}mm !important;
+          min-height: auto !important;
+          max-width: 100% !important;
+          margin: 0 auto !important;
           padding: ${isSlip ? '3mm 2mm' : `${margin}mm`} !important;
           box-shadow: none !important;
           border: none !important;
+          page-break-inside: auto !important;
+          break-inside: auto !important;
         }
       }
     `;
@@ -274,13 +540,6 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
   // Top Live Preview Settings
   const [topPreviewScale, setTopPreviewScale] = useState<number>(0.58);
   const [showTopPreview, setShowTopPreview] = useState<boolean>(true);
-
-  // Watermark Settings
-  const [showWatermark, setShowWatermark] = useState(true);
-  const [watermarkType, setWatermarkType] = useState<'text' | 'image'>('text');
-  const [watermarkText, setWatermarkText] = useState('สำนักงานกฎหมาย / OFFICIAL RECEIPT');
-  const [watermarkImageUrl, setWatermarkImageUrl] = useState('');
-  const [watermarkOpacity, setWatermarkOpacity] = useState(0.12);
 
   // Helper for image upload (Logo / Watermark)
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
@@ -300,13 +559,136 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     }
   };
 
-  // Customer Info
-  const [customerName, setCustomerName] = useState('');
-  const [customerTaxId, setCustomerTaxId] = useState('');
-  const [customerBranch, setCustomerBranch] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+  // Customer Info (Defaults to last used customer profile if exists)
+  const lastUsedCustomer = customerProfiles.find(p => p.id === selectedCustomerProfileId) || customerProfiles[0];
+  const [customerName, setCustomerName] = useState(() => lastUsedCustomer?.name || '');
+  const [customerTaxId, setCustomerTaxId] = useState(() => lastUsedCustomer?.taxId || '');
+  const [customerBranch, setCustomerBranch] = useState(() => lastUsedCustomer?.branch || '');
+  const [customerAddress, setCustomerAddress] = useState(() => lastUsedCustomer?.address || '');
+  const [customerPhone, setCustomerPhone] = useState(() => lastUsedCustomer?.phone || '');
+  const [customerEmail, setCustomerEmail] = useState(() => lastUsedCustomer?.email || '');
+  const [customerSaveSuccessMsg, setCustomerSaveSuccessMsg] = useState(false);
+  const [customerSaveMessage, setCustomerSaveMessage] = useState('');
+
+  // Customer Profile Handlers
+  const handleSaveCustomerInfo = () => {
+    if (!customerName.trim()) {
+      alert('กรุณาระบุชื่อลูกค้า / บริษัทผู้ว่าจ้าง');
+      return;
+    }
+
+    const trimmedName = customerName.trim();
+    const trimmedTaxId = customerTaxId.trim();
+    const trimmedBranch = customerBranch.trim();
+    const trimmedAddress = customerAddress.trim();
+    const trimmedPhone = customerPhone.trim();
+    const trimmedEmail = customerEmail.trim();
+
+    // Check if duplicate exists
+    const existingIndex = customerProfiles.findIndex(p =>
+      p.name.trim().toLowerCase() === trimmedName.toLowerCase() &&
+      p.taxId.trim() === trimmedTaxId &&
+      p.branch.trim() === trimmedBranch &&
+      p.address.trim() === trimmedAddress &&
+      p.phone.trim() === trimmedPhone &&
+      p.email.trim() === trimmedEmail
+    );
+
+    let updatedProfiles: SavedCustomerProfile[];
+    let activeProfileId: string;
+
+    if (existingIndex >= 0) {
+      // Already exists: update lastUsedAt and select it
+      activeProfileId = customerProfiles[existingIndex].id;
+      updatedProfiles = customerProfiles.map((p, idx) =>
+        idx === existingIndex ? { ...p, lastUsedAt: new Date().toISOString() } : p
+      );
+      setCustomerSaveMessage('ข้อมูลลูกค้านี้มีบันทึกไว้อยู่แล้ว (ระบบเลือกใช้อัตโนมัติ)');
+    } else {
+      // Create new customer profile
+      activeProfileId = `cust_${Date.now()}`;
+      const newProfile: SavedCustomerProfile = {
+        id: activeProfileId,
+        name: trimmedName,
+        taxId: trimmedTaxId,
+        branch: trimmedBranch,
+        address: trimmedAddress,
+        phone: trimmedPhone,
+        email: trimmedEmail,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: new Date().toISOString()
+      };
+      updatedProfiles = [newProfile, ...customerProfiles];
+      setCustomerSaveMessage('บันทึกข้อมูลผู้ว่าจ้างใหม่สำเร็จ! ระบบจะจดจำไว้ให้ตลอด');
+    }
+
+    try {
+      localStorage.setItem(CUSTOMER_PROFILES_STORAGE_KEY, JSON.stringify(updatedProfiles));
+      localStorage.setItem(LAST_CUSTOMER_ID_KEY, activeProfileId);
+      setCustomerProfiles(updatedProfiles);
+      setSelectedCustomerProfileId(activeProfileId);
+      setCustomerSaveSuccessMsg(true);
+      setTimeout(() => setCustomerSaveSuccessMsg(false), 3500);
+    } catch (e) {
+      alert('ไม่สามารถบันทึกข้อมูลผู้ว่าจ้างได้');
+    }
+  };
+
+  const handleSelectCustomerProfile = (id: string) => {
+    if (!id) {
+      setSelectedCustomerProfileId('');
+      try {
+        localStorage.removeItem(LAST_CUSTOMER_ID_KEY);
+      } catch (e) {}
+      return;
+    }
+
+    const prof = customerProfiles.find(p => p.id === id);
+    if (!prof) return;
+
+    setCustomerName(prof.name);
+    setCustomerTaxId(prof.taxId || '');
+    setCustomerBranch(prof.branch || '');
+    setCustomerAddress(prof.address || '');
+    setCustomerPhone(prof.phone || '');
+    setCustomerEmail(prof.email || '');
+
+    setSelectedCustomerProfileId(id);
+    try {
+      localStorage.setItem(LAST_CUSTOMER_ID_KEY, id);
+      const updated = customerProfiles.map(p => p.id === id ? { ...p, lastUsedAt: new Date().toISOString() } : p);
+      setCustomerProfiles(updated);
+      localStorage.setItem(CUSTOMER_PROFILES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  const handleDeleteCustomerProfile = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm('ต้องการลบข้อมูลผู้ว่าจ้างนี้ใช่หรือไม่?')) return;
+
+    const updated = customerProfiles.filter(p => p.id !== id);
+    setCustomerProfiles(updated);
+    try {
+      localStorage.setItem(CUSTOMER_PROFILES_STORAGE_KEY, JSON.stringify(updated));
+      if (selectedCustomerProfileId === id) {
+        setSelectedCustomerProfileId('');
+        localStorage.removeItem(LAST_CUSTOMER_ID_KEY);
+      }
+    } catch (e) {}
+  };
+
+  const handleClearCustomerForm = () => {
+    setCustomerName('');
+    setCustomerTaxId('');
+    setCustomerBranch('');
+    setCustomerAddress('');
+    setCustomerPhone('');
+    setCustomerEmail('');
+    setSelectedCustomerProfileId('');
+    try {
+      localStorage.removeItem(LAST_CUSTOMER_ID_KEY);
+    } catch (e) {}
+  };
 
   // Items (Default empty row for filling)
   const [items, setItems] = useState<ReceiptItem[]>([
@@ -517,6 +899,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       notes,
       collectorName,
       approverName,
+      showSignatures,
       userId: sessionUser.userId || 'admin',
       createdAt: new Date().toISOString(),
       status: 'active'
@@ -620,6 +1003,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setNotes(doc.notes || '');
     setCollectorName(doc.collectorName || '');
     setApproverName(doc.approverName || '');
+    setShowSignatures(doc.showSignatures !== undefined ? doc.showSignatures : true);
 
     setActiveSubTab('create');
     setActiveEditModalSection(1);
@@ -657,6 +1041,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setWatermarkText(issuerName || 'สำนักงานกฎหมาย / OFFICIAL RECEIPT');
     setWatermarkImageUrl(issuerLogoUrl || '');
     setWatermarkOpacity(0.12);
+    setShowSignatures(true);
     setNotes('ขอบคุณที่ใช้บริการ / กรุณาเก็บเอกสารนี้ไว้เป็นหลักฐาน');
 
     // Restore saved issuer info if available
@@ -970,8 +1355,8 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
               </span>
             </div>
 
-            {/* Sheet Container */}
-            <div className="w-full min-h-[550px] max-h-[750px] overflow-y-auto overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-3 sm:p-6 flex justify-center items-start shadow-inner">
+            {/* Sheet Container (hidden in print) */}
+            <div className="w-full min-h-[550px] max-h-[750px] overflow-y-auto overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-3 sm:p-6 flex justify-center items-start shadow-inner print:hidden">
               <div 
                 style={{ transform: `scale(${topPreviewScale})`, transformOrigin: 'top center' }}
                 className="my-2 transition-all duration-200"
@@ -979,124 +1364,11 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                 <ReceiptPrintSheet 
                   doc={liveDoc} 
                   paperConfig={paperConfig} 
-                  printableId="printable-active-receipt-top" 
+                  printableId="printable-active-receipt-top-preview" 
                 />
               </div>
             </div>
           </div>
-
-          {/* 3. EDIT POPUP MODAL (เด้งขึ้นมาเมื่อคลิกข้อ 1-6 ด้านบน) */}
-          <AnimatePresence>
-            {activeEditModalSection !== null && (
-              <ReceiptEditModal
-                activeStep={activeEditModalSection}
-                setActiveStep={setActiveEditModalSection}
-                onClose={() => setActiveEditModalSection(null)}
-                
-                // Step 1
-                docType={docType}
-                setDocType={setDocType}
-                receiptNo={receiptNo}
-                setReceiptNo={setReceiptNo}
-                generateAutoNo={generateAutoNo}
-                issueDate={issueDate}
-                setIssueDate={setIssueDate}
-                dueDate={dueDate}
-                setDueDate={setDueDate}
-                refNo={refNo}
-                setRefNo={setRefNo}
-
-                // Step 2
-                issuerName={issuerName}
-                setIssuerName={setIssuerName}
-                issuerTaxId={issuerTaxId}
-                setIssuerTaxId={setIssuerTaxId}
-                issuerBranch={issuerBranch}
-                setIssuerBranch={setIssuerBranch}
-                issuerAddress={issuerAddress}
-                setIssuerAddress={setIssuerAddress}
-                issuerPhone={issuerPhone}
-                setIssuerPhone={setIssuerPhone}
-                issuerEmail={issuerEmail}
-                setIssuerEmail={setIssuerEmail}
-                handleSaveIssuerInfo={handleSaveIssuerInfo}
-                savedIssuerInfo={savedIssuerInfo}
-                issuerSaveSuccessMsg={issuerSaveSuccessMsg}
-
-                // Step 3
-                customerName={customerName}
-                setCustomerName={setCustomerName}
-                customerTaxId={customerTaxId}
-                setCustomerTaxId={setCustomerTaxId}
-                customerBranch={customerBranch}
-                setCustomerBranch={setCustomerBranch}
-                customerAddress={customerAddress}
-                setCustomerAddress={setCustomerAddress}
-                customerPhone={customerPhone}
-                setCustomerPhone={setCustomerPhone}
-                customerEmail={customerEmail}
-                setCustomerEmail={setCustomerEmail}
-
-                // Step 4
-                items={items}
-                handleAddItem={handleAddItem}
-                handleUpdateItem={handleUpdateItem}
-                handleRemoveItem={handleRemoveItem}
-                handleApplyPreset={handleApplyPreset}
-                subtotal={subtotal}
-
-                // Step 5
-                discountType={discountType}
-                setDiscountType={setDiscountType}
-                discountValue={discountValue}
-                setDiscountValue={setDiscountValue}
-                discountAmount={discountAmount}
-                vatType={vatType}
-                setVatType={setVatType}
-                vatAmount={vatAmount}
-                withholdingTaxPercent={withholdingTaxPercent}
-                setWithholdingTaxPercent={setWithholdingTaxPercent}
-                withholdingTaxAmount={withholdingTaxAmount}
-                paymentMethod={paymentMethod}
-                setPaymentMethod={setPaymentMethod}
-                bankName={bankName}
-                setBankName={setBankName}
-                bankAccountNo={bankAccountNo}
-                setBankAccountNo={setBankAccountNo}
-                bankAccountName={bankAccountName}
-                setBankAccountName={setBankAccountName}
-                chequeNo={chequeNo}
-                setChequeNo={setChequeNo}
-                chequeDate={chequeDate}
-                setChequeDate={setChequeDate}
-                grandTotal={grandTotal}
-                grandTotalTextThai={grandTotalTextThai}
-
-                // Step 6
-                notes={notes}
-                setNotes={setNotes}
-                collectorName={collectorName}
-                setCollectorName={setCollectorName}
-                approverName={approverName}
-                setApproverName={setApproverName}
-                showLogo={showLogo}
-                setShowLogo={setShowLogo}
-                issuerLogoUrl={issuerLogoUrl}
-                setIssuerLogoUrl={setIssuerLogoUrl}
-                showWatermark={showWatermark}
-                setShowWatermark={setShowWatermark}
-                watermarkType={watermarkType}
-                setWatermarkType={setWatermarkType}
-                watermarkText={watermarkText}
-                setWatermarkText={setWatermarkText}
-                watermarkImageUrl={watermarkImageUrl}
-                setWatermarkImageUrl={setWatermarkImageUrl}
-                watermarkOpacity={watermarkOpacity}
-                setWatermarkOpacity={setWatermarkOpacity}
-                handleImageUpload={handleImageUpload}
-              />
-            )}
-          </AnimatePresence>
         </div>
       )}
 
@@ -1582,9 +1854,14 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             setIssuerPhone={setIssuerPhone}
             issuerEmail={issuerEmail}
             setIssuerEmail={setIssuerEmail}
+            issuerProfiles={issuerProfiles}
+            selectedIssuerProfileId={selectedIssuerProfileId}
+            onSelectIssuerProfile={handleSelectIssuerProfile}
             handleSaveIssuerInfo={handleSaveIssuerInfo}
-            savedIssuerInfo={savedIssuerInfo}
+            onDeleteIssuerProfile={handleDeleteIssuerProfile}
+            onClearIssuerForm={handleClearIssuerForm}
             issuerSaveSuccessMsg={issuerSaveSuccessMsg}
+            issuerSaveMessage={issuerSaveMessage}
             customerName={customerName}
             setCustomerName={setCustomerName}
             customerTaxId={customerTaxId}
@@ -1597,6 +1874,14 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             setCustomerPhone={setCustomerPhone}
             customerEmail={customerEmail}
             setCustomerEmail={setCustomerEmail}
+            customerProfiles={customerProfiles}
+            selectedCustomerProfileId={selectedCustomerProfileId}
+            onSelectCustomerProfile={handleSelectCustomerProfile}
+            handleSaveCustomerInfo={handleSaveCustomerInfo}
+            onDeleteCustomerProfile={handleDeleteCustomerProfile}
+            onClearCustomerForm={handleClearCustomerForm}
+            customerSaveSuccessMsg={customerSaveSuccessMsg}
+            customerSaveMessage={customerSaveMessage}
             items={items}
             handleAddItem={handleAddItem}
             handleUpdateItem={handleUpdateItem}
@@ -1630,6 +1915,8 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             grandTotalTextThai={grandTotalTextThai}
             notes={notes}
             setNotes={setNotes}
+            showSignatures={showSignatures}
+            setShowSignatures={setShowSignatures}
             collectorName={collectorName}
             setCollectorName={setCollectorName}
             approverName={approverName}
@@ -1649,6 +1936,8 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             watermarkOpacity={watermarkOpacity}
             setWatermarkOpacity={setWatermarkOpacity}
             handleImageUpload={handleImageUpload}
+            handleSaveLogoAndWatermark={handleSaveLogoAndWatermark}
+            logoWatermarkSaveSuccessMsg={logoWatermarkSaveSuccessMsg}
           />
         )}
       </AnimatePresence>

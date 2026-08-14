@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   X,
   FileCheck,
@@ -16,16 +16,18 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  RotateCcw
+  RotateCcw,
+  User,
+  Info
 } from 'lucide-react';
-import { ReceiptItem } from '../types';
+import { ReceiptItem, SavedIssuerProfile, SavedCustomerProfile } from '../types';
 
 export interface ReceiptEditModalProps {
   activeStep: number;
   setActiveStep: (step: number) => void;
   onClose: () => void;
   
-  // Step 1
+  // Step 1: Head & Doc
   docType: 'receipt' | 'tax_invoice' | 'invoice' | 'quotation' | 'temp_receipt';
   setDocType: (val: 'receipt' | 'tax_invoice' | 'invoice' | 'quotation' | 'temp_receipt') => void;
   receiptNo: string;
@@ -38,7 +40,7 @@ export interface ReceiptEditModalProps {
   refNo: string;
   setRefNo: (val: string) => void;
 
-  // Step 2
+  // Step 2: Issuer Profile
   issuerName: string;
   setIssuerName: (val: string) => void;
   issuerTaxId: string;
@@ -51,11 +53,16 @@ export interface ReceiptEditModalProps {
   setIssuerPhone: (val: string) => void;
   issuerEmail: string;
   setIssuerEmail: (val: string) => void;
+  issuerProfiles: SavedIssuerProfile[];
+  selectedIssuerProfileId?: string;
+  onSelectIssuerProfile: (id: string) => void;
   handleSaveIssuerInfo: () => void;
-  savedIssuerInfo: any;
+  onDeleteIssuerProfile: (id: string, e?: React.MouseEvent) => void;
+  onClearIssuerForm: () => void;
   issuerSaveSuccessMsg: boolean;
+  issuerSaveMessage?: string;
 
-  // Step 3
+  // Step 3: Customer Profile
   customerName: string;
   setCustomerName: (val: string) => void;
   customerTaxId: string;
@@ -68,8 +75,16 @@ export interface ReceiptEditModalProps {
   setCustomerPhone: (val: string) => void;
   customerEmail: string;
   setCustomerEmail: (val: string) => void;
+  customerProfiles: SavedCustomerProfile[];
+  selectedCustomerProfileId?: string;
+  onSelectCustomerProfile: (id: string) => void;
+  handleSaveCustomerInfo: () => void;
+  onDeleteCustomerProfile: (id: string, e?: React.MouseEvent) => void;
+  onClearCustomerForm: () => void;
+  customerSaveSuccessMsg: boolean;
+  customerSaveMessage?: string;
 
-  // Step 4
+  // Step 4: Items
   items: ReceiptItem[];
   handleAddItem: () => void;
   handleUpdateItem: (id: string, field: keyof ReceiptItem, val: any) => void;
@@ -77,7 +92,7 @@ export interface ReceiptEditModalProps {
   handleApplyPreset: (preset: 'legal_service' | 'court_fee' | 'retainer' | 'general') => void;
   subtotal: number;
 
-  // Step 5
+  // Step 5: Payment, Tax & Discount
   discountType: 'flat' | 'percent';
   setDiscountType: (val: 'flat' | 'percent') => void;
   discountValue: number;
@@ -104,9 +119,11 @@ export interface ReceiptEditModalProps {
   grandTotal: number;
   grandTotalTextThai: string;
 
-  // Step 6
+  // Step 6: Signatures, Logo & Watermark
   notes: string;
   setNotes: (val: string) => void;
+  showSignatures: boolean;
+  setShowSignatures: (val: boolean) => void;
   collectorName: string;
   setCollectorName: (val: string) => void;
   approverName: string;
@@ -126,6 +143,8 @@ export interface ReceiptEditModalProps {
   watermarkOpacity: number;
   setWatermarkOpacity: (val: number) => void;
   handleImageUpload: (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => void;
+  handleSaveLogoAndWatermark?: () => void;
+  logoWatermarkSaveSuccessMsg?: boolean;
 }
 
 export const STEP_ITEMS = [
@@ -143,23 +162,24 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
   const StepIcon = currentStepDef.icon;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden text-left shadow-2xl"
+        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl sm:rounded-3xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden text-left shadow-2xl shadow-black/50 ring-1 ring-white/10"
       >
-        {/* Modal Header with Step Badge & Tabs */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex-shrink-0 space-y-3">
+        {/* Modal Header with Step Badge & Quick Tabs */}
+        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-xs flex-shrink-0 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold border ${currentStepDef.color}`}>
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold border shadow-xs ${currentStepDef.color}`}>
                 <StepIcon className="w-5 h-5" />
               </div>
               <div>
                 <span className="text-[10px] uppercase font-extrabold tracking-wider text-indigo-600 dark:text-indigo-400 block">
-                  กรอกข้อมูลข้อที่ {activeStep} จาก 6
+                  ขั้นตอนที่ {activeStep} จาก 6
                 </span>
                 <h3 className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-white">
                   ข้อ {activeStep}: {currentStepDef.title}
@@ -188,7 +208,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                   onClick={() => setActiveStep(item.step)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
                     isActive
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                       : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
@@ -284,24 +304,72 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
           {/* STEP 2: ข้อมูลผู้ออกใบเสร็จ (ผู้ขาย/สำนักงาน) */}
           {activeStep === 2 && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between p-3 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl">
-                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  ระบุข้อมูลสำนักงานของคุณ เพื่อแสดงบนหัวใบเสร็จและจดจำไว้ออกครั้งถัดไป
-                </span>
-                <button
-                  type="button"
-                  onClick={props.handleSaveIssuerInfo}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500 cursor-pointer shadow-xs active:scale-95 flex-shrink-0"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>บันทึกจำไว้</span>
-                </button>
+              {/* Profile Selection & Action Bar */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2.5 shadow-xs">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                  {/* Dropdown Selector */}
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <select
+                        value={props.selectedIssuerProfileId || ''}
+                        onChange={(e) => props.onSelectIssuerProfile(e.target.value)}
+                        className="w-full h-10 pl-3 pr-8 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs cursor-pointer truncate"
+                      >
+                        <option value="">✨ เลือกโปรไฟล์ผู้ออกเอกสาร ({props.issuerProfiles.length} รายการ)</option>
+                        {props.issuerProfiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            🏢 {p.name} {p.taxId ? `(${p.taxId})` : ''} {p.branch ? `- ${p.branch}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {props.selectedIssuerProfileId && (
+                      <button
+                        type="button"
+                        onClick={(e) => props.onDeleteIssuerProfile(props.selectedIssuerProfileId!, e)}
+                        className="h-10 px-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0"
+                        title="ลบโปรไฟล์ผู้ออกเอกสารที่เลือกนี้"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">ลบ</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Buttons: Save & Clear */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={props.onClearIssuerForm}
+                      className="flex-1 sm:flex-none h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="ล้างข้อมูลในช่องกรอกออกทั้งหมด"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>เคลียร์ข้อมูล</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={props.handleSaveIssuerInfo}
+                      className="flex-1 sm:flex-none h-10 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shadow-emerald-600/20 active:scale-95 transition-all"
+                      title="บันทึกข้อมูลเข้าสู่ระบบจดจำ"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>บันทึกจำไว้</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                  <span>💡 ระบบจะจำข้อมูลล่าสุดไว้เสมอ และไม่บันทึกซ้ำหากข้อมูลตรงกัน</span>
+                </div>
               </div>
 
               {props.issuerSaveSuccessMsg && (
-                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-xl text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2 animate-fadeIn">
                   <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-500" />
-                  <span>บันทึกข้อมูลผู้ออกใบเสร็จสำเร็จ! ระบบจะจดจำข้อมูลนี้ให้อัตโนมัติ</span>
+                  <span>{props.issuerSaveMessage || 'บันทึกข้อมูลผู้ออกใบเสร็จสำเร็จ! ระบบจะจดจำข้อมูลนี้ให้อัตโนมัติ'}</span>
                 </div>
               )}
 
@@ -323,7 +391,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                     type="text"
                     value={props.issuerTaxId}
                     onChange={(e) => props.setIssuerTaxId(e.target.value)}
-                    placeholder="0105551234567"
+                    placeholder="0105560000000"
                     className="w-full h-11 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
                   />
                 </div>
@@ -378,6 +446,75 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
           {/* STEP 3: ข้อมูลผู้ว่าจ้าง / ลูกค้า */}
           {activeStep === 3 && (
             <div className="space-y-4 animate-fadeIn">
+              {/* Customer Profile Selection & Action Bar */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2.5 shadow-xs">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                  {/* Dropdown Selector */}
+                  <div className="flex-1 flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <select
+                        value={props.selectedCustomerProfileId || ''}
+                        onChange={(e) => props.onSelectCustomerProfile(e.target.value)}
+                        className="w-full h-10 pl-3 pr-8 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs cursor-pointer truncate"
+                      >
+                        <option value="">✨ เลือกลูกค้า / ผู้ว่าจ้างที่บันทึกไว้ ({props.customerProfiles.length} รายการ)</option>
+                        {props.customerProfiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            👤 {p.name} {p.taxId ? `(${p.taxId})` : ''} {p.branch ? `- ${p.branch}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {props.selectedCustomerProfileId && (
+                      <button
+                        type="button"
+                        onClick={(e) => props.onDeleteCustomerProfile(props.selectedCustomerProfileId!, e)}
+                        className="h-10 px-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0"
+                        title="ลบรายชื่อผู้ว่าจ้างที่เลือกนี้"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">ลบ</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Buttons: Save & Clear */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={props.onClearCustomerForm}
+                      className="flex-1 sm:flex-none h-10 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="ล้างข้อมูลในช่องกรอกของลูกค้าออกทั้งหมด"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>เคลียร์ข้อมูล</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={props.handleSaveCustomerInfo}
+                      className="flex-1 sm:flex-none h-10 px-3.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shadow-cyan-600/20 active:scale-95 transition-all"
+                      title="บันทึกข้อมูลผู้ว่าจ้างเข้าสู่ระบบจดจำ"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>บันทึกจำไว้</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                  <span>💡 หากไม่กดบันทึก ข้อมูลจะไม่ถูกเพิ่มลงรายการ | ข้อมูลที่เลือกใช้ล่าสุดจะถูกจดจำไว้เสมอ</span>
+                </div>
+              </div>
+
+              {props.customerSaveSuccessMsg && (
+                <div className="p-3 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-300 dark:border-cyan-800 rounded-xl text-xs font-bold text-cyan-700 dark:text-cyan-300 flex items-center gap-2 animate-fadeIn">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-cyan-500" />
+                  <span>{props.customerSaveMessage || 'บันทึกข้อมูลผู้ว่าจ้างสำเร็จ!'}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   ชื่อลูกค้า / บริษัทผู้ว่าจ้าง (ผู้ชำระเงิน) *
@@ -607,88 +744,87 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                 </div>
               )}
 
-              {/* Tax & Discount Calculations */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">ส่วนลดพิเศษ (Discount)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={props.discountValue}
-                      onChange={(e) => props.setDiscountValue(Number(e.target.value))}
-                      className="w-full h-10 px-3 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
-                    />
-                    <select
-                      value={props.discountType}
-                      onChange={(e) => props.setDiscountType(e.target.value as any)}
-                      className="h-10 px-2 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
-                    >
-                      <option value="flat">บาท</option>
-                      <option value="percent">%</option>
-                    </select>
+              {/* Discount, VAT, WHT */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                {/* Discount */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">ส่วนลด (Discount)</label>
+                    <div className="flex items-center gap-1 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => props.setDiscountType('flat')}
+                        className={`px-1.5 py-0.5 rounded cursor-pointer ${props.discountType === 'flat' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}
+                      >
+                        บาท
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => props.setDiscountType('percent')}
+                        className={`px-1.5 py-0.5 rounded cursor-pointer ${props.discountType === 'percent' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={props.discountValue}
+                    onChange={(e) => props.setDiscountValue(parseFloat(e.target.value) || 0)}
+                    className="w-full h-9 px-2.5 text-xs font-mono font-bold rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-indigo-600"
+                  />
+                  <div className="text-[10px] text-right font-mono text-slate-500">
+                    ลด: -{props.discountAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">ภาษีมูลค่าเพิ่ม (VAT 7%)</label>
+                {/* VAT */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">ภาษีมูลค่าเพิ่ม (VAT 7%)</label>
                   <select
                     value={props.vatType}
                     onChange={(e) => props.setVatType(e.target.value as any)}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    className="w-full h-9 px-2 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-indigo-600"
                   >
-                    <option value="no_vat">ไม่มี VAT (No VAT)</option>
-                    <option value="vat_7_add">+ VAT 7% (แยกจากราคาสินค้า)</option>
-                    <option value="vat_7_included">รวม VAT 7% แล้ว (In-VAT)</option>
+                    <option value="no_vat">ไม่มี VAT (0%)</option>
+                    <option value="vat_7_add">+ VAT 7% (บวกเพิ่ม)</option>
+                    <option value="vat_7_included">รวม VAT 7% (ในราคาแล้ว)</option>
                   </select>
+                  <div className="text-[10px] text-right font-mono text-slate-500">
+                    VAT: +{props.vatAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">ภาษีหัก ณ ที่จ่าย (Withholding Tax)</label>
+                {/* Withholding Tax */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">หัก ณ ที่จ่าย (WHT)</label>
                   <select
                     value={props.withholdingTaxPercent}
                     onChange={(e) => props.setWithholdingTaxPercent(Number(e.target.value))}
-                    className="w-full h-10 px-3 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    className="w-full h-9 px-2 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-indigo-600"
                   >
-                    <option value={0}>ไม่มีการหัก ณ ที่จ่าย (0%)</option>
-                    <option value={1}>หัก ณ ที่จ่าย 1% (ขนส่ง)</option>
-                    <option value={3}>หัก ณ ที่จ่าย 3% (ค่าบริการวิชาชีพ/ว่าความ)</option>
-                    <option value={5}>หัก ณ ที่จ่าย 5% (ค่าเช่า)</option>
+                    <option value={0}>ไม่มีการหัก (0%)</option>
+                    <option value={1}>หัก 1% (ค่าขนส่ง)</option>
+                    <option value={2}>หัก 2% (ค่าโฆษณา)</option>
+                    <option value={3}>หัก 3% (ค่าบริการ / ทนายความ)</option>
+                    <option value={5}>หัก 5% (ค่าเช่า)</option>
                   </select>
+                  <div className="text-[10px] text-right font-mono text-slate-500">
+                    หัก: -{props.withholdingTaxAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
+                  </div>
                 </div>
               </div>
 
-              {/* Total Calculation Card */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white border border-slate-800 space-y-2">
-                <div className="flex justify-between items-center text-xs text-slate-300">
-                  <span>ยอดก่อนภาษี/ส่วนลด:</span>
-                  <span className="font-mono">{props.subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+              {/* Grand Total Summary Box */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-900 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+                <div>
+                  <span className="text-[10px] text-indigo-300 uppercase font-bold tracking-wider block">ยอดรวมสุทธิทั้งสิ้น (GRAND TOTAL)</span>
+                  <span className="text-xs text-slate-300 font-bold">({props.grandTotalTextThai || '-'})</span>
                 </div>
-                {props.discountAmount > 0 && (
-                  <div className="flex justify-between items-center text-xs text-rose-300">
-                    <span>ส่วนลด:</span>
-                    <span className="font-mono">-{props.discountAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                  </div>
-                )}
-                {props.vatAmount > 0 && (
-                  <div className="flex justify-between items-center text-xs text-indigo-300">
-                    <span>ภาษีมูลค่าเพิ่ม (VAT 7%):</span>
-                    <span className="font-mono">+{props.vatAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                  </div>
-                )}
-                {props.withholdingTaxAmount > 0 && (
-                  <div className="flex justify-between items-center text-xs text-amber-300">
-                    <span>หักภาษี ณ ที่จ่าย ({props.withholdingTaxPercent}%):</span>
-                    <span className="font-mono">-{props.withholdingTaxAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
-                  </div>
-                )}
-                <div className="pt-2 border-t border-slate-700 flex justify-between items-center">
-                  <span className="text-sm font-black">ยอดรวมสุทธิ (Grand Total):</span>
-                  <span className="text-lg font-mono font-black text-emerald-400">
-                    {props.grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
-                  </span>
-                </div>
-                <div className="text-right text-[11px] text-slate-300 font-bold">
-                  ({props.grandTotalTextThai})
+                <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">
+                  {props.grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
                 </div>
               </div>
             </div>
@@ -697,46 +833,68 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
           {/* STEP 6: ลายเซ็น, โลโก้ & ลายน้ำ */}
           {activeStep === 6 && (
             <div className="space-y-4 animate-fadeIn">
+              {/* Notes */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">หมายเหตุท้ายใบเสร็จ / เงื่อนไข</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">หมายเหตุท้ายเอกสาร</label>
                 <textarea
                   rows={2}
                   value={props.notes}
                   onChange={(e) => props.setNotes(e.target.value)}
-                  placeholder="เช่น ชำระเงินครบถ้วนแล้ว / ใบเสร็จรับเงินนี้จะสมบูรณ์เมื่อเรียกเก็บเงินตามเช็คได้แล้ว"
+                  placeholder="ข้อความหมายเหตุ เช่น ขอบคุณที่ใช้บริการ / กรุณาเก็บเอกสารนี้ไว้..."
                   className="w-full p-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs resize-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">ชื่อผู้รับเงิน / ผู้สร้างเอกสาร</label>
-                  <input
-                    type="text"
-                    placeholder="นายสมศักดิ์ นิติการ"
-                    value={props.collectorName}
-                    onChange={(e) => props.setCollectorName(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
-                  />
+              {/* Signatures Toggle & Fields */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <UserCheck className="w-4 h-4 text-indigo-500" />
+                    <span>แสดงส่วนลงนาม / ลายเซ็นท้ายเอกสาร</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={props.showSignatures} 
+                      onChange={(e) => props.setShowSignatures(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">ชื่อผู้มีอำนาจลงนาม / อนุมัติ</label>
-                  <input
-                    type="text"
-                    placeholder="ทนายความผู้มีอำนาจลงนาม"
-                    value={props.approverName}
-                    onChange={(e) => props.setApproverName(e.target.value)}
-                    className="w-full h-11 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
-                  />
-                </div>
+
+                {props.showSignatures && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">ชื่อผู้รับเงิน / ผู้จัดทำ</label>
+                      <input
+                        type="text"
+                        value={props.collectorName}
+                        onChange={(e) => props.setCollectorName(e.target.value)}
+                        placeholder="ชื่อผู้รับเงิน"
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">ชื่อผู้มีอำนาจลงนาม / อนุมัติ</label>
+                      <input
+                        type="text"
+                        value={props.approverName}
+                        onChange={(e) => props.setApproverName(e.target.value)}
+                        placeholder="ชื่อผู้มีอำนาจลงนาม"
+                        className="w-full h-10 px-3 text-xs font-bold rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Logo Settings */}
               <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <Upload className="w-4 h-4 text-indigo-500" />
-                    <span>แสดงโลโก้บริษัทบนเอกสาร</span>
+                    <Building2 className="w-4 h-4 text-emerald-500" />
+                    <span>แสดงตราสัญลักษณ์ / โลโก้หัวเอกสาร</span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
@@ -745,38 +903,47 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                       onChange={(e) => props.setShowLogo(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
                   </label>
                 </div>
 
                 {props.showLogo && (
-                  <div className="flex items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
-                    {props.issuerLogoUrl ? (
-                      <div className="relative group w-12 h-12 rounded-lg border border-slate-300 dark:border-slate-700 bg-white p-1 flex items-center justify-center flex-shrink-0">
-                        <img src={props.issuerLogoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
-                        <button
-                          type="button"
-                          onClick={() => props.setIssuerLogoUrl('')}
-                          className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                  <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                      {props.issuerLogoUrl ? (
+                        <img 
+                          src={props.issuerLogoUrl} 
+                          alt="Logo" 
+                          className="w-12 h-12 rounded-lg object-contain border border-slate-300 dark:border-slate-700 bg-white p-1"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-[10px] text-slate-400 text-center">
+                          ไม่มีโลโก้
+                        </div>
+                      )}
+
+                      <div className="flex-1">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-bold cursor-pointer hover:bg-indigo-100">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>อัปโหลดรูปโลโก้</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={(e) => props.handleImageUpload(e, props.setIssuerLogoUrl)} 
+                            className="hidden" 
+                          />
+                        </label>
+                        {props.issuerLogoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => props.setIssuerLogoUrl('')}
+                            className="ml-2 text-xs text-rose-500 hover:underline cursor-pointer"
+                          >
+                            ลบรูป
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 flex-shrink-0">
-                        <Upload className="w-5 h-5" />
-                      </div>
-                    )}
-                    <label className="px-3 py-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs border border-indigo-200 dark:border-indigo-800 cursor-pointer inline-flex items-center gap-1.5">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{props.issuerLogoUrl ? 'เปลี่ยนรูปโลโก้' : 'อัปโหลดรูปโลโก้'}</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
-                        onChange={(e) => props.handleImageUpload(e, (url) => props.setIssuerLogoUrl(url))} 
-                      />
-                    </label>
+                    </div>
                   </div>
                 )}
               </div>
@@ -829,12 +996,36 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
                   </div>
                 )}
               </div>
+
+              {/* Save Logo & Watermark Settings Button */}
+              {props.handleSaveLogoAndWatermark && (
+                <div className="pt-1 flex items-center justify-between bg-amber-50/70 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-900/50">
+                  <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                    💾 บันทึกการตั้งค่า โลโก้ และ ลายน้ำ เป็นค่าเริ่มต้นของระบบ
+                  </div>
+                  <button
+                    type="button"
+                    onClick={props.handleSaveLogoAndWatermark}
+                    className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>บันทึกโลโก้ & ลายน้ำ</span>
+                  </button>
+                </div>
+              )}
+
+              {props.logoWatermarkSaveSuccessMsg && (
+                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 rounded-xl text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-500" />
+                  <span>บันทึกการตั้งค่าโลโก้และลายน้ำสำเร็จ!</span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Modal Footer: Navigation Controls */}
-        <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between gap-2 flex-shrink-0">
+        <div className="p-3.5 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-xs flex items-center justify-between gap-2 flex-shrink-0">
           <div>
             {activeStep > 1 && (
               <button
@@ -866,7 +1057,7 @@ export function ReceiptEditModal(props: ReceiptEditModalProps) {
               className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
             >
               <Check className="w-4 h-4" />
-              <span>เสร็จสิ้น & ดูพรีวิว A4</span>
+              <span>เสร็จสิ้น & ดูพรีวิว</span>
             </button>
           </div>
         </div>

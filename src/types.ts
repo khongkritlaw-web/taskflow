@@ -194,6 +194,7 @@ export interface ReceiptDoc {
 
   // Notes & Signatures
   notes?: string;
+  showSignatures?: boolean;
   collectorName?: string;
   collectorSignatureUrl?: string;
   approverName?: string;
@@ -226,5 +227,31 @@ export interface PaperSizeConfig {
   marginMm: number;
   scale: number; // 0.5 - 1.2
   isSlip?: boolean;
+}
+
+export interface SavedIssuerProfile {
+  id: string;
+  name: string;
+  taxId: string;
+  branch: string;
+  address: string;
+  phone: string;
+  email: string;
+  logoUrl?: string;
+  showLogo?: boolean;
+  createdAt: string;
+  lastUsedAt: string;
+}
+
+export interface SavedCustomerProfile {
+  id: string;
+  name: string;
+  taxId: string;
+  branch: string;
+  address: string;
+  phone: string;
+  email: string;
+  createdAt: string;
+  lastUsedAt: string;
 }
 

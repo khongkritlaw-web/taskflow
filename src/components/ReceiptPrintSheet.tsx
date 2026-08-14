@@ -138,6 +138,9 @@ export function ReceiptPrintSheet({
           </p>
           <div className="text-[9px] text-slate-700">
             {doc.issuerTaxId && <span>TAX: {doc.issuerTaxId} </span>}
+            {doc.issuerBranch && doc.issuerBranch.trim() !== '-' && doc.issuerBranch.trim() !== '' && (
+              <span>({doc.issuerBranch.startsWith('สาขา') || doc.issuerBranch === 'สำนักงานใหญ่' ? doc.issuerBranch : `สาขา ${doc.issuerBranch}`}) </span>
+            )}
             {doc.issuerPhone && <span>โทร: {doc.issuerPhone}</span>}
           </div>
           <div className="pt-1">
@@ -167,6 +170,9 @@ export function ReceiptPrintSheet({
             <span className="text-slate-600 block">ลูกค้า:</span>
             <span className="font-bold text-black block">{doc.customerName || '-'}</span>
             {doc.customerTaxId && <span className="text-slate-700 block">TAX: {doc.customerTaxId}</span>}
+            {doc.customerBranch && doc.customerBranch.trim() !== '-' && doc.customerBranch.trim() !== '' && (
+              <span className="text-slate-700 block">สาขา: {doc.customerBranch}</span>
+            )}
             {doc.customerPhone && <span className="text-slate-700 block">โทร: {doc.customerPhone}</span>}
           </div>
         </div>
@@ -232,18 +238,20 @@ export function ReceiptPrintSheet({
             {doc.notes && <div><span className="font-bold">หมายเหตุ:</span> {doc.notes}</div>}
           </div>
 
-          <div className="pt-2 border-t border-dashed border-slate-400 grid grid-cols-2 gap-2 text-[8px]">
-            <div>
-              <div className="h-6 border-b border-dotted border-slate-500 mb-1" />
-              <span>({doc.collectorName || 'ผู้รับเงิน'})</span>
-              <div className="text-[7px] text-slate-500">ผู้รับเงิน</div>
+          {doc.showSignatures !== false && (
+            <div className="pt-2 border-t border-dashed border-slate-400 grid grid-cols-2 gap-2 text-[8px]">
+              <div>
+                <div className="h-6 border-b border-dotted border-slate-500 mb-1" />
+                <span>({doc.collectorName || 'ผู้รับเงิน'})</span>
+                <div className="text-[7px] text-slate-500">ผู้รับเงิน</div>
+              </div>
+              <div>
+                <div className="h-6 border-b border-dotted border-slate-500 mb-1" />
+                <span>({doc.approverName || 'ผู้มีอำนาจลงนาม'})</span>
+                <div className="text-[7px] text-slate-500">ผู้มีอำนาจลงนาม</div>
+              </div>
             </div>
-            <div>
-              <div className="h-6 border-b border-dotted border-slate-500 mb-1" />
-              <span>({doc.approverName || 'ผู้มีอำนาจลงนาม'})</span>
-              <div className="text-[7px] text-slate-500">ผู้มีอำนาจลงนาม</div>
-            </div>
-          </div>
+          )}
 
           <p className="text-[8px] text-slate-500 pt-2">
             *** ขอบคุณที่ใช้บริการ / THANK YOU ***
@@ -314,9 +322,11 @@ export function ReceiptPrintSheet({
               {doc.issuerAddress || '-'}
             </p>
             <div className={`flex items-center gap-2 text-slate-600 font-medium pt-0.5 flex-wrap ${isCompact ? 'text-[8px]' : 'text-[10px]'}`}>
-              <span>เลขภาษี: {doc.issuerTaxId || '-'}</span>
-              <span>({doc.issuerBranch || 'สำนักงานใหญ่'})</span>
-              <span>โทร: {doc.issuerPhone || '-'}</span>
+              {doc.issuerTaxId && <span>เลขภาษี: {doc.issuerTaxId}</span>}
+              {doc.issuerBranch && doc.issuerBranch.trim() !== '-' && doc.issuerBranch.trim() !== '' && (
+                <span>({doc.issuerBranch.startsWith('สาขา') || doc.issuerBranch === 'สำนักงานใหญ่' ? doc.issuerBranch : `สาขา ${doc.issuerBranch}`})</span>
+              )}
+              {doc.issuerPhone && <span>โทร: {doc.issuerPhone}</span>}
             </div>
           </div>
         </div>
@@ -342,9 +352,12 @@ export function ReceiptPrintSheet({
         </div>
 
         <div className={`space-y-0.5 text-left pl-3 border-l border-slate-200 ${isCompact ? 'text-[9px]' : 'text-[11px]'}`}>
-          <p className="text-slate-700"><span className="font-bold">เลขผู้เสียภาษี:</span> {doc.customerTaxId || '-'}</p>
-          <p className="text-slate-700"><span className="font-bold">โทรศัพท์:</span> {doc.customerPhone || '-'}</p>
-          <p className="text-slate-700"><span className="font-bold">อีเมล:</span> {doc.customerEmail || '-'}</p>
+          {doc.customerTaxId && <p className="text-slate-700"><span className="font-bold">เลขผู้เสียภาษี:</span> {doc.customerTaxId}</p>}
+          {doc.customerBranch && doc.customerBranch.trim() !== '-' && doc.customerBranch.trim() !== '' && (
+            <p className="text-slate-700"><span className="font-bold">สาขา:</span> {doc.customerBranch}</p>
+          )}
+          {doc.customerPhone && <p className="text-slate-700"><span className="font-bold">โทรศัพท์:</span> {doc.customerPhone}</p>}
+          {doc.customerEmail && <p className="text-slate-700"><span className="font-bold">อีเมล:</span> {doc.customerEmail}</p>}
         </div>
       </div>
 
@@ -353,23 +366,23 @@ export function ReceiptPrintSheet({
         <table className={`w-full border-collapse ${isCompact ? 'text-[9px]' : 'text-xs'}`}>
           <thead>
             <tr className={`border-y-2 border-slate-900 bg-slate-100 text-slate-900 font-bold uppercase ${isCompact ? 'text-[8px]' : 'text-[10px]'}`}>
-              <th className="py-1.5 px-2 text-center w-8">#</th>
-              <th className="py-1.5 px-2 text-left">รายการ (Description)</th>
-              <th className="py-1.5 px-2 text-center w-12">จำนวน</th>
-              <th className="py-1.5 px-2 text-center w-12">หน่วย</th>
-              <th className="py-1.5 px-2 text-right w-20">ราคา/หน่วย</th>
-              <th className="py-1.5 px-2 text-right w-24">จำนวนเงิน</th>
+              <th className="py-1.5 px-1.5 text-center w-8 min-w-[32px] shrink-0">#</th>
+              <th className="py-1.5 px-2 text-left w-auto">รายการ (Description)</th>
+              <th className="py-1.5 px-2 text-center whitespace-nowrap min-w-[50px] shrink-0">จำนวน</th>
+              <th className="py-1.5 px-2 text-center whitespace-nowrap min-w-[65px] shrink-0">หน่วย</th>
+              <th className="py-1.5 px-2 text-right whitespace-nowrap min-w-[80px] shrink-0">ราคา/หน่วย</th>
+              <th className="py-1.5 px-2 text-right whitespace-nowrap min-w-[90px] shrink-0">จำนวนเงิน</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {(doc.items || []).map((item, idx) => (
               <tr key={idx} className="text-slate-800">
-                <td className="py-2 px-2 text-center font-mono">{idx + 1}</td>
-                <td className="py-2 px-2 font-semibold">{item.description || '-'}</td>
-                <td className="py-2 px-2 text-center font-mono">{item.quantity}</td>
-                <td className="py-2 px-2 text-center">{item.unit}</td>
-                <td className="py-2 px-2 text-right font-mono">{(item.unitPrice || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                <td className="py-2 px-2 text-right font-mono font-bold">{(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                <td className="py-2 px-1.5 text-center font-mono">{idx + 1}</td>
+                <td className="py-2 px-2 font-semibold break-words">{item.description || '-'}</td>
+                <td className="py-2 px-2 text-center font-mono whitespace-nowrap">{item.quantity}</td>
+                <td className="py-2 px-2 text-center whitespace-nowrap font-medium text-slate-700">{item.unit || 'รายการ'}</td>
+                <td className="py-2 px-2 text-right font-mono whitespace-nowrap">{(item.unitPrice || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                <td className="py-2 px-2 text-right font-mono font-bold whitespace-nowrap">{(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
               </tr>
             ))}
           </tbody>
@@ -425,27 +438,29 @@ export function ReceiptPrintSheet({
       </div>
 
       {/* Signature Section */}
-      <div className={`grid grid-cols-2 gap-6 text-center relative z-10 ${isCompact ? 'pt-4 text-[9px]' : isLandscape ? 'pt-4 text-[10px]' : 'pt-7 text-xs'}`}>
-        <div className="space-y-3">
-          <div className={`border-b border-dashed border-slate-400 flex items-end justify-center pb-0.5 ${isCompact ? 'h-8' : 'h-10'}`}>
-            <span className="text-slate-400 text-[9px]">ลงนาม / Signature</span>
+      {doc.showSignatures !== false && (
+        <div className={`grid grid-cols-2 gap-6 text-center relative z-10 ${isCompact ? 'pt-4 text-[9px]' : isLandscape ? 'pt-4 text-[10px]' : 'pt-7 text-xs'}`}>
+          <div className="space-y-3">
+            <div className={`border-b border-dashed border-slate-400 flex items-end justify-center pb-0.5 ${isCompact ? 'h-8' : 'h-10'}`}>
+              <span className="text-slate-400 text-[9px]">ลงนาม / Signature</span>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900">({doc.collectorName || 'ผู้รับเงิน'})</p>
+              <p className="text-[9px] text-slate-500">ผู้รับเงิน / Collector</p>
+            </div>
           </div>
-          <div>
-            <p className="font-bold text-slate-900">({doc.collectorName || 'ผู้รับเงิน'})</p>
-            <p className="text-[9px] text-slate-500">ผู้รับเงิน / Collector</p>
-          </div>
-        </div>
 
-        <div className="space-y-3">
-          <div className={`border-b border-dashed border-slate-400 flex items-end justify-center pb-0.5 ${isCompact ? 'h-8' : 'h-10'}`}>
-            <span className="text-slate-400 text-[9px]">ลงนาม / Signature</span>
-          </div>
-          <div>
-            <p className="font-bold text-slate-900">({doc.approverName || 'ผู้มีอำนาจลงนาม'})</p>
-            <p className="text-[9px] text-slate-500">ผู้มีอำนาจลงนาม / Authorized Signature</p>
+          <div className="space-y-3">
+            <div className={`border-b border-dashed border-slate-400 flex items-end justify-center pb-0.5 ${isCompact ? 'h-8' : 'h-10'}`}>
+              <span className="text-slate-400 text-[9px]">ลงนาม / Signature</span>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900">({doc.approverName || 'ผู้มีอำนาจลงนาม'})</p>
+              <p className="text-[9px] text-slate-500">ผู้มีอำนาจลงนาม / Authorized Signature</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
