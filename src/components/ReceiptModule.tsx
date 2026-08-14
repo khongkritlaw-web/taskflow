@@ -622,6 +622,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
     setApproverName(doc.approverName || '');
 
     setActiveSubTab('create');
+    setActiveEditModalSection(1);
   };
 
   // Reset Form (always requests confirmation unless skipConfirm = true)
@@ -827,287 +828,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
       {/* Main Section: Create or History */}
       {activeSubTab === 'create' && (
         <div className="space-y-5 text-left">
-          {/* 1. TOP ORDERED DATA ENTRY STEPS (ช่องข้อมูลเรียงเป็นข้อๆ 1-6 สวยงาม อยู่ข้างบนเหนือหัวพรีวิว) */}
-          <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-                <div>
-                  <h2 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-                    <span>ข้อมูลสำหรับออกเอกสาร (กดที่ข้อเพื่อเด้งป๊อปอัปกรอกข้อมูล)</span>
-                  </h2>
-                  <p className="text-[11px] text-slate-400 font-medium">
-                    คลิกแต่ละข้อเพื่อเปิดหน้าต่างกรอกข้อมูล หรือเลือกแม่แบบด่วนด้านล่าง
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleResetForm()}
-                  className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
-                  title="ล้างข้อมูลฟอร์มและเริ่มใหม่"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>ล้างฟอร์มสร้างใหม่</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 6 Step Cards Grid (เรียงเป็นข้อๆ สวยงาม ชัดเจน พร้อมสรุปสถานะข้อมูล) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {/* ข้อ 1: หัวเอกสาร & วันที่ */}
-              <button
-                type="button"
-                onClick={() => setActiveEditModalSection(1)}
-                className="p-3.5 rounded-xl border border-indigo-100 dark:border-slate-800 bg-gradient-to-br from-indigo-50/50 to-white dark:from-slate-950 dark:to-slate-900 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all text-left flex items-start justify-between gap-3 group cursor-pointer active:scale-[0.99]"
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <FileCheck className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black">
-                        ข้อ 1
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                        หัวเอกสาร & วันที่
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 truncate">
-                      {getDocTypeName(docType).split('(')[0]}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-mono truncate">
-                      {receiptNo} • วันที่ {issueDate}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">
-                  แก้ไข ✏️
-                </span>
-              </button>
-
-              {/* ข้อ 2: ผู้ออกเอกสาร (สำนักงาน) */}
-              <button
-                type="button"
-                onClick={() => setActiveEditModalSection(2)}
-                className="p-3.5 rounded-xl border border-emerald-100 dark:border-slate-800 bg-gradient-to-br from-emerald-50/50 to-white dark:from-slate-950 dark:to-slate-900 hover:border-emerald-400 dark:hover:border-emerald-500 hover:shadow-md transition-all text-left flex items-start justify-between gap-3 group cursor-pointer active:scale-[0.99]"
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">
-                        ข้อ 2
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                        ผู้ออกเอกสาร (สำนักงาน)
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                      {issuerName || 'สำนักงานกฎหมาย...'}
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {issuerTaxId ? `เลขภาษี: ${issuerTaxId}` : 'กดเพื่อใส่ที่อยู่/เลขภาษี'}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">
-                  แก้ไข ✏️
-                </span>
-              </button>
-
-              {/* ข้อ 3: ข้อมูลผู้ว่าจ้าง / ลูกค้า */}
-              <button
-                type="button"
-                onClick={() => setActiveEditModalSection(3)}
-                className={`p-3.5 rounded-xl border transition-all text-left flex items-start justify-between gap-3 group cursor-pointer active:scale-[0.99] ${
-                  !customerName.trim()
-                    ? 'border-amber-300 dark:border-amber-700/80 bg-gradient-to-br from-amber-50/60 to-white dark:from-slate-950 dark:to-slate-900 hover:border-amber-400'
-                    : 'border-cyan-100 dark:border-slate-800 bg-gradient-to-br from-cyan-50/50 to-white dark:from-slate-950 dark:to-slate-900 hover:border-cyan-400 hover:shadow-md'
-                }`}
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:scale-105 transition-transform ${
-                    !customerName.trim()
-                      ? 'bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400'
-                      : 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400'
-                  }`}>
-                    <UserCheck className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${
-                        !customerName.trim()
-                          ? 'bg-amber-200 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                          : 'bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300'
-                      }`}>
-                        ข้อ 3
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                        ผู้ว่าจ้าง / ลูกค้า *
-                      </span>
-                    </div>
-                    <p className={`text-xs font-bold truncate ${!customerName.trim() ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
-                      {customerName || '⚠️ คลิกเพื่อระบุชื่อลูกค้า'}
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {customerPhone || customerEmail || 'ที่อยู่ & ข้อมูลติดต่อ'}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">
-                  แก้ไข ✏️
-                </span>
-              </button>
-
-              {/* ข้อ 4: รายการสินค้า / บริการ */}
-              <button
-                type="button"
-                onClick={() => setActiveEditModalSection(4)}
-                className="p-3.5 rounded-xl border border-purple-100 dark:border-slate-800 bg-gradient-to-br from-purple-50/50 to-white dark:from-slate-950 dark:to-slate-900 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-md transition-all text-left flex items-start justify-between gap-3 group cursor-pointer active:scale-[0.99]"
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <CreditCard className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-black">
-                        ข้อ 4
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                        รายการสินค้า / บริการ
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-purple-600 dark:text-purple-400 truncate">
-                      {items.length} รายการ (รวม {subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿)
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {items[0]?.description || 'คลิกเพื่อเพิ่ม/แก้ไขรายการ'}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">
-                  แก้ไข ✏️
-                </span>
-              </button>
-
-              {/* ข้อ 5: การชำระเงิน, ส่วนลด & ภาษี */}
-              <button
-                type="button"
-                onClick={() => setActiveEditModalSection(5)}
-                className="p-3.5 rounded-xl border border-amber-100 dark:border-slate-800 bg-gradient-to-br from-amber-50/50 to-white dark:from-slate-950 dark:to-slate-900 hover:border-amber-400 dark:hover:border-amber-500 hover:shadow-md transition-all text-left flex items-start justify-between gap-3 group cursor-pointer active:scale-[0.99]"
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <DollarSign className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-black">
-                        ข้อ 5
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                        การชำระเงิน & ภาษี
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono truncate">
-                      สุทธิ {grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {paymentMethod === 'transfer' ? '🏦 โอนผ่านธนาคาร' : paymentMethod === 'cash' ? '💵 เงินสด' : paymentMethod === 'qr' ? '📱 สแกน QR' : paymentMethod === 'cheque' ? '📜 เช็คสั่งจ่าย' : '💳 บัตรเครดิต'} • {vatType === 'no_vat' ? 'No VAT' : 'VAT 7%'}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">
-                  แก้ไข ✏️
-                </span>
-              </button>
-
-              {/* ข้อ 6: ลายเซ็น, โลโก้ & ลายน้ำ */}
-              <button
-                type="button"
-                onClick={() => setActiveEditModalSection(6)}
-                className="p-3.5 rounded-xl border border-rose-100 dark:border-slate-800 bg-gradient-to-br from-rose-50/50 to-white dark:from-slate-950 dark:to-slate-900 hover:border-rose-400 dark:hover:border-rose-500 hover:shadow-md transition-all text-left flex items-start justify-between gap-3 group cursor-pointer active:scale-[0.99]"
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 text-[10px] font-black">
-                        ข้อ 6
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                        ลายเซ็น, โลโก้ & ลายน้ำ
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                      {showLogo ? '✓ โลโก้' : '✗ ไม่มีโลโก้'} • {showWatermark ? '✓ ลายน้ำ' : '✗ ไม่มีลายน้ำ'}
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      ผู้รับเงิน: {collectorName || '-'}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1">
-                  แก้ไข ✏️
-                </span>
-              </button>
-            </div>
-
-            {/* Quick Template Presets Bar */}
-            <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-500">แม่แบบด่วน:</span>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('legal_service')}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  ⚖️ ค่าว่าความ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('court_fee')}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  🏛️ ค่าธรรมเนียมศาล
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('retainer')}
-                  className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  💼 ที่ปรึกษา
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('general')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  📦 สินค้าทั่วไป
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setActiveEditModalSection(1)}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-              >
-                <span>เปิดหน้าต่างกรอกข้อมูล (ทุกข้อ)</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* 2. CENTER STAGE LIVE PREVIEW (พรีวิวเอกสารตามขนาดกระดาษที่เลือกแบบเรียลไทม์) */}
+          {/* CENTER STAGE LIVE PREVIEW (พรีวิวเอกสารตามขนาดกระดาษที่เลือกแบบเรียลไทม์) */}
           <div className="p-4 sm:p-5 rounded-2xl border border-slate-700 dark:border-slate-800 bg-slate-900 text-white shadow-2xl space-y-4">
             {/* Live Preview Header Controls */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
@@ -1117,7 +838,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
                 </span>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">
                       พรีวิวเอกสารแบบเรียลไทม์ (Live Preview)
                     </span>
@@ -1129,7 +850,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-300 font-medium">
-                    ลูกค้า: {liveDoc.customerName || '(กดข้อ 3 ด้านบนเพื่อใส่ชื่อลูกค้า)'}
+                    ลูกค้า: {liveDoc.customerName || '(กดปุ่ม "กรอกเอกสาร" เพื่อใส่ชื่อลูกค้าและรายการ)'}
                   </span>
                 </div>
               </div>
@@ -1143,11 +864,21 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Primary Action: กรอกเอกสาร */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveEditModalSection(1)}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/30 hover:scale-[1.02] active:scale-95"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>กรอกเอกสาร</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handlePreviewOnly}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 border border-slate-700"
                     title="ขยายพรีวิวใหญ่เต็มหน้าจอ"
                   >
                     <Eye className="w-3.5 h-3.5" />
@@ -1157,7 +888,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   <button
                     type="button"
                     onClick={handleSaveReceipt}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
                     title="บันทึกลงประวัติ"
                   >
                     <Save className="w-3.5 h-3.5" />
@@ -1167,12 +898,61 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                   <button
                     type="button"
                     onClick={() => handlePrint(liveDoc)}
-                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-emerald-500 hover:from-indigo-400 hover:to-emerald-400 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-emerald-500 hover:from-indigo-400 hover:to-emerald-400 text-white font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>พิมพ์ ({paperConfig.name})</span>
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Quick Template Presets Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+                  <span>⚡ แม่แบบด่วน:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('legal_service')}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-950/80 border border-indigo-800/80 text-indigo-300 text-xs font-bold hover:bg-indigo-900 cursor-pointer shadow-2xs active:scale-95"
+                >
+                  ⚖️ ค่าว่าความ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('court_fee')}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-800/80 text-emerald-300 text-xs font-bold hover:bg-emerald-900 cursor-pointer shadow-2xs active:scale-95"
+                >
+                  🏛️ ค่าธรรมเนียมศาล
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('retainer')}
+                  className="px-2.5 py-1 rounded-lg bg-amber-950/80 border border-amber-800/80 text-amber-300 text-xs font-bold hover:bg-amber-900 cursor-pointer shadow-2xs active:scale-95"
+                >
+                  💼 ที่ปรึกษา
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('general')}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer shadow-2xs active:scale-95"
+                >
+                  📦 สินค้าทั่วไป
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleResetForm()}
+                  className="px-3 py-1 rounded-lg border border-rose-800/80 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  title="ล้างข้อมูลฟอร์มและเริ่มใหม่"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>ล้างฟอร์ม</span>
+                </button>
               </div>
             </div>
 
@@ -1845,6 +1625,107 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
           applyPrintStyles(newConfig);
         }}
       />
+
+      {/* FULL DATA ENTRY POPUP MODAL (เปิดเมื่อกดปุ่ม "กรอกเอกสาร" หรือคลิกแก้ไข) */}
+      <AnimatePresence>
+        {activeEditModalSection !== null && (
+          <ReceiptEditModal
+            activeStep={activeEditModalSection}
+            setActiveStep={setActiveEditModalSection}
+            onClose={() => setActiveEditModalSection(null)}
+            docType={docType}
+            setDocType={setDocType}
+            receiptNo={receiptNo}
+            setReceiptNo={setReceiptNo}
+            generateAutoNo={generateAutoNo}
+            issueDate={issueDate}
+            setIssueDate={setIssueDate}
+            dueDate={dueDate}
+            setDueDate={setDueDate}
+            refNo={refNo}
+            setRefNo={setRefNo}
+            issuerName={issuerName}
+            setIssuerName={setIssuerName}
+            issuerTaxId={issuerTaxId}
+            setIssuerTaxId={setIssuerTaxId}
+            issuerBranch={issuerBranch}
+            setIssuerBranch={setIssuerBranch}
+            issuerAddress={issuerAddress}
+            setIssuerAddress={setIssuerAddress}
+            issuerPhone={issuerPhone}
+            setIssuerPhone={setIssuerPhone}
+            issuerEmail={issuerEmail}
+            setIssuerEmail={setIssuerEmail}
+            handleSaveIssuerInfo={handleSaveIssuerInfo}
+            savedIssuerInfo={savedIssuerInfo}
+            issuerSaveSuccessMsg={issuerSaveSuccessMsg}
+            customerName={customerName}
+            setCustomerName={setCustomerName}
+            customerTaxId={customerTaxId}
+            setCustomerTaxId={setCustomerTaxId}
+            customerBranch={customerBranch}
+            setCustomerBranch={setCustomerBranch}
+            customerAddress={customerAddress}
+            setCustomerAddress={setCustomerAddress}
+            customerPhone={customerPhone}
+            setCustomerPhone={setCustomerPhone}
+            customerEmail={customerEmail}
+            setCustomerEmail={setCustomerEmail}
+            items={items}
+            handleAddItem={handleAddItem}
+            handleUpdateItem={handleUpdateItem}
+            handleRemoveItem={handleRemoveItem}
+            handleApplyPreset={handleApplyPreset}
+            subtotal={subtotal}
+            discountType={discountType}
+            setDiscountType={setDiscountType}
+            discountValue={discountValue}
+            setDiscountValue={setDiscountValue}
+            discountAmount={discountAmount}
+            vatType={vatType}
+            setVatType={setVatType}
+            vatAmount={vatAmount}
+            withholdingTaxPercent={withholdingTaxPercent}
+            setWithholdingTaxPercent={setWithholdingTaxPercent}
+            withholdingTaxAmount={withholdingTaxAmount}
+            paymentMethod={paymentMethod}
+            setPaymentMethod={setPaymentMethod}
+            bankName={bankName}
+            setBankName={setBankName}
+            bankAccountNo={bankAccountNo}
+            setBankAccountNo={setBankAccountNo}
+            bankAccountName={bankAccountName}
+            setBankAccountName={setBankAccountName}
+            chequeNo={chequeNo}
+            setChequeNo={setChequeNo}
+            chequeDate={chequeDate}
+            setChequeDate={setChequeDate}
+            grandTotal={grandTotal}
+            grandTotalTextThai={grandTotalTextThai}
+            notes={notes}
+            setNotes={setNotes}
+            collectorName={collectorName}
+            setCollectorName={setCollectorName}
+            approverName={approverName}
+            setApproverName={setApproverName}
+            showLogo={showLogo}
+            setShowLogo={setShowLogo}
+            issuerLogoUrl={issuerLogoUrl}
+            setIssuerLogoUrl={setIssuerLogoUrl}
+            showWatermark={showWatermark}
+            setShowWatermark={setShowWatermark}
+            watermarkType={watermarkType}
+            setWatermarkType={setWatermarkType}
+            watermarkText={watermarkText}
+            setWatermarkText={setWatermarkText}
+            watermarkImageUrl={watermarkImageUrl}
+            setWatermarkImageUrl={setWatermarkImageUrl}
+            watermarkOpacity={watermarkOpacity}
+            setWatermarkOpacity={setWatermarkOpacity}
+            handleImageUpload={handleImageUpload}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

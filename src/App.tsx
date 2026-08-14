@@ -3310,6 +3310,183 @@ export default function App() {
             );
           })()}
 
+          {/* ACTIVE TAB: TASKS (รายการงานทั้งหมด) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'tasks' && (
+              <motion.div
+                key="tasks-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <TaskModule
+                  tasks={tasks}
+                  onAddTask={handleAddTask}
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                  onDeleteTasks={handleDeleteTasks}
+                  onDeleteAllCompleted={handleDeleteAllCompleted}
+                  categories={settings.categories}
+                  accentColor={settings.colorAccent}
+                  onAddCategory={handleAddCategoryOnTheFly}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ACTIVE TAB: EXPENSES (จัดการเงินค่าใช้จ่าย) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'expenses' && (
+              <motion.div
+                key="expenses-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <ExpenseModule
+                  expenses={expenses}
+                  onAddExpense={handleAddExpense}
+                  onEditExpense={handleEditExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                  accentColor={settings.colorAccent}
+                  expenseCategories={settings.expenseCategories}
+                  onAddExpenseCategory={handleAddExpenseCategoryOnTheFly}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ACTIVE TAB: CALENDAR (ปฏิทินงาน/ค่าใช้จ่าย) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'calendar' && (
+              <motion.div
+                key="calendar-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <CalendarModule
+                  tasks={tasks}
+                  expenses={expenses}
+                  holidays={settings.holidays || {}}
+                  onAddTaskOnDate={(date: string) => {
+                    handleAddTask({
+                      title: '',
+                      desc: '',
+                      category: settings.categories[0] || '💼 งานทั่วไป',
+                      dueDate: date,
+                      status: 'pending',
+                      userId: sessionUser.userId
+                    });
+                  }}
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                  onEditExpense={handleEditExpense}
+                  accentColor={settings.colorAccent}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ACTIVE TAB: LOCAL FILES (เปิดไฟล์ & มีเดียท้องถิ่น / Google Drive) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'localFiles' && (
+              <motion.div
+                key="localFiles-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <LocalFileExplorer
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ACTIVE TAB: DEKA SEARCH (สืบค้นฎีกา) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'dekaSearch' && (
+              <motion.div
+                key="dekaSearch-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <DekaSearchModule
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ACTIVE TAB: FORM DOCUMENT (ออกเอกสารแบบฟอร์มศาล) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'formDocument' && (
+              <motion.div
+                key="formDocument-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <FormDocumentModule
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ACTIVE TAB: RECEIPT (ออกใบเสร็จรับเงิน) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'receipt' && (
+              <motion.div
+                key="receipt-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <ReceiptModule
+                  accentColor={settings.colorAccent}
+                  settings={settings}
+                  sessionUser={sessionUser}
+                  tasks={tasks}
+                  expenses={expenses}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ACTIVE TAB: ADMIN (แดชบอร์ดแอดมิน / ผู้ช่วย) */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'admin' && (sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && (
+              <motion.div
+                key="admin-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25 }}
+              >
+                <AdminPanel
+                  accentColor={settings.colorAccent}
+                  darkMode={settings.darkMode}
+                  categories={settings.categories}
+                  onAddCategory={handleAddCategoryOnTheFly}
+                  sessionUser={sessionUser}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* ACTIVE TAB: SETTINGS */}
           <AnimatePresence mode="wait">
             {activeTab === 'settings' && (
