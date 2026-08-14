@@ -850,7 +850,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-300 font-medium">
-                    ลูกค้า: {liveDoc.customerName || '(กดปุ่ม "กรอกเอกสาร" เพื่อใส่ชื่อลูกค้าและรายการ)'}
+                    ลูกค้า: {liveDoc.customerName || '(กดปุ่ม "กรอกข้อมูลเอกสาร" เพื่อใส่ชื่อลูกค้าและรายการ)'}
                   </span>
                 </div>
               </div>
@@ -865,14 +865,14 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                 </div>
 
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Primary Action: กรอกเอกสาร */}
+                  {/* Primary Action: กรอกข้อมูลเอกสาร */}
                   <button
                     type="button"
                     onClick={() => setActiveEditModalSection(1)}
                     className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/30 hover:scale-[1.02] active:scale-95"
                   >
                     <FileText className="w-4 h-4" />
-                    <span>กรอกเอกสาร</span>
+                    <span>กรอกข้อมูลเอกสาร</span>
                   </button>
 
                   <button
@@ -903,110 +903,36 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
                     <Printer className="w-3.5 h-3.5" />
                     <span>พิมพ์ ({paperConfig.name})</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleResetForm()}
+                    className="px-3 py-2 rounded-xl border border-rose-800/80 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-xs"
+                    title="ล้างข้อมูลฟอร์มและเริ่มใหม่"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>ล้างฟอร์ม</span>
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Quick Template Presets Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
-                  <span>⚡ แม่แบบด่วน:</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('legal_service')}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-950/80 border border-indigo-800/80 text-indigo-300 text-xs font-bold hover:bg-indigo-900 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  ⚖️ ค่าว่าความ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('court_fee')}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-800/80 text-emerald-300 text-xs font-bold hover:bg-emerald-900 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  🏛️ ค่าธรรมเนียมศาล
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('retainer')}
-                  className="px-2.5 py-1 rounded-lg bg-amber-950/80 border border-amber-800/80 text-amber-300 text-xs font-bold hover:bg-amber-900 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  💼 ที่ปรึกษา
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPreset('general')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer shadow-2xs active:scale-95"
-                >
-                  📦 สินค้าทั่วไป
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleResetForm()}
-                  className="px-3 py-1 rounded-lg border border-rose-800/80 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                  title="ล้างข้อมูลฟอร์มและเริ่มใหม่"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>ล้างฟอร์ม</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Paper Size Preset Selection Bar & Zoom Controls */}
+            {/* Paper Size & Zoom Controls Bar (รวมขนาดกระดาษทั้งหมดไว้ในกำหนดขนาดเอง) */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
                   <Printer className="w-3.5 h-3.5 text-indigo-400" />
                   <span>ขนาดกระดาษพิมพ์:</span>
                 </span>
                 
-                {PAPER_SIZE_PRESETS_LIST.map((preset) => {
-                  const isActive = paperConfig.preset === preset.id;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => {
-                        setPaperConfig({
-                          preset: preset.id,
-                          name: preset.name,
-                          widthMm: preset.widthMm,
-                          heightMm: preset.heightMm,
-                          orientation: preset.orientation || 'portrait',
-                          customWidth: preset.widthMm,
-                          customHeight: preset.heightMm,
-                          unit: 'mm',
-                          isSlip: preset.isSlip,
-                          marginMm: preset.isSlip ? 3 : 10
-                        });
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <span>{preset.icon}</span>
-                      <span>{preset.name}</span>
-                    </button>
-                  );
-                })}
-
                 <button
                   type="button"
                   onClick={() => setShowPaperSizeModal(true)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    paperConfig.preset === 'custom'
-                      ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-400'
-                      : 'bg-slate-800/80 text-amber-300 hover:bg-slate-700 hover:text-amber-200 border border-amber-500/30'
-                  }`}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-950/90 hover:bg-indigo-900 border border-indigo-700/80 text-indigo-200 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-xs active:scale-95"
+                  title="เปิดหน้าต่างกำหนดขนาดกระดาษ (เลือกขนาดสำเร็จรูป หรือกำหนดความกว้าง-ยาวเอง)"
                 >
-                  <Sliders className="w-3 h-3 text-amber-400" />
-                  <span>⚙️ กำหนดขนาดเอง...</span>
+                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                  <span>⚙️ กำหนดขนาดกระดาษ ({paperConfig.name} • {paperConfig.widthMm}×{paperConfig.heightMm} mm)</span>
                 </button>
               </div>
 
