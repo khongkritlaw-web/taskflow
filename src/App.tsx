@@ -50,7 +50,8 @@ import {
   Scale,
   Download,
   Smartphone,
-  Sparkles
+  Sparkles,
+  StickyNote
 } from 'lucide-react';
 import { Task, Expense, AppSettings, CustomMenuLink, Announcement } from './types';
 import { THEME_PRESETS, hexToRgb, getDarkerColor, getLighterColor, getDarkToneFromColor } from './themePresets';
@@ -2465,6 +2466,7 @@ export default function App() {
           )}
 
           <button
+            type="button"
             onClick={() => { setActiveTab('tasks'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'tasks'
@@ -2478,6 +2480,7 @@ export default function App() {
           </button>
 
           <button
+            type="button"
             onClick={() => { setActiveTab('expenses'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'expenses'
@@ -2491,6 +2494,34 @@ export default function App() {
           </button>
 
           <button
+            type="button"
+            onClick={() => { setActiveTab('calendar'); setMobileMenuOpen(false); }}
+            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
+              activeTab === 'calendar'
+                ? 'bg-slate-800 text-white border-l-[3px]'
+                : 'hover:bg-slate-800'
+            }`}
+            style={activeTab === 'calendar' ? { borderLeftColor: settings.colorAccent } : {}}
+          >
+            <CalendarIcon className="w-4.5 h-4.5 flex-shrink-0 text-indigo-400" />
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>ปฏิทินงาน & ค่าใช้จ่าย</span>}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { 
+              window.dispatchEvent(new CustomEvent('open-notes'));
+              setMobileMenuOpen(false); 
+            }}
+            className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer group"
+            title="เปิดสมุดบันทึกย่อส่วนตัว"
+          >
+            <StickyNote className="w-4.5 h-4.5 flex-shrink-0 text-amber-400 group-hover:scale-110 transition-transform" />
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>สมุดบันทึกย่อส่วนตัว</span>}
+          </button>
+
+          <button
+            type="button"
             onClick={() => { setActiveTab('localFiles'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'localFiles'
@@ -2504,6 +2535,7 @@ export default function App() {
           </button>
 
           <button
+            type="button"
             onClick={() => { setActiveTab('dekaSearch'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'dekaSearch'
@@ -2517,6 +2549,7 @@ export default function App() {
           </button>
 
           <button
+            type="button"
             onClick={() => { setActiveTab('formDocument'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'formDocument'
@@ -2530,6 +2563,7 @@ export default function App() {
           </button>
 
           <button
+            type="button"
             onClick={() => { setActiveTab('receipt'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'receipt'
@@ -2540,6 +2574,19 @@ export default function App() {
           >
             <Receipt className="w-4.5 h-4.5 flex-shrink-0 text-emerald-400" />
             {(!sidebarCollapsed || mobileMenuOpen) && <span>ออกใบเสร็จรับเงิน</span>}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { 
+              window.dispatchEvent(new CustomEvent('open-chat'));
+              setMobileMenuOpen(false); 
+            }}
+            className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer group"
+            title="แชทช่วยเหลือ / ติดต่อแอดมิน"
+          >
+            <MessageSquare className="w-4.5 h-4.5 flex-shrink-0 text-indigo-400 group-hover:scale-110 transition-transform" />
+            {(!sidebarCollapsed || mobileMenuOpen) && <span>แชทช่วยเหลือ & ดูแลผู้ใช้</span>}
           </button>
 
           {/* Inline custom menu links - Opens directly in a new tab */}
@@ -2718,7 +2765,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar py-0.5 max-w-[calc(100vw-3.5rem)] sm:max-w-none">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 py-0.5 relative z-30">
             {/* Live Chat Help Desk Support Widget */}
             <HeaderChatWidget
               sessionUser={sessionUser}
@@ -2729,13 +2776,17 @@ export default function App() {
             {/* Notification center */}
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setShowNotificationFlyout(!showNotificationFlyout)}
-                className="w-10 h-10 border border-slate-200 text-slate-500 bg-white rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all relative dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400"
+                className={`w-10 h-10 border border-slate-200 text-slate-500 bg-white rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all relative dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 cursor-pointer active:scale-95 ${
+                  showNotificationFlyout ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-950 shadow-md' : ''
+                }`}
                 title="การแจ้งเตือนระบบ"
+                id="header-notification-btn"
               >
                 <Bell className="w-4.5 h-4.5" />
                 {notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-950 animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-950 animate-pulse shadow-xs">
                     {notificationCount}
                   </span>
                 )}
@@ -2745,10 +2796,10 @@ export default function App() {
                 <>
                   {/* Backdrop overlay to close when clicking outside */}
                   <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
+                    className="fixed inset-0 z-[9990] bg-slate-900/40 backdrop-blur-2xs" 
                     onClick={() => setShowNotificationFlyout(false)} 
                   />
-                  <div className="fixed inset-x-3 top-16 max-h-[85vh] sm:max-h-none sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 flex flex-col">
+                  <div className="fixed inset-x-2 top-14 sm:inset-auto sm:right-6 sm:top-16 w-auto sm:w-[420px] max-h-[85vh] sm:max-h-[580px] rounded-2xl border border-slate-200 bg-white shadow-2xl z-[9995] overflow-hidden dark:bg-slate-900 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 flex flex-col animate-fade-in">
                     {/* Header */}
                     <div className="p-4 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -2756,8 +2807,9 @@ export default function App() {
                         <span className="text-xs font-black text-slate-800 dark:text-white">รายการแจ้งเตือนค้างจัดการ ({notificationCount})</span>
                       </div>
                       <button 
+                        type="button"
                         onClick={() => setShowNotificationFlyout(false)}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800 cursor-pointer"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -2943,7 +2995,7 @@ export default function App() {
                           setActiveTab('tasks');
                           setShowNotificationFlyout(false);
                         }}
-                        className="flex-1 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold text-slate-600 transition-all dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
+                        className="flex-1 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold text-slate-600 transition-all dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer"
                       >
                         📊 จัดการภารกิจ
                       </button>
@@ -2952,7 +3004,7 @@ export default function App() {
                           setActiveTab('expenses');
                           setShowNotificationFlyout(false);
                         }}
-                        className="flex-1 h-8 rounded-lg text-[10px] font-bold text-white shadow-sm hover:brightness-105 transition-all"
+                        className="flex-1 h-8 rounded-lg text-[10px] font-bold text-white shadow-sm hover:brightness-105 transition-all cursor-pointer"
                         style={{ backgroundColor: settings.colorAccent }}
                       >
                         💸 จัดการค่าใช้จ่าย
@@ -2967,11 +3019,15 @@ export default function App() {
             <div className="flex items-center">
               {/* Calendar Button */}
               <button
-                onClick={() => setActiveTab('calendar')}
-                className={`w-10 h-10 border rounded-xl flex items-center justify-center transition-all relative dark:border-slate-800 cursor-pointer ${
+                type="button"
+                onClick={() => {
+                  setActiveTab('calendar');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`w-10 h-10 border rounded-xl flex items-center justify-center transition-all relative dark:border-slate-800 cursor-pointer active:scale-95 ${
                   activeTab === 'calendar'
-                    ? 'text-white shadow-sm'
-                    : 'border-slate-200 text-slate-500 bg-white hover:bg-slate-50 dark:bg-slate-950 dark:text-slate-400 hover:text-slate-700'
+                    ? 'text-white shadow-md'
+                    : 'border-slate-200 text-slate-500 bg-white hover:bg-slate-50 dark:bg-slate-950 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
                 style={activeTab === 'calendar' ? { backgroundColor: settings.colorAccent, borderColor: settings.colorAccent } : {}}
                 title="ปฏิทินงาน/ค่าใช้จ่าย"
@@ -5185,6 +5241,18 @@ export default function App() {
 
         <button
           type="button"
+          onClick={() => { setActiveTab('calendar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
+            activeTab === 'calendar' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+          style={activeTab === 'calendar' ? { color: settings.colorAccent } : {}}
+        >
+          <CalendarIcon className="w-5 h-5 mb-0.5" />
+          <span>ปฏิทิน</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => { setActiveTab('dekaSearch'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
           className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
             activeTab === 'dekaSearch' ? 'text-amber-500 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -5232,8 +5300,8 @@ export default function App() {
         </button>
       </nav>
 
-      {/* Nong Chalat AI Assistant Button - Visible to admin/assistant, toggled in settings */}
-      {(sessionUser.userId === 'admin' || sessionUser.isAssistant === true) && settings.aiAssistantEnabled !== false && (
+      {/* Nong Chalat AI Assistant Button - Visible to all users when enabled */}
+      {settings.aiAssistantEnabled !== false && (
         <AiAssistant
           tasks={tasks}
           expenses={expenses}

@@ -113,6 +113,19 @@ export default function HeaderChatWidget({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showStickers, setShowStickers] = useState(false);
 
+  // Listen for custom trigger event
+  useEffect(() => {
+    const handleOpenChatEvent = () => {
+      setIsOpen(true);
+      const now = Date.now();
+      setLastOpenedTime(now);
+      localStorage.setItem(`chat_last_opened_${sessionUser.userId}`, now.toString());
+      setHasUnread(false);
+    };
+    window.addEventListener('open-chat', handleOpenChatEvent);
+    return () => window.removeEventListener('open-chat', handleOpenChatEvent);
+  }, [sessionUser.userId]);
+
   // Auto-delete chat messages older than 15 days automatically
   useEffect(() => {
     const deleteOldChats = async () => {
@@ -434,9 +447,10 @@ export default function HeaderChatWidget({
     <div className="relative font-sans">
       {/* Trigger Button */}
       <button
+        type="button"
         onClick={handleOpenToggle}
-        className={`w-10 h-10 border border-slate-200 text-slate-500 bg-white rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all relative dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 ${
-          isOpen ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-950' : ''
+        className={`w-10 h-10 border border-slate-200 text-slate-500 bg-white rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all relative dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 cursor-pointer active:scale-95 ${
+          isOpen ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-950 shadow-md' : ''
         }`}
         title={sessionUser.userId === 'admin' ? "แชทช่วยเหลือและดูแลผู้ใช้" : "พูดคุยติดต่อผู้ดูแลระบบ"}
       >
@@ -455,7 +469,7 @@ export default function HeaderChatWidget({
           <>
             {/* Backdrop layer */}
             <div 
-              className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-2xs sm:bg-transparent" 
+              className="fixed inset-0 z-[9990] bg-slate-900/40 backdrop-blur-2xs" 
               onClick={() => setIsOpen(false)} 
             />
 
@@ -465,7 +479,7 @@ export default function HeaderChatWidget({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="fixed inset-x-2 top-14 h-[82vh] max-h-[540px] sm:h-[480px] sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 rounded-3xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col"
+              className="fixed inset-x-2 top-14 sm:inset-auto sm:right-6 sm:top-16 w-auto sm:w-[400px] h-[82vh] max-h-[580px] sm:h-[520px] rounded-3xl border border-slate-200 bg-white shadow-2xl z-[9995] overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col"
             >
               {/* HEADER */}
               <div className="p-4 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-shrink-0">

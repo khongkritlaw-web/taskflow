@@ -70,6 +70,16 @@ export default function NotesWidget({ sessionUser, accentColor, darkMode }: Note
 
   // Load from firestore if logged in, otherwise use localStorage
   useEffect(() => {
+    const handleOpenNotesEvent = () => {
+      setIsOpen(true);
+      setViewNote(null);
+      setIsEditing(false);
+    };
+    window.addEventListener('open-notes', handleOpenNotesEvent);
+    return () => window.removeEventListener('open-notes', handleOpenNotesEvent);
+  }, []);
+
+  useEffect(() => {
     const userId = sessionUser.userId || 'guest';
     
     if (userId !== 'guest') {
@@ -269,12 +279,15 @@ export default function NotesWidget({ sessionUser, accentColor, darkMode }: Note
     <div className="relative">
       {/* Note Trigger Button */}
       <button
+        type="button"
         onClick={() => {
           setIsOpen(!isOpen);
           resetForm();
           setViewNote(null);
         }}
-        className="w-10 h-10 border border-slate-200 text-slate-500 bg-white rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all relative dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400"
+        className={`w-10 h-10 border border-slate-200 text-slate-500 bg-white rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all relative dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 cursor-pointer active:scale-95 ${
+          isOpen ? 'ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-950 shadow-md' : ''
+        }`}
         title="สมุดบันทึกส่วนตัว"
         id="notes-trigger-btn"
       >
@@ -294,7 +307,7 @@ export default function NotesWidget({ sessionUser, accentColor, darkMode }: Note
           <>
             {/* Backdrop */}
             <div 
-              className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-2xs sm:bg-transparent" 
+              className="fixed inset-0 z-[9990] bg-slate-900/40 backdrop-blur-2xs" 
               onClick={() => setIsOpen(false)} 
             />
 
@@ -304,7 +317,7 @@ export default function NotesWidget({ sessionUser, accentColor, darkMode }: Note
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 15, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-x-2 top-14 h-[82vh] max-h-[540px] sm:h-auto sm:max-h-[85vh] sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col"
+              className="fixed inset-x-2 top-14 sm:inset-auto sm:right-6 sm:top-16 w-auto sm:w-[420px] h-[82vh] max-h-[600px] sm:h-[540px] rounded-2xl border border-slate-200 bg-white shadow-2xl z-[9995] overflow-hidden dark:bg-slate-900 dark:border-slate-800 flex flex-col"
               id="notes-panel"
             >
               {/* Panel Header */}
