@@ -2495,33 +2495,6 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => { setActiveTab('calendar'); setMobileMenuOpen(false); }}
-            className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
-              activeTab === 'calendar'
-                ? 'bg-slate-800 text-white border-l-[3px]'
-                : 'hover:bg-slate-800'
-            }`}
-            style={activeTab === 'calendar' ? { borderLeftColor: settings.colorAccent } : {}}
-          >
-            <CalendarIcon className="w-4.5 h-4.5 flex-shrink-0 text-indigo-400" />
-            {(!sidebarCollapsed || mobileMenuOpen) && <span>ปฏิทินงาน & ค่าใช้จ่าย</span>}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { 
-              window.dispatchEvent(new CustomEvent('open-notes'));
-              setMobileMenuOpen(false); 
-            }}
-            className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer group"
-            title="เปิดสมุดบันทึกย่อส่วนตัว"
-          >
-            <StickyNote className="w-4.5 h-4.5 flex-shrink-0 text-amber-400 group-hover:scale-110 transition-transform" />
-            {(!sidebarCollapsed || mobileMenuOpen) && <span>สมุดบันทึกย่อส่วนตัว</span>}
-          </button>
-
-          <button
-            type="button"
             onClick={() => { setActiveTab('localFiles'); setMobileMenuOpen(false); }}
             className={`w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer ${
               activeTab === 'localFiles'
@@ -2574,19 +2547,6 @@ export default function App() {
           >
             <Receipt className="w-4.5 h-4.5 flex-shrink-0 text-emerald-400" />
             {(!sidebarCollapsed || mobileMenuOpen) && <span>ออกใบเสร็จรับเงิน</span>}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { 
-              window.dispatchEvent(new CustomEvent('open-chat'));
-              setMobileMenuOpen(false); 
-            }}
-            className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer group"
-            title="แชทช่วยเหลือ / ติดต่อแอดมิน"
-          >
-            <MessageSquare className="w-4.5 h-4.5 flex-shrink-0 text-indigo-400 group-hover:scale-110 transition-transform" />
-            {(!sidebarCollapsed || mobileMenuOpen) && <span>แชทช่วยเหลือ & ดูแลผู้ใช้</span>}
           </button>
 
           {/* Inline custom menu links - Opens directly in a new tab */}
