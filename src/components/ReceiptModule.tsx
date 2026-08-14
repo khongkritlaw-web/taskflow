@@ -1963,36 +1963,7 @@ export function ReceiptModule({ accentColor, settings, sessionUser, tasks = [], 
             </div>
           </div>
 
-          {/* Floating Mobile Action Bar (lg:hidden) */}
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md p-3 border-t border-slate-800 text-white shadow-2xl flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">ยอดสุทธิ (Grand Total)</span>
-              <span className="text-base sm:text-lg font-black font-mono text-emerald-400 truncate block">
-                {grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
-              </span>
-            </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                type="button"
-                onClick={handlePreviewOnly}
-                className="h-10 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
-                title="ตัวอย่าง A4"
-              >
-                <Eye className="w-4 h-4 text-indigo-400" />
-                <span className="hidden xs:inline">ดูตัวอย่าง</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSaveReceipt}
-                className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                <span>บันทึก & พรีวิว</span>
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

@@ -62,7 +62,7 @@ import { db, auth } from './firebase';
 import { useDialog } from './components/CustomDialog';
 import { playNotificationSound } from './lib/soundUtils';
 import AiAssistant from './components/AiAssistant';
-import { AppInstallModal, AppInstallButton } from './components/AppInstallModal';
+import { AppInstallModal } from './components/AppInstallModal';
 
 const padPass = (pass: string) => {
   if (pass.length >= 6) return pass;
@@ -2648,20 +2648,6 @@ export default function App() {
             {(!sidebarCollapsed || mobileMenuOpen) && <span>ตกแต่ง & ตั้งค่ารวม</span>}
           </button>
 
-          {/* Quick PWA App Installation button in sidebar */}
-          <button
-            onClick={() => { setShowInstallAppModal(true); setMobileMenuOpen(false); }}
-            className="w-full h-11 px-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 cursor-pointer group"
-            title="ติดตั้ง TaskFlow Pro เป็นแอปพลิเคชัน (Add to Home Screen / PWA)"
-          >
-            <Smartphone className="w-4.5 h-4.5 flex-shrink-0 text-indigo-400 group-hover:scale-110 transition-transform" />
-            {(!sidebarCollapsed || mobileMenuOpen) && (
-              <span className="flex items-center gap-1.5">
-                <span>ติดตั้งเป็นแอป</span>
-                <span className="text-[9px] px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 rounded-md font-bold uppercase">PWA</span>
-              </span>
-            )}
-          </button>
         </nav>
 
         {/* Sidebar Footer account section */}
@@ -2693,32 +2679,6 @@ export default function App() {
                 </div>
                 <div className="text-[9px] text-slate-500 font-medium truncate" title={sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}>
                   {sessionUser.email || sessionUser.phone || 'บัญชีระยะไกล'}
-                </div>
-                <div 
-                  className="flex items-center gap-1 mt-0.5 select-none leading-none cursor-pointer hover:opacity-80 inline-flex"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!isCloudSynced) {
-                      showAlert("ระบบกำลังตรวจสอบการซิงก์ผลลัพธ์ในเครื่องขึ้นเซิร์ฟเวอร์ออนไลน์โดยตรงให้ทันทีค่ะ...", "ประสานระบบข้อมูลออนไลน์", "info");
-                      try {
-                        const uid = currentViewUserId || localStorage.getItem('sess_userId');
-                        if (uid) {
-                          await forcePushLocalToCloud(currentViewUserId, uid);
-                          setIsCloudSynced(true);
-                          showAlert("🚀 เชื่อมโยงและบันทึกประวัติไปยังเซิร์ฟเวอร์แบบออนไลน์ 100% เรียบร้อยแล้วค่ะ! ข้อมูลของคุณจะเข้าสู่ระบบออนไลน์แบบเรียลไทม์ทันที", "ระบบออนไลน์ 100%", "success");
-                        }
-                      } catch (e: any) {
-                        showAlert("ไม่สามารถเชื่อมต่อประสานระบบแมนนวลได้ในขณะนี้: " + (e.message || String(e)), "ผิดพลาด", "error");
-                      }
-                    } else {
-                      showAlert("ระบบฐานข้อมูลทำงานได้สมบูรณ์แบบ 100% เชื่อมต่อและบันทึกข้อมูลออนไลน์โดยตรงแบบเรียลไทม์แล้วค่ะ", "บันทึกออนไลน์ 100%", "success");
-                    }
-                  }}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
-                  <span className={`text-[8px] font-extrabold ${isCloudSynced ? 'text-emerald-400' : 'text-amber-500'}`}>
-                    {isCloudSynced ? '☁️ บันทึกออนไลน์ 100%' : '🔄 กำลังเชื่อมต่อระบบ...'}
-                  </span>
                 </div>
               </div>
             )}
@@ -3044,12 +3004,6 @@ export default function App() {
               darkMode={settings.darkMode}
             />
 
-            {/* Quick Install App Button */}
-            <AppInstallButton
-              accentColor={settings.colorAccent}
-              onClick={() => setShowInstallAppModal(true)}
-            />
-
             {/* Quick Dark Mode / Light Mode Toggle Button */}
             <button
               onClick={() => {
@@ -3068,21 +3022,6 @@ export default function App() {
             >
               {settings.darkMode ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
             </button>
-
-            {/* Connection Status Badge */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-extrabold shadow-sm transition-all duration-300 ${
-              isOnline 
-                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/60 dark:text-emerald-400' 
-                : 'bg-amber-50/80 border-amber-200 text-amber-850 dark:bg-amber-950/20 dark:border-amber-900/60 dark:text-amber-400 animate-pulse'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500' : 'bg-amber-500 animate-ping'}`} />
-              <span className="hidden xs:inline">
-                {isOnline ? 'เชื่อมต่อระบบแล้ว' : 'เซฟในเครื่องปลอดภัย'}
-              </span>
-              <span className="inline xs:hidden">
-                {isOnline ? 'ออนไลน์' : 'ออฟไลน์'}
-              </span>
-            </div>
 
             {/* Clock Widget */}
             <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 font-mono text-[10.5px] font-bold text-slate-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400">
@@ -3113,32 +3052,6 @@ export default function App() {
                 <span className="block text-[9px] text-slate-400 font-medium leading-none truncate max-w-[100px]">
                   {sessionUser.email || sessionUser.phone || 'บัญชีผู้ใช้'}
                 </span>
-                <div 
-                  className="flex items-center gap-1 mt-0.5 select-none leading-none cursor-pointer hover:opacity-85"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!isCloudSynced) {
-                      showAlert("ระบบกำลังตรวจสอบการซิงก์ผลลัพธ์ในเครื่องขึ้นเซิร์ฟเวอร์ออนไลน์โดยตรงให้ทันทีค่ะ...", "ประสานระบบข้อมูลออนไลน์", "info");
-                      try {
-                        const uid = currentViewUserId || localStorage.getItem('sess_userId');
-                        if (uid) {
-                          await forcePushLocalToCloud(currentViewUserId, uid);
-                          setIsCloudSynced(true);
-                          showAlert("🚀 เชื่อมโยงและบันทึกประวัติไปยังเซิร์ฟเวอร์แบบออนไลน์ 100% เรียบร้อยแล้วค่ะ! ข้อมูลของคุณจะเข้าสู่ระบบออนไลน์แบบเรียลไทม์ทันที", "ระบบออนไลน์ 100%", "success");
-                        }
-                      } catch (e: any) {
-                        showAlert("ไม่สามารถเชื่อมต่อประสานระบบแมนนวลได้ในขณะนี้: " + (e.message || String(e)), "ผิดพลาด", "error");
-                      }
-                    } else {
-                      showAlert("ระบบฐานข้อมูลทำงานได้สมบูรณ์แบบ 100% เชื่อมต่อและบันทึกข้อมูลออนไลน์โดยตรงแบบเรียลไทม์แล้วค่ะ", "บันทึกออนไลน์ 100%", "success");
-                    }
-                  }}
-                >
-                  <span className={`w-1 h-1 rounded-full ${isCloudSynced ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
-                  <span className={`text-[7.5px] font-extrabold ${isCloudSynced ? 'text-emerald-500' : 'text-amber-500'}`}>
-                    {isCloudSynced ? '☁️ ออนไลน์ 100%' : '🔄 กำลังเชื่อมต่อ...'}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -3162,7 +3075,7 @@ export default function App() {
         </header>
 
         {/* PRIMARY WINDOW CONTENT VIEW */}
-        <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-2.5 sm:p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-28 sm:pb-16 min-w-0"}>
+        <main className={activeTab.startsWith('link_') ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden" : "p-2.5 sm:p-4 lg:p-8 flex-1 max-w-7xl w-full mx-auto pb-8 sm:pb-12 min-w-0"}>
           {activeTab.startsWith('link_') && (() => {
             const linkId = activeTab.replace('link_', '');
             const targetLink = visibleCustomLinks?.find(l => l.id === linkId);
@@ -5209,96 +5122,6 @@ export default function App() {
           ))}
         </AnimatePresence>
       </div>
-
-      {/* MOBILE BOTTOM NAVIGATION DOCK (Touch Friendly) */}
-      <nav 
-        className="fixed bottom-0 inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800/90 z-30 lg:hidden flex items-center justify-around px-1 py-1.5 shadow-xl select-none"
-        style={{ paddingBottom: 'calc(0.35rem + env(safe-area-inset-bottom))' }}
-      >
-        <button
-          type="button"
-          onClick={() => { setActiveTab('tasks'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
-            activeTab === 'tasks' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          style={activeTab === 'tasks' ? { color: settings.colorAccent } : {}}
-        >
-          <CheckSquare className="w-5 h-5 mb-0.5" />
-          <span>ภารกิจ</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setActiveTab('expenses'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
-            activeTab === 'expenses' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          style={activeTab === 'expenses' ? { color: settings.colorAccent } : {}}
-        >
-          <Receipt className="w-5 h-5 mb-0.5" />
-          <span>ค่าใช้จ่าย</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setActiveTab('calendar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
-            activeTab === 'calendar' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          style={activeTab === 'calendar' ? { color: settings.colorAccent } : {}}
-        >
-          <CalendarIcon className="w-5 h-5 mb-0.5" />
-          <span>ปฏิทิน</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setActiveTab('dekaSearch'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
-            activeTab === 'dekaSearch' ? 'text-amber-500 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          style={activeTab === 'dekaSearch' ? { color: settings.colorAccent } : {}}
-        >
-          <Scale className="w-5 h-5 mb-0.5 text-amber-500" />
-          <span>สืบค้นฎีกา</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setActiveTab('formDocument'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
-            activeTab === 'formDocument' ? 'text-amber-500 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          style={activeTab === 'formDocument' ? { color: settings.colorAccent } : {}}
-        >
-          <FileText className="w-5 h-5 mb-0.5 text-amber-500" />
-          <span>แบบฟอร์ม</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setActiveTab('receipt'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
-            activeTab === 'receipt' ? 'text-emerald-500 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          style={activeTab === 'receipt' ? { color: settings.colorAccent } : {}}
-        >
-          <Receipt className="w-5 h-5 mb-0.5 text-emerald-400" />
-          <span>ใบเสร็จ</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setActiveTab('settings'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[9.5px] font-bold transition-all cursor-pointer ${
-            activeTab === 'settings' ? 'text-indigo-600 dark:text-indigo-400 font-black scale-105' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-          style={activeTab === 'settings' ? { color: settings.colorAccent } : {}}
-        >
-          <SettingsIcon className="w-5 h-5 mb-0.5" />
-          <span>ตั้งค่า</span>
-        </button>
-      </nav>
 
       {/* Nong Chalat AI Assistant Button - Visible to all users when enabled */}
       {settings.aiAssistantEnabled !== false && (
