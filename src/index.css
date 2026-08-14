@@ -87,35 +87,37 @@ body {
 /* FORCE VISIBILITY & HIGH CONTRAST ON ALL INPUTS, TEXTAREAS AND SELECTS */
 input, textarea, select {
   background-color: #ffffff !important;
-  color: #0f172a !important; /* deep slate-900 / black text */
+  color: #000000 !important; /* solid black text for crystal clear contrast */
   border-color: #cbd5e1;
+  font-weight: 500;
 }
 
 input::placeholder, textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #64748b !important;
   opacity: 1 !important;
 }
 
 input:focus, textarea:focus, select:focus {
   background-color: #ffffff !important;
-  color: #0f172a !important;
+  color: #000000 !important;
+  outline: none;
 }
 
-/* Ensure inputs remain white with black text even in dark theme */
+/* Ensure inputs remain white with solid black text even in dark theme */
 .dark input, .dark textarea, .dark select {
   background-color: #ffffff !important;
-  color: #0f172a !important;
+  color: #000000 !important;
   border-color: #cbd5e1;
 }
 
 .dark input::placeholder, .dark textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #64748b !important;
   opacity: 1 !important;
 }
 
 .dark input:focus, .dark textarea:focus, .dark select:focus {
   background-color: #ffffff !important;
-  color: #0f172a !important;
+  color: #000000 !important;
 }
 
 /* Chrome/Safari Autofill fixes to keep text highly visible on white */
@@ -128,7 +130,7 @@ textarea:-webkit-autofill:focus,
 select:-webkit-autofill,
 select:-webkit-autofill:hover,
 select:-webkit-autofill:focus {
-  -webkit-text-fill-color: #0f172a !important;
+  -webkit-text-fill-color: #000000 !important;
   -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
   box-shadow: 0 0 0px 1000px #ffffff inset !important;
   transition: background-color 5000s ease-in-out 0s;
@@ -143,7 +145,7 @@ select:-webkit-autofill:focus {
 .dark select:-webkit-autofill,
 .dark select:-webkit-autofill:hover,
 .dark select:-webkit-autofill:focus {
-  -webkit-text-fill-color: #0f172a !important;
+  -webkit-text-fill-color: #000000 !important;
   -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
   box-shadow: 0 0 0px 1000px #ffffff inset !important;
 }
