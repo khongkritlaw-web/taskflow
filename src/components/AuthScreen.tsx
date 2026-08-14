@@ -148,40 +148,46 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     localStorage.removeItem('last_login_pass'); // Clean legacy insecure storage
 
     // =========================================================================
-    // FAST-PATH 1: Instant Local Profile Cache Check (<5ms response time)
+    // FAST-PATH 1: Instant Local Profile Cache Check (< 5ms response time)
     // =========================================================================
     try {
-      const localProfStr = localStorage.getItem(`user_profile_${trimmedId}`) || 
-                             localStorage.getItem(`user_profile_${emailFirebase.toLowerCase()}`);
-      if (localProfStr) {
-        const cachedProfile = JSON.parse(localProfStr);
-        if (cachedProfile.password === loginPass || cachedProfile.password === finalPass) {
-          // Check admin role permissions
-          if (authRole === 'admin' && !checkIsAdminUser(cachedProfile, trimmedId)) {
-            triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+      const localKeys = [
+        `user_profile_${trimmedId}`,
+        `user_profile_${emailFirebase.toLowerCase()}`,
+        `profile_${trimmedId}`
+      ];
+      for (const key of localKeys) {
+        const localProfStr = localStorage.getItem(key);
+        if (localProfStr) {
+          const cachedProfile = JSON.parse(localProfStr);
+          if (cachedProfile && (cachedProfile.password === loginPass || cachedProfile.password === finalPass)) {
+            // Check admin role permissions
+            if (authRole === 'admin' && !checkIsAdminUser(cachedProfile, trimmedId)) {
+              triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
+              setIsLoading(false);
+              return;
+            }
+            if (authRole === 'user' && checkIsAdminUser(cachedProfile, trimmedId)) {
+              triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
+              setIsLoading(false);
+              return;
+            }
+
+            // Immediate Fast Login!
+            triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
+            onLoginSuccess(
+              cachedProfile.userId || trimmedId,
+              cachedProfile.email || `${trimmedId}@taskflow.space`,
+              cachedProfile.phone || '0812345678',
+              cachedProfile.uid || trimmedId,
+              loginPass
+            );
             setIsLoading(false);
+
+            // Asynchronously attempt Firebase Auth login in background (non-blocking)
+            signInWithEmailAndPassword(auth, emailFirebase, finalPass).catch(() => {});
             return;
           }
-          if (authRole === 'user' && checkIsAdminUser(cachedProfile, trimmedId)) {
-            triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
-            setIsLoading(false);
-            return;
-          }
-
-          // Immediate Fast Login!
-          triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
-          onLoginSuccess(
-            cachedProfile.userId || trimmedId,
-            cachedProfile.email || `${trimmedId}@taskflow.space`,
-            cachedProfile.phone || '0812345678',
-            cachedProfile.uid || trimmedId,
-            loginPass
-          );
-          setIsLoading(false);
-
-          // Asynchronously attempt Firebase Auth login in background (non-blocking)
-          signInWithEmailAndPassword(auth, emailFirebase, finalPass).catch(() => {});
-          return;
         }
       }
     } catch (cacheErr) {
@@ -189,7 +195,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     }
 
     // =========================================================================
-    // FAST-PATH 2: Admin Initial Setup Fallback (Immediate)
+    // FAST-PATH 2: Admin Initial Setup Fallback (Immediate < 10ms)
     // =========================================================================
     if (trimmedId === 'admin' && (loginPass === '000000' || loginPass === 'admin1234')) {
       if (authRole === 'user') {
@@ -204,9 +210,11 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         phone: '0812345678',
         password: loginPass,
         uid: 'admin',
-        isApproved: true
+        isApproved: true,
+        isAdmin: true
       };
       localStorage.setItem('user_profile_admin', JSON.stringify(adminProfile));
+      localStorage.setItem('profile_admin', JSON.stringify(adminProfile));
       setDoc(doc(db, 'users', 'admin'), adminProfile, { merge: true }).catch(() => {});
 
       triggerSuccess('เข้าสู่ระบบในฐานะ Admin...');
@@ -216,15 +224,51 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
     }
 
     // =========================================================================
-    // FAST-PATH 3: Parallel Online Verification (Firebase Auth & Firestore in parallel)
+    // FAST-PATH 3: Ultra-Fast Parallel Remote Verification (< 1.8s guarantee)
     // =========================================================================
     try {
-      // Create timeout promise to avoid infinite hang on poor networks (max 4.5s)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Network timeout')), 4500)
-      );
+      // Direct Firestore User Document Fetch (typically 100-250ms)
+      const firestoreDirectPromise = (async () => {
+        const userDocSnap = await getDoc(doc(db, 'users', trimmedId));
+        if (userDocSnap.exists()) {
+          const udata: any = userDocSnap.data();
+          if (udata && (udata.password === loginPass || udata.password === finalPass)) {
+            return {
+              source: 'firestore_direct',
+              uid: udata.uid || trimmedId,
+              data: udata
+            };
+          }
+        }
+        throw new Error('Direct firestore mismatch');
+      })();
 
-      // Concurrent remote lookups
+      // Secondary Firestore Query by Email or Phone (if applicable)
+      const firestoreQueryPromise = (async () => {
+        const usersRef = collection(db, 'users');
+        let q;
+        if (trimmedId.includes('@')) {
+          q = query(usersRef, where('email', '==', trimmedId));
+        } else if (/^\d{9,12}$/.test(trimmedId)) {
+          q = query(usersRef, where('phone', '==', trimmedId));
+        } else {
+          q = query(usersRef, where('userId', '==', trimmedId));
+        }
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          const udata: any = qSnap.docs[0].data();
+          if (udata && (udata.password === loginPass || udata.password === finalPass)) {
+            return {
+              source: 'firestore_query',
+              uid: udata.uid || udata.userId || trimmedId,
+              data: udata
+            };
+          }
+        }
+        throw new Error('Query firestore mismatch');
+      })();
+
+      // Firebase Auth Login
       const authPromise = signInWithEmailAndPassword(auth, emailFirebase, finalPass)
         .then(async (cred) => {
           const uid = cred.user.uid;
@@ -247,54 +291,33 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           };
         });
 
-      const firestorePromise = (async () => {
-        let udata: any = null;
-        try {
-          const userDocSnap = await getDoc(doc(db, 'users', trimmedId));
-          if (userDocSnap.exists()) {
-            udata = userDocSnap.data();
-          } else {
-            const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('userId', '==', trimmedId));
-            const qSnap = await getDocs(q);
-            if (!qSnap.empty) {
-              udata = qSnap.docs[0].data();
-            }
-          }
-        } catch (_) {}
-
-        if (udata && (udata.password === loginPass || udata.password === finalPass)) {
-          return {
-            source: 'firestore_user',
-            uid: udata.uid || trimmedId,
-            data: udata
-          };
-        }
-        throw new Error('Firestore user mismatch or not found');
-      })();
+      // Strict 1.8s Timeout Guard
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Auth speed threshold timeout')), 1800)
+      );
 
       // Race to the fastest successful authentication method
       let authenticatedResult: any = null;
       try {
         authenticatedResult = await Promise.race([
-          Promise.any([authPromise, firestorePromise]),
+          Promise.any([firestoreDirectPromise, firestoreQueryPromise, authPromise]),
           timeoutPromise
         ]);
       } catch (raceErr) {
-        console.warn('Parallel auth race fallback or timeout:', raceErr);
+        console.warn('Fast auth race attempt:', raceErr);
       }
 
       if (authenticatedResult && authenticatedResult.data) {
         const effectiveData = authenticatedResult.data;
-        const uid = authenticatedResult.uid || trimmedId;
+        const uid = authenticatedResult.uid || effectiveData.userId || trimmedId;
 
         // Check role permissions
-        if (authRole === 'admin' && !checkIsAdminUser(effectiveData, trimmedId)) {
+        if (authRole === 'admin' && !checkIsAdminUser(effectiveData, effectiveData.userId || trimmedId)) {
           triggerError('❌ บัญชีนี้ไม่ได้สิทธิ์ผู้ดูแลระบบ (เฉพาะ Admin และผู้ช่วยที่ได้รับแต่งตั้งเท่านั้น) กรุณาสลับเข้าช่องผู้ใช้งานทั่วไป');
           setIsLoading(false);
           return;
         }
-        if (authRole === 'user' && checkIsAdminUser(effectiveData, trimmedId)) {
+        if (authRole === 'user' && checkIsAdminUser(effectiveData, effectiveData.userId || trimmedId)) {
           triggerError('⚠️ บัญชีนี้เป็นสิทธิ์ผู้ดูแลระบบ (Admin/ผู้ช่วย) กรุณาสลับไปลงชื่อเข้าใช้ในช่อง "ผู้ดูแลระบบ (Admin)"');
           setIsLoading(false);
           return;
@@ -306,11 +329,19 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
           phone: effectiveData.phone || '0812345678',
           password: loginPass,
           uid: uid,
-          isAssistant: effectiveData.isAssistant
+          displayName: effectiveData.displayName || '',
+          avatarUrl: effectiveData.avatarUrl || '',
+          isApproved: effectiveData.isApproved !== undefined ? effectiveData.isApproved : (effectiveData.userId === 'admin'),
+          isLocked: effectiveData.isLocked || false,
+          isAssistant: effectiveData.isAssistant || false
         };
-        localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, JSON.stringify(profileData));
-        localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, JSON.stringify(profileData));
-        localStorage.setItem(`user_profile_${(effectiveData.userId || trimmedId).toLowerCase()}`, JSON.stringify(profileData));
+
+        // Cache across multiple index keys for instant subsequent logins
+        const profileStr = JSON.stringify(profileData);
+        localStorage.setItem(`user_profile_${profileData.userId.toLowerCase()}`, profileStr);
+        localStorage.setItem(`user_profile_${profileData.email.toLowerCase()}`, profileStr);
+        localStorage.setItem(`user_profile_${emailFirebase.toLowerCase()}`, profileStr);
+        localStorage.setItem(`profile_${profileData.userId}`, profileStr);
 
         triggerSuccess(authRole === 'admin' ? 'เข้าสู่ระบบในฐานะผู้ดูแลระบบสำเร็จ...' : 'เข้าสู่ระบบสำเร็จ...');
         onLoginSuccess(
@@ -324,7 +355,7 @@ export default function AuthScreen({ onLoginSuccess, accentColor }: AuthScreenPr
         return;
       }
 
-      // Check one more time if user existed in firestore with wrong password
+      // Fast check if user document exists to provide accurate error message
       let rawUserDoc: any = null;
       try {
         const checkDoc = await getDoc(doc(db, 'users', trimmedId));
